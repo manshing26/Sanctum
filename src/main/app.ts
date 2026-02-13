@@ -1,11 +1,20 @@
 import { app, BrowserWindow, session } from 'electron';
 import { DatabaseService } from './db/Database';
 import { registerAuthHandlers } from './ipc/registerAuthHandlers';
+import { registerFolderHandlers } from './ipc/registerFolderHandlers';
 import { registerIpcHandlers } from './ipc/registerIpcHandlers';
+import { registerSettingsHandlers } from './ipc/registerSettingsHandlers';
+import { registerTagHandlers } from './ipc/registerTagHandlers';
 import { registerVaultHandlers } from './ipc/registerVaultHandlers';
 import { AuthService } from './services/auth/AuthService';
 import { CryptoService } from './services/crypto/CryptoService';
 import { ImportService } from './services/import/ImportService';
+import { MetadataService } from './services/import/MetadataService';
+import { ThumbnailService } from './services/import/ThumbnailService';
+import { FolderService } from './services/folder/FolderService';
+import { SecureDeleteService } from './services/security/SecureDeleteService';
+import { SettingsService } from './services/settings/SettingsService';
+import { TagService } from './services/tag/TagService';
 import { VaultPaths } from './services/vault/VaultPaths';
 import { VaultService } from './services/vault/VaultService';
 import { SessionStore } from './state/SessionStore';
@@ -15,8 +24,8 @@ import { SettingsWindowController } from './windows/SettingsWindowController';
 const applyCspHeaders = (): void => {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const csp = app.isPackaged
-      ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
-      : "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws:;";
+      ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;"
+      : "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws:; img-src 'self' data: blob:;";
 
     callback({
       responseHeaders: {
@@ -64,13 +73,25 @@ export const bootstrapApp = (): void => {
     const sessionStore = new SessionStore();
     const cryptoService = new CryptoService();
     const authService = new AuthService(database.getDb(), cryptoService, sessionStore);
+    const settingsService = new SettingsService(database.getDb());
+    const secureDeleteService = new SecureDeleteService();
+    const metadataService = new MetadataService();
+    const thumbnailService = new ThumbnailService();
+    const folderService = new FolderService(database.getDb(), sessionStore);
+    const tagService = new TagService(database.getDb(), sessionStore);
     const vaultService = new VaultService(
       database.getDb(),
       cryptoService,
       sessionStore,
       vaultPaths,
     );
-    const importService = new ImportService(vaultService);
+    const importService = new ImportService(
+      vaultService,
+      settingsService,
+      secureDeleteService,
+      metadataService,
+      thumbnailService,
+    );
 
     mainWindowController.create();
 
@@ -80,6 +101,15 @@ export const bootstrapApp = (): void => {
     });
     registerAuthHandlers({
       authService,
+    });
+    registerSettingsHandlers({
+      settingsService,
+    });
+    registerFolderHandlers({
+      folderService,
+    });
+    registerTagHandlers({
+      tagService,
     });
     registerVaultHandlers({
       importService,

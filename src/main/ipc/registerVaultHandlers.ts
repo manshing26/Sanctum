@@ -17,7 +17,7 @@ export const registerVaultHandlers = ({
 }: RegisterVaultHandlersParams): void => {
   ipcMain.handle(IPC_CHANNELS.importFiles, async (_event, input: ImportRequest) => {
     try {
-      const importResult = await importService.importFiles(input.filePaths);
+      const importResult = await importService.importFiles(input);
       return {
         ok: true as const,
         data: importResult,
@@ -32,6 +32,35 @@ export const registerVaultHandlers = ({
 
   ipcMain.handle(IPC_CHANNELS.listItems, () => {
     return vaultService.listItems();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.getItemThumbnail, (_event, itemId: string) => {
+    try {
+      return {
+        ok: true as const,
+        data: vaultService.getItemThumbnail(itemId),
+      };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to load thumbnail.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.clearAllVaultItems, async () => {
+    try {
+      const data = await vaultService.clearAllItems();
+      return {
+        ok: true as const,
+        data,
+      };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to clear vault items.',
+      };
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.pickFiles, async () => {
