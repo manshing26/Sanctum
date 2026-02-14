@@ -45,19 +45,37 @@ const validateSetup = (values: AuthFormValues): AuthFormErrors => {
 const classNames = (...classes: Array<string | false | undefined>): string =>
   classes.filter(Boolean).join(' ');
 
-const TopBar = ({ onOpenSettings }: { onOpenSettings: () => void }): React.JSX.Element => (
+const TopBar = ({
+  onOpenSettings,
+  onOpenBrowser,
+  isUnlocked,
+}: {
+  onOpenSettings: () => void;
+  onOpenBrowser: () => void;
+  isUnlocked: boolean;
+}): React.JSX.Element => (
   <header className="mx-auto flex w-full max-w-[1400px] items-center justify-between px-6 py-5">
     <div>
       <p className="text-xs uppercase tracking-[0.18em] text-text-muted">privateVault</p>
-      <p className="text-sm text-text-primary">Week 4 main gallery view</p>
+      <p className="text-sm text-text-primary">Gallery + Browser integration</p>
     </div>
-    <button
-      type="button"
-      onClick={onOpenSettings}
-      className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary transition hover:border-accent hover:text-accent"
-    >
-      Open Settings
-    </button>
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={onOpenBrowser}
+        disabled={!isUnlocked}
+        className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        Browse Web
+      </button>
+      <button
+        type="button"
+        onClick={onOpenSettings}
+        className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary transition hover:border-accent hover:text-accent"
+      >
+        Open Settings
+      </button>
+    </div>
   </header>
 );
 
@@ -166,6 +184,16 @@ export const App = (): React.JSX.Element => {
     await window.electronAPI.openSettings();
   };
 
+  const openBrowser = async (): Promise<void> => {
+    const result = await refreshSession();
+    if (result.status !== 'unlocked') {
+      setMessage('Unlock vault before opening browser.');
+      return;
+    }
+
+    await window.electronAPI.openBrowserWindow();
+  };
+
   const handleUnlock = async (): Promise<void> => {
     setIsBusy(true);
     setMessage('');
@@ -220,7 +248,7 @@ export const App = (): React.JSX.Element => {
 
   return (
     <div className="min-h-screen bg-bg text-text-primary">
-      <TopBar onOpenSettings={openSettings} />
+      <TopBar onOpenSettings={openSettings} onOpenBrowser={openBrowser} isUnlocked={isUnlocked} />
 
       <main className="mx-auto flex min-h-[calc(100vh-88px)] w-full max-w-[1400px] flex-col px-6 py-6">
         {message ? (

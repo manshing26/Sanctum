@@ -80,11 +80,20 @@ export class DatabaseService {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS bookmarks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title_enc BLOB NOT NULL,
+        url_enc BLOB NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE INDEX IF NOT EXISTS idx_vault_items_created_at ON vault_items(created_at);
       CREATE INDEX IF NOT EXISTS idx_vault_items_mime_type ON vault_items(mime_type);
       CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id);
       CREATE INDEX IF NOT EXISTS idx_item_tags_item_id ON item_tags(item_id);
       CREATE INDEX IF NOT EXISTS idx_item_tags_tag_id ON item_tags(tag_id);
+      CREATE INDEX IF NOT EXISTS idx_bookmarks_updated_at ON bookmarks(updated_at);
     `);
 
     this.db

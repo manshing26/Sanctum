@@ -2,6 +2,11 @@ export const IPC_CHANNELS = {
   openSettings: 'app:open-settings',
   closeSettings: 'app:close-settings',
   getVersion: 'app:get-version',
+  openBrowserWindow: 'browser:open-window',
+  closeBrowserWindow: 'browser:close-window',
+  listBookmarks: 'browser:bookmarks:list',
+  createBookmark: 'browser:bookmarks:create',
+  deleteBookmark: 'browser:bookmarks:delete',
   createVaultPassword: 'auth:create-vault-password',
   unlockVault: 'auth:unlock-vault',
   lockVault: 'auth:lock-vault',
@@ -194,9 +199,28 @@ export type UnassignItemsTagInput = {
   tagId: number;
 };
 
+export type BookmarkSummary = {
+  id: number;
+  title: string;
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateBookmarkInput = {
+  title?: string;
+  url: string;
+};
+
+export type DeleteBookmarkInput = {
+  id: number;
+};
+
 export type ElectronAPI = {
   openSettings: () => Promise<void>;
   closeSettings: () => Promise<void>;
+  openBrowserWindow: () => Promise<void>;
+  closeBrowserWindow: () => Promise<void>;
   appVersion: () => Promise<string>;
   createVaultPassword: (input: CreateVaultPasswordInput) => Promise<OperationResult>;
   unlockVault: (input: UnlockVaultInput) => Promise<OperationResult>;
@@ -231,6 +255,13 @@ export type ElectronAPI = {
   updateSecuritySettings: (
     input: UpdateSecuritySettingsInput,
   ) => Promise<OperationResult<SecuritySettings>>;
+};
+
+export type BrowserAPI = {
+  closeBrowserWindow: () => Promise<void>;
+  listBookmarks: () => Promise<OperationResult<BookmarkSummary[]>>;
+  createBookmark: (input: CreateBookmarkInput) => Promise<OperationResult<BookmarkSummary>>;
+  deleteBookmark: (input: DeleteBookmarkInput) => Promise<OperationResult>;
 };
 
 export type AuthScreenMode = 'login' | 'create-account' | 'loading';

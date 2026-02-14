@@ -24,6 +24,8 @@ import {
 contextBridge.exposeInMainWorld('electronAPI', {
   openSettings: () => ipcRenderer.invoke(IPC_CHANNELS.openSettings),
   closeSettings: () => ipcRenderer.invoke(IPC_CHANNELS.closeSettings),
+  openBrowserWindow: () => ipcRenderer.invoke(IPC_CHANNELS.openBrowserWindow),
+  closeBrowserWindow: () => ipcRenderer.invoke(IPC_CHANNELS.closeBrowserWindow),
   appVersion: () => ipcRenderer.invoke(IPC_CHANNELS.getVersion),
   createVaultPassword: (input: CreateVaultPasswordInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.createVaultPassword, input),
