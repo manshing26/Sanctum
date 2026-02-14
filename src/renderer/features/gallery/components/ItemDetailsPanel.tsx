@@ -21,6 +21,7 @@ type ItemDetailsPanelProps = {
   onAssignFolder: (itemId: string, folderId: number | null) => void;
   onToggleTag: (itemId: string, tagId: number, assigned: boolean) => void;
   onUpdateSecureDeleteDefault: (enabled: boolean) => void;
+  onOpenItem: (itemId: string) => void;
 };
 
 export const ItemDetailsPanel = ({
@@ -31,6 +32,7 @@ export const ItemDetailsPanel = ({
   onAssignFolder,
   onToggleTag,
   onUpdateSecureDeleteDefault,
+  onOpenItem,
 }: ItemDetailsPanelProps): React.JSX.Element => {
   const folderOptions = flattenFolders(folders);
 
@@ -51,6 +53,14 @@ export const ItemDetailsPanel = ({
             Duration: {item.durationSeconds !== undefined ? `${item.durationSeconds.toFixed(2)}s` : '-'}
           </p>
           <p className="text-xs text-text-muted">Folder: {item.folderPath ?? 'Unfiled'}</p>
+
+          <button
+            type="button"
+            onClick={() => onOpenItem(item.id)}
+            className="rounded-md border border-border px-2 py-1 text-xs text-text-primary"
+          >
+            Open Viewer
+          </button>
 
           <label className="block text-xs text-text-muted">
             Assign folder

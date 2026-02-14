@@ -6,6 +6,7 @@ type GalleryCardProps = {
   thumbnailUrl?: string;
   isSelected: boolean;
   onSelect: (itemId: string) => void;
+  onOpen: (itemId: string) => void;
 };
 
 export const GalleryCard = ({
@@ -13,11 +14,13 @@ export const GalleryCard = ({
   thumbnailUrl,
   isSelected,
   onSelect,
+  onOpen,
 }: GalleryCardProps): React.JSX.Element => {
   return (
     <button
       type="button"
       onClick={() => onSelect(item.id)}
+      onDoubleClick={() => onOpen(item.id)}
       className={`group w-full overflow-hidden rounded-xl border bg-surface text-left transition ${
         isSelected ? 'border-accent ring-2 ring-accent/30' : 'border-border hover:border-accent/50'
       }`}

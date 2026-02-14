@@ -6,6 +6,7 @@ import { GalleryToolbar } from './components/GalleryToolbar';
 import { ItemDetailsPanel } from './components/ItemDetailsPanel';
 import { TagFilterBar } from './components/TagFilterBar';
 import { useGalleryState } from './state/useGalleryState';
+import { MediaViewerOverlay } from '../viewer/MediaViewerOverlay';
 
 type GalleryPageProps = {
   onLockVault: () => Promise<void>;
@@ -47,6 +48,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
   const [newFolderParentId, setNewFolderParentId] = useState<number | null>(null);
   const [newTagName, setNewTagName] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
+  const [viewerItemId, setViewerItemId] = useState<string | null>(null);
 
   useEffect(() => {
     void loadFirstPage().then((result) => {
@@ -55,6 +57,26 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
       }
     });
   }, []);
+
+  useEffect(() => {
+    if (!viewerItemId) {
+      return;
+    }
+
+    const stillVisible = filteredItems.some((item) => item.id === viewerItemId);
+    if (!stillVisible) {
+      console.warn('[gallery] viewer auto-closed because item is no longer visible in filteredItems', {
+        viewerItemId,
+        filteredCount: filteredItems.length,
+      });
+      onMessage('Viewer auto-closed because selected item is no longer in current filters.');
+      setViewerItemId(null);
+    }
+  }, [viewerItemId, filteredItems]);
+
+  useEffect(() => {
+    console.info('[gallery] viewerItemId changed', { viewerItemId });
+  }, [viewerItemId]);
 
   const handleSortChange = async (nextSort: VaultListSort): Promise<void> => {
     const result = await loadFirstPage(nextSort);
@@ -209,6 +231,13 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
 
   const filteredCount = useMemo(() => filteredItems.length, [filteredItems.length]);
 
+  const handleOpenViewer = (itemId: string): void => {
+    console.info('[gallery] open viewer requested', { itemId });
+    setSelectedItemId(itemId);
+    setViewerItemId(itemId);
+    onMessage('Opening viewer...');
+  };
+
   return (
     <div className="space-y-4">
       <GalleryToolbar
@@ -269,6 +298,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
           thumbnails={thumbnails}
           selectedItemId={selectedItem?.id ?? null}
           onSelectItem={setSelectedItemId}
+          onOpenItem={handleOpenViewer}
           hasMore={hasMore}
           isLoading={isLoading}
           onLoadMore={() => void handleLoadMore()}
@@ -282,6 +312,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
             securitySettings={securitySettings}
             onAssignFolder={(itemId, folderId) => void handleAssignFolder(itemId, folderId)}
             onToggleTag={(itemId, tagId, assigned) => void handleToggleTag(itemId, tagId, assigned)}
+            onOpenItem={handleOpenViewer}
             onUpdateSecureDeleteDefault={(enabled) =>
               void window.electronAPI
                 .updateSecuritySettings({ secureDeleteOnImport: enabled })
@@ -305,6 +336,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
             securitySettings={securitySettings}
             onAssignFolder={(itemId, folderId) => void handleAssignFolder(itemId, folderId)}
             onToggleTag={(itemId, tagId, assigned) => void handleToggleTag(itemId, tagId, assigned)}
+            onOpenItem={handleOpenViewer}
             onUpdateSecureDeleteDefault={(enabled) =>
               void window.electronAPI
                 .updateSecuritySettings({ secureDeleteOnImport: enabled })
@@ -320,6 +352,19 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
           />
         </div>
       </div>
+
+      {viewerItemId ? (
+        <MediaViewerOverlay
+          items={filteredItems}
+          currentItemId={viewerItemId}
+          onClose={() => setViewerItemId(null)}
+          onNavigate={(itemId) => {
+            setSelectedItemId(itemId);
+            setViewerItemId(itemId);
+          }}
+          onMessage={onMessage}
+        />
+      ) : null}
     </div>
   );
 };

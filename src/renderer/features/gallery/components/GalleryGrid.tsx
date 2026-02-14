@@ -7,6 +7,7 @@ type GalleryGridProps = {
   thumbnails: Record<string, string>;
   selectedItemId: string | null;
   onSelectItem: (itemId: string) => void;
+  onOpenItem: (itemId: string) => void;
   hasMore: boolean;
   isLoading: boolean;
   onLoadMore: () => void;
@@ -17,6 +18,7 @@ export const GalleryGrid = ({
   thumbnails,
   selectedItemId,
   onSelectItem,
+  onOpenItem,
   hasMore,
   isLoading,
   onLoadMore,
@@ -36,6 +38,7 @@ export const GalleryGrid = ({
               thumbnailUrl={thumbnails[item.id]}
               isSelected={selectedItemId === item.id}
               onSelect={onSelectItem}
+              onOpen={onOpenItem}
             />
           ))}
         </div>

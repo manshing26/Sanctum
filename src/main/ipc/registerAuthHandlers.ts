@@ -4,9 +4,10 @@ import { AuthService } from '../services/auth/AuthService';
 
 type RegisterAuthHandlersParams = {
   authService: AuthService;
+  onLock?: () => Promise<void> | void;
 };
 
-export const registerAuthHandlers = ({ authService }: RegisterAuthHandlersParams): void => {
+export const registerAuthHandlers = ({ authService, onLock }: RegisterAuthHandlersParams): void => {
   ipcMain.handle(IPC_CHANNELS.createVaultPassword, async (_event, input: CreateVaultPasswordInput) => {
     try {
       await authService.createVaultPassword(input.password);
@@ -31,9 +32,12 @@ export const registerAuthHandlers = ({ authService }: RegisterAuthHandlersParams
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.lockVault, () => {
+  ipcMain.handle(IPC_CHANNELS.lockVault, async () => {
     try {
       authService.lockVault();
+      if (onLock) {
+        await onLock();
+      }
       return { ok: true as const };
     } catch (error) {
       return {

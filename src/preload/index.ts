@@ -13,8 +13,10 @@ import {
   type UnassignItemTagInput,
   type UnassignItemsTagInput,
   type CreateVaultPasswordInput,
+  type CloseMediaSessionInput,
   type ImportRequest,
   type ListItemsQueryInput,
+  type OpenMediaSessionInput,
   type UnlockVaultInput,
   type UpdateSecuritySettingsInput,
 } from '../shared/ipc';
@@ -34,6 +36,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listItemsQuery: (input: ListItemsQueryInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.listItemsQuery, input),
   getItemThumbnail: (itemId: string) => ipcRenderer.invoke(IPC_CHANNELS.getItemThumbnail, itemId),
+  openMediaSession: (input: OpenMediaSessionInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.openMediaSession, input),
+  closeMediaSession: (input: CloseMediaSessionInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.closeMediaSession, input),
   pickFiles: () => ipcRenderer.invoke(IPC_CHANNELS.pickFiles),
   clearAllVaultItems: () => ipcRenderer.invoke(IPC_CHANNELS.clearAllVaultItems),
   createFolder: (input: CreateFolderInput) => ipcRenderer.invoke(IPC_CHANNELS.createFolder, input),

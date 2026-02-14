@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import { app, BrowserWindow } from 'electron';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -29,6 +29,18 @@ export class MainWindowController {
     this.window.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
 
     this.window.once('ready-to-show', () => {
+      if (!this.window) {
+        return;
+      }
+
+      if (
+        !app.isPackaged &&
+        !this.window.webContents.isDevToolsOpened() &&
+        !this.window.webContents.isDestroyed()
+      ) {
+        this.window.webContents.openDevTools({ mode: 'detach' });
+      }
+
       this.window?.show();
     });
 

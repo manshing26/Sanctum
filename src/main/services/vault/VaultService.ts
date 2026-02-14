@@ -75,6 +75,15 @@ type ItemRow = {
   thumbnail_enc: Buffer | null;
 };
 
+type MediaItemRow = {
+  id: string;
+  encrypted_filename: string;
+  mime_type: string;
+  file_size: number;
+  iv: Buffer;
+  auth_tag: Buffer;
+};
+
 const SORT_TO_ORDER_BY: Record<ListItemsQueryInput['sort'], string> = {
   newest: 'datetime(created_at) DESC, id DESC',
   oldest: 'datetime(created_at) ASC, id ASC',
@@ -411,5 +420,43 @@ export class VaultService {
     this.db.prepare('DELETE FROM item_tags').run();
     this.db.prepare('DELETE FROM vault_items').run();
     return { deleted: rows.length };
+  }
+
+  async getDecryptedMedia(itemId: string): Promise<{
+    itemId: string;
+    mimeType: string;
+    fileSize: number;
+    data: Buffer;
+  }> {
+    const row = this.db
+      .prepare(
+        `SELECT id, encrypted_filename, mime_type, file_size, iv, auth_tag
+         FROM vault_items
+         WHERE id = ?`
+      )
+      .get(itemId) as MediaItemRow | undefined;
+
+    if (!row) {
+      throw new Error('Item not found.');
+    }
+
+    const encryptedPath = path.join(this.vaultPaths.filesDir, row.encrypted_filename);
+    const encryptedData = await fs.readFile(encryptedPath);
+    const key = this.sessionStore.getMasterKey();
+    const decrypted = this.cryptoService.decryptBuffer(
+      {
+        iv: row.iv,
+        authTag: row.auth_tag,
+        encrypted: encryptedData,
+      },
+      key,
+    );
+
+    return {
+      itemId: row.id,
+      mimeType: row.mime_type || 'application/octet-stream',
+      fileSize: row.file_size,
+      data: decrypted,
+    };
   }
 }

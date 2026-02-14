@@ -10,6 +10,8 @@ export const IPC_CHANNELS = {
   listItems: 'vault:list-items',
   listItemsQuery: 'vault:list-items-query',
   getItemThumbnail: 'vault:get-item-thumbnail',
+  openMediaSession: 'vault:open-media-session',
+  closeMediaSession: 'vault:close-media-session',
   pickFiles: 'vault:pick-files',
   clearAllVaultItems: 'vault:clear-all-items',
   createFolder: 'folders:create',
@@ -102,6 +104,22 @@ export type ItemThumbnail = {
   base64Data: string;
 };
 
+export type OpenMediaSessionInput = {
+  itemId: string;
+};
+
+export type OpenMediaSessionResult = {
+  token: string;
+  mediaUrl: string;
+  mimeType: string;
+  fileSize: number;
+  expiresAt: string;
+};
+
+export type CloseMediaSessionInput = {
+  token: string;
+};
+
 export type SecuritySettings = {
   secureDeleteOnImport: boolean;
 };
@@ -188,6 +206,10 @@ export type ElectronAPI = {
   listItems: () => Promise<VaultItemSummary[]>;
   listItemsQuery: (input: ListItemsQueryInput) => Promise<OperationResult<ListItemsQueryResult>>;
   getItemThumbnail: (itemId: string) => Promise<OperationResult<ItemThumbnail>>;
+  openMediaSession: (
+    input: OpenMediaSessionInput,
+  ) => Promise<OperationResult<OpenMediaSessionResult>>;
+  closeMediaSession: (input: CloseMediaSessionInput) => Promise<OperationResult>;
   pickFiles: () => Promise<string[]>;
   clearAllVaultItems: () => Promise<OperationResult<{ deleted: number }>>;
   createFolder: (input: CreateFolderInput) => Promise<OperationResult<FolderNode>>;
