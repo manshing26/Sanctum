@@ -5,7 +5,12 @@ import type { Database as SqliteDatabase } from 'better-sqlite3';
 import { CryptoService } from '../crypto/CryptoService';
 import { SessionStore } from '../../state/SessionStore';
 import { VaultPaths } from './VaultPaths';
-import type { ItemThumbnail, VaultItemSummary } from '../../../shared/ipc';
+import type {
+  ItemThumbnail,
+  ListItemsQueryInput,
+  ListItemsQueryResult,
+  VaultItemSummary,
+} from '../../../shared/ipc';
 
 const getMimeType = (filename: string): string => {
   const ext = path.extname(filename).toLowerCase();
@@ -57,6 +62,28 @@ type FolderRow = {
   parent_id: number | null;
 };
 
+type ItemRow = {
+  id: string;
+  original_filename_enc: Buffer;
+  created_at: string;
+  file_size: number;
+  mime_type: string;
+  folder_id: number | null;
+  media_width: number | null;
+  media_height: number | null;
+  media_duration_seconds: number | null;
+  thumbnail_enc: Buffer | null;
+};
+
+const SORT_TO_ORDER_BY: Record<ListItemsQueryInput['sort'], string> = {
+  newest: 'datetime(created_at) DESC, id DESC',
+  oldest: 'datetime(created_at) ASC, id ASC',
+  name_asc: 'datetime(created_at) DESC, id DESC',
+  name_desc: 'datetime(created_at) DESC, id DESC',
+  size_desc: 'file_size DESC, id DESC',
+  size_asc: 'file_size ASC, id ASC',
+};
+
 export class VaultService {
   constructor(
     private readonly db: SqliteDatabase,
@@ -81,6 +108,77 @@ export class VaultService {
     } catch {
       return 'unknown';
     }
+  }
+
+  private resolveFolderPath(folderId: number | null, folderById: Map<number, FolderRow>): string | undefined {
+    if (folderId === null) {
+      return undefined;
+    }
+
+    const parts: string[] = [];
+    let cursor: number | null = folderId;
+    while (cursor !== null) {
+      const folder = folderById.get(cursor);
+      if (!folder) {
+        break;
+      }
+
+      parts.unshift(folder.name);
+      cursor = folder.parent_id;
+    }
+
+    return parts.length > 0 ? parts.join('/') : undefined;
+  }
+
+  private mapRowsToItems(rows: ItemRow[]): VaultItemSummary[] {
+    const folderRows = this.db
+      .prepare('SELECT id, name, parent_id FROM folders')
+      .all() as FolderRow[];
+    const folderById = new Map(folderRows.map((row) => [row.id, row]));
+
+    const itemIds = rows.map((row) => row.id);
+    const tagsByItemId = new Map<string, Array<{ id: number; name: string }>>();
+    if (itemIds.length > 0) {
+      const placeholders = itemIds.map(() => '?').join(', ');
+      const tagRows = this.db
+        .prepare(
+          `SELECT it.item_id, t.id AS tag_id, t.name AS tag_name
+           FROM item_tags it
+           INNER JOIN tags t ON t.id = it.tag_id
+           WHERE it.item_id IN (${placeholders})
+           ORDER BY t.name COLLATE NOCASE`
+        )
+        .all(...itemIds) as Array<{
+        item_id: string;
+        tag_id: number;
+        tag_name: string;
+      }>;
+
+      for (const tagRow of tagRows) {
+        const existing = tagsByItemId.get(tagRow.item_id) ?? [];
+        existing.push({ id: tagRow.tag_id, name: tagRow.tag_name });
+        tagsByItemId.set(tagRow.item_id, existing);
+      }
+    }
+
+    return rows.map((row) => {
+      const itemTags = tagsByItemId.get(row.id) ?? [];
+      return {
+        id: row.id,
+        originalName: this.decryptOriginalName(row.original_filename_enc),
+        createdAt: row.created_at,
+        size: row.file_size,
+        mimeType: row.mime_type,
+        hasThumbnail: row.thumbnail_enc !== null,
+        folderId: row.folder_id ?? undefined,
+        folderPath: this.resolveFolderPath(row.folder_id, folderById),
+        tagIds: itemTags.map((tag) => tag.id),
+        tags: itemTags.map((tag) => tag.name),
+        width: row.media_width ?? undefined,
+        height: row.media_height ?? undefined,
+        durationSeconds: row.media_duration_seconds ?? undefined,
+      };
+    });
   }
 
   async addEncryptedFile(
@@ -184,31 +282,6 @@ export class VaultService {
   }
 
   listItems(limit = 50): VaultItemSummary[] {
-    const folderRows = this.db
-      .prepare('SELECT id, name, parent_id FROM folders')
-      .all() as FolderRow[];
-    const folderById = new Map(folderRows.map((row) => [row.id, row]));
-
-    const resolveFolderPath = (folderId: number | null): string | undefined => {
-      if (folderId === null) {
-        return undefined;
-      }
-
-      const parts: string[] = [];
-      let cursor: number | null = folderId;
-      while (cursor !== null) {
-        const folder = folderById.get(cursor);
-        if (!folder) {
-          break;
-        }
-
-        parts.unshift(folder.name);
-        cursor = folder.parent_id;
-      }
-
-      return parts.length > 0 ? parts.join('/') : undefined;
-    };
-
     const rows = this.db
       .prepare(
         `SELECT id, original_filename_enc, created_at, file_size, mime_type, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
@@ -216,65 +289,61 @@ export class VaultService {
          ORDER BY datetime(created_at) DESC
          LIMIT ?`
       )
-      .all(limit) as Array<{
-      id: string;
-      original_filename_enc: Buffer;
-      created_at: string;
-      file_size: number;
-      mime_type: string;
-      folder_id: number | null;
-      media_width: number | null;
-      media_height: number | null;
-      media_duration_seconds: number | null;
-      thumbnail_enc: Buffer | null;
-    }>;
+      .all(limit) as ItemRow[];
+    return this.mapRowsToItems(rows);
+  }
 
-    const itemIds = rows.map((row) => row.id);
-    const tagsByItemId = new Map<string, Array<{ id: number; name: string }>>();
-    if (itemIds.length > 0) {
-      const placeholders = itemIds.map(() => '?').join(', ');
-      const tagRows = this.db
+  listItemsQuery(input: ListItemsQueryInput): ListItemsQueryResult {
+    const sort = input.sort in SORT_TO_ORDER_BY ? input.sort : 'newest';
+    const limit = Math.max(1, Math.min(input.limit || 100, 200));
+    const offset = Math.max(0, input.offset || 0);
+    const needsNameSort = sort === 'name_asc' || sort === 'name_desc';
+
+    const totalRow = this.db.prepare('SELECT COUNT(1) AS total FROM vault_items').get() as {
+      total: number;
+    };
+    const total = totalRow.total;
+
+    if (needsNameSort) {
+      const allRows = this.db
         .prepare(
-          `SELECT it.item_id, t.id AS tag_id, t.name AS tag_name
-           FROM item_tags it
-           INNER JOIN tags t ON t.id = it.tag_id
-           WHERE it.item_id IN (${placeholders})
-           ORDER BY t.name COLLATE NOCASE`
+          `SELECT id, original_filename_enc, created_at, file_size, mime_type, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
+           FROM vault_items`
         )
-        .all(...itemIds) as Array<{
-        item_id: string;
-        tag_id: number;
-        tag_name: string;
-      }>;
+        .all() as ItemRow[];
 
-      for (const tagRow of tagRows) {
-        const existing = tagsByItemId.get(tagRow.item_id) ?? [];
-        existing.push({
-          id: tagRow.tag_id,
-          name: tagRow.tag_name,
+      const allItems = this.mapRowsToItems(allRows).sort((a, b) => {
+        const compared = a.originalName.localeCompare(b.originalName, undefined, {
+          sensitivity: 'base',
         });
-        tagsByItemId.set(tagRow.item_id, existing);
-      }
+        return sort === 'name_asc' ? compared : -compared;
+      });
+
+      const items = allItems.slice(offset, offset + limit);
+      return {
+        items,
+        total,
+        hasMore: offset + items.length < total,
+      };
     }
 
-    return rows.map((row) => {
-      const itemTags = tagsByItemId.get(row.id) ?? [];
-      return {
-      id: row.id,
-      originalName: this.decryptOriginalName(row.original_filename_enc),
-      createdAt: row.created_at,
-      size: row.file_size,
-      mimeType: row.mime_type,
-      hasThumbnail: row.thumbnail_enc !== null,
-      folderId: row.folder_id ?? undefined,
-      folderPath: resolveFolderPath(row.folder_id),
-      tagIds: itemTags.map((tag) => tag.id),
-      tags: itemTags.map((tag) => tag.name),
-      width: row.media_width ?? undefined,
-      height: row.media_height ?? undefined,
-      durationSeconds: row.media_duration_seconds ?? undefined,
-      };
-    });
+    const orderBy = SORT_TO_ORDER_BY[sort];
+    const rows = this.db
+      .prepare(
+        `SELECT id, original_filename_enc, created_at, file_size, mime_type, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
+         FROM vault_items
+         ORDER BY ${orderBy}
+         LIMIT ?
+         OFFSET ?`
+      )
+      .all(limit, offset) as ItemRow[];
+
+    const items = this.mapRowsToItems(rows);
+    return {
+      items,
+      total,
+      hasMore: offset + items.length < total,
+    };
   }
 
   getItemThumbnail(itemId: string): ItemThumbnail {

@@ -1,5 +1,5 @@
 import { dialog, ipcMain, type OpenDialogOptions } from 'electron';
-import { IPC_CHANNELS, type ImportRequest } from '../../shared/ipc';
+import { IPC_CHANNELS, type ImportRequest, type ListItemsQueryInput } from '../../shared/ipc';
 import { MainWindowController } from '../windows/MainWindowController';
 import { ImportService } from '../services/import/ImportService';
 import { VaultService } from '../services/vault/VaultService';
@@ -32,6 +32,20 @@ export const registerVaultHandlers = ({
 
   ipcMain.handle(IPC_CHANNELS.listItems, () => {
     return vaultService.listItems();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.listItemsQuery, (_event, input: ListItemsQueryInput) => {
+    try {
+      return {
+        ok: true as const,
+        data: vaultService.listItemsQuery(input),
+      };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to list items.',
+      };
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.getItemThumbnail, (_event, itemId: string) => {

@@ -8,6 +8,7 @@ export const IPC_CHANNELS = {
   getSession: 'auth:get-session',
   importFiles: 'vault:import-files',
   listItems: 'vault:list-items',
+  listItemsQuery: 'vault:list-items-query',
   getItemThumbnail: 'vault:get-item-thumbnail',
   pickFiles: 'vault:pick-files',
   clearAllVaultItems: 'vault:clear-all-items',
@@ -74,6 +75,26 @@ export type VaultItemSummary = {
   width?: number;
   height?: number;
   durationSeconds?: number;
+};
+
+export type VaultListSort =
+  | 'newest'
+  | 'oldest'
+  | 'name_asc'
+  | 'name_desc'
+  | 'size_desc'
+  | 'size_asc';
+
+export type ListItemsQueryInput = {
+  limit: number;
+  offset: number;
+  sort: VaultListSort;
+};
+
+export type ListItemsQueryResult = {
+  items: VaultItemSummary[];
+  total: number;
+  hasMore: boolean;
 };
 
 export type ItemThumbnail = {
@@ -165,6 +186,7 @@ export type ElectronAPI = {
   getSession: () => Promise<SessionState>;
   importFiles: (input: ImportRequest) => Promise<OperationResult<ImportResult>>;
   listItems: () => Promise<VaultItemSummary[]>;
+  listItemsQuery: (input: ListItemsQueryInput) => Promise<OperationResult<ListItemsQueryResult>>;
   getItemThumbnail: (itemId: string) => Promise<OperationResult<ItemThumbnail>>;
   pickFiles: () => Promise<string[]>;
   clearAllVaultItems: () => Promise<OperationResult<{ deleted: number }>>;

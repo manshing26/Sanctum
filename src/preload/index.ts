@@ -14,6 +14,7 @@ import {
   type UnassignItemsTagInput,
   type CreateVaultPasswordInput,
   type ImportRequest,
+  type ListItemsQueryInput,
   type UnlockVaultInput,
   type UpdateSecuritySettingsInput,
 } from '../shared/ipc';
@@ -30,6 +31,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSession: () => ipcRenderer.invoke(IPC_CHANNELS.getSession),
   importFiles: (input: ImportRequest) => ipcRenderer.invoke(IPC_CHANNELS.importFiles, input),
   listItems: () => ipcRenderer.invoke(IPC_CHANNELS.listItems),
+  listItemsQuery: (input: ListItemsQueryInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.listItemsQuery, input),
   getItemThumbnail: (itemId: string) => ipcRenderer.invoke(IPC_CHANNELS.getItemThumbnail, itemId),
   pickFiles: () => ipcRenderer.invoke(IPC_CHANNELS.pickFiles),
   clearAllVaultItems: () => ipcRenderer.invoke(IPC_CHANNELS.clearAllVaultItems),
