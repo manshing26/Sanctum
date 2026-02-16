@@ -11,8 +11,11 @@ type BrowserWindowControllerOptions = {
 
 export class BrowserWindowController {
   private window: BrowserWindow | null = null;
+  private onClosed: (() => void) | undefined;
 
-  constructor(private readonly options: BrowserWindowControllerOptions = {}) {}
+  constructor(options: BrowserWindowControllerOptions = {}) {
+    this.onClosed = options.onClosed;
+  }
 
   open(parent: BrowserWindow | null): BrowserWindow {
     if (this.window && !this.window.isDestroyed()) {
@@ -50,7 +53,7 @@ export class BrowserWindowController {
 
     this.window.on('closed', () => {
       this.window = null;
-      this.options.onClosed?.();
+      this.onClosed?.();
     });
 
     return this.window;
@@ -72,5 +75,9 @@ export class BrowserWindowController {
     }
 
     return this.window;
+  }
+
+  setOnClosed(handler: (() => void) | undefined): void {
+    this.onClosed = handler;
   }
 }

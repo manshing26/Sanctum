@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { BookmarkSummary } from '../../shared/ipc';
+import type { BookmarkSummary, DownloadProgress, ExtensionSummary } from '../../shared/ipc';
 import { DEFAULT_SEARCH_ENGINE, normalizeAddressInput } from './utils/address';
 
 const BROWSER_PARTITION = 'persist:privatevault-browser';
@@ -22,6 +22,10 @@ type BrowserTab = {
   canGoBack: boolean;
   canGoForward: boolean;
   hasCrashed: boolean;
+};
+
+type DownloadEntry = DownloadProgress & {
+  updatedAt: number;
 };
 
 type TabWebViewProps = {
@@ -60,6 +64,10 @@ const TabWebView = ({ tab, onAttach, onStateChange }: TabWebViewProps): React.JS
     if (!webview) {
       return;
     }
+    if (webview.dataset.listenersAttached === 'true') {
+      return;
+    }
+    webview.dataset.listenersAttached = 'true';
 
     const onLoadStart = (): void => {
       onStateChange(tab.id, { isLoading: true, hasCrashed: false });
@@ -125,6 +133,7 @@ const TabWebView = ({ tab, onAttach, onStateChange }: TabWebViewProps): React.JS
       webview.removeEventListener('dom-ready', applyZoom);
       webview.removeEventListener('did-fail-load', onFailLoad);
       webview.removeEventListener('render-process-gone', onProcessGone);
+      delete webview.dataset.listenersAttached;
     };
   }, [onStateChange, tab.id]);
 
@@ -189,7 +198,12 @@ export const BrowserApp = (): React.JSX.Element => {
   const [bookmarkTitle, setBookmarkTitle] = useState('');
   const [bookmarkUrl, setBookmarkUrl] = useState('');
   const [collapsedDomains, setCollapsedDomains] = useState<Record<string, boolean>>({});
+  const [downloads, setDownloads] = useState<Record<string, DownloadEntry>>({});
+  const [showExtensions, setShowExtensions] = useState(false);
+  const [extensions, setExtensions] = useState<ExtensionSummary[]>([]);
+  const [extensionError, setExtensionError] = useState('');
   const webviewRefs = useRef<Record<string, WebviewTag | null>>({});
+  const downloadCleanupTimers = useRef<Record<string, number>>({});
 
   const activeTab = useMemo(
     () => tabs.find((tab) => tab.id === activeTabId) ?? tabs[0],
@@ -216,6 +230,50 @@ export const BrowserApp = (): React.JSX.Element => {
     };
 
     void loadBookmarks();
+  }, []);
+
+  const refreshExtensions = async (): Promise<void> => {
+    const result = await window.browserAPI.listExtensions();
+    if (!result.ok) {
+      setExtensionError(result.error);
+      return;
+    }
+    setExtensions(result.data);
+  };
+
+  useEffect(() => {
+    const unsubscribe = window.browserAPI.onDownloadUpdate((payload) => {
+      setDownloads((prev) => ({
+        ...prev,
+        [payload.id]: {
+          ...payload,
+          updatedAt: Date.now(),
+        },
+      }));
+
+      if (payload.state !== 'downloading') {
+        const existingTimer = downloadCleanupTimers.current[payload.id];
+        if (existingTimer) {
+          window.clearTimeout(existingTimer);
+        }
+        downloadCleanupTimers.current[payload.id] = window.setTimeout(() => {
+          setDownloads((prev) => {
+            const next = { ...prev };
+            delete next[payload.id];
+            return next;
+          });
+          delete downloadCleanupTimers.current[payload.id];
+        }, 8000);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      Object.values(downloadCleanupTimers.current).forEach((timer) => {
+        window.clearTimeout(timer);
+      });
+      downloadCleanupTimers.current = {};
+    };
   }, []);
 
 
@@ -402,6 +460,18 @@ export const BrowserApp = (): React.JSX.Element => {
     setShowBookmarks(false);
   };
 
+  const handleLoadExtension = async (): Promise<void> => {
+    const result = await window.browserAPI.loadExtension();
+    if (!result.ok) {
+      setExtensionError(result.error);
+      return;
+    }
+    setExtensionError('');
+    await refreshExtensions();
+  };
+
+  const downloadList = useMemo(() => Object.values(downloads), [downloads]);
+
   const groupedBookmarks = useMemo(() => {
     const groups = new Map<string, BookmarkSummary[]>();
     for (const bookmark of bookmarks) {
@@ -455,6 +525,16 @@ export const BrowserApp = (): React.JSX.Element => {
 
           <button type="button" onClick={handleOpenNewTab} className="rounded border border-border px-2 py-1 text-xs">
             + Tab
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowExtensions((prev) => !prev);
+              void refreshExtensions();
+            }}
+            className="rounded border border-border px-2 py-1 text-xs"
+          >
+            Extensions
           </button>
           <button type="button" onClick={handleSaveCurrentAsBookmark} className="rounded border border-border px-2 py-1 text-xs">
             ☆ Save
@@ -584,6 +664,38 @@ export const BrowserApp = (): React.JSX.Element => {
         </aside>
       ) : null}
 
+      {showExtensions ? (
+        <aside className="border-b border-border bg-surface px-3 py-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleLoadExtension()}
+              className="rounded bg-accent px-3 py-1 text-xs text-accent-foreground"
+            >
+              Load Extension
+            </button>
+            <span className="text-xs text-text-muted">
+              Unpacked extensions only
+            </span>
+          </div>
+          {extensionError ? (
+            <p className="mt-2 text-xs text-danger">{extensionError}</p>
+          ) : null}
+          <div className="mt-3 max-h-32 space-y-1 overflow-y-auto pr-1">
+            {extensions.length === 0 ? (
+              <p className="text-xs text-text-muted">No extensions loaded.</p>
+            ) : (
+              extensions.map((ext) => (
+                <div key={ext.id} className="rounded border border-border bg-bg px-2 py-1 text-xs">
+                  <div className="text-text-primary">{ext.name}</div>
+                  <div className="text-[10px] text-text-muted">{ext.version}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </aside>
+      ) : null}
+
       <main className="flex min-h-0 flex-1 overflow-hidden p-3">
         {tabs.map((tab) => (
           <div
@@ -614,6 +726,48 @@ export const BrowserApp = (): React.JSX.Element => {
           </div>
         ))}
       </main>
+
+      {downloadList.length > 0 ? (
+        <div className="border-t border-border bg-surface px-3 py-2 text-xs text-text-muted">
+          <div className="flex flex-col gap-2">
+            {downloadList.map((item) => {
+              const percent =
+                item.totalBytes > 0 ? Math.round((item.receivedBytes / item.totalBytes) * 100) : null;
+              const isActive = item.state === 'downloading';
+              return (
+                <div key={item.id} className="flex items-center gap-3 rounded border border-border bg-bg px-2 py-1">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs text-text-primary">{item.filename}</div>
+                    <div className="mt-1 h-1 w-full overflow-hidden rounded bg-border">
+                      <div
+                        className="h-full bg-accent"
+                        style={{
+                          width: percent !== null ? `${percent}%` : '30%',
+                          opacity: isActive ? 1 : 0.6,
+                        }}
+                      />
+                    </div>
+                    <div className="mt-1 text-[10px] text-text-muted">
+                      {item.state}
+                      {percent !== null ? ` · ${percent}%` : ' · working'}
+                      {item.error ? ` · ${item.error}` : ''}
+                    </div>
+                  </div>
+                  {isActive ? (
+                    <button
+                      type="button"
+                      onClick={() => void window.browserAPI.cancelDownload(item.id)}
+                      className="rounded border border-border px-2 py-0.5 text-xs"
+                    >
+                      Cancel
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

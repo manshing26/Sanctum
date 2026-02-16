@@ -7,6 +7,10 @@ export const IPC_CHANNELS = {
   listBookmarks: 'browser:bookmarks:list',
   createBookmark: 'browser:bookmarks:create',
   deleteBookmark: 'browser:bookmarks:delete',
+  downloadUpdate: 'browser:downloads:update',
+  cancelDownload: 'browser:downloads:cancel',
+  listExtensions: 'browser:extensions:list',
+  loadExtension: 'browser:extensions:load',
   createVaultPassword: 'auth:create-vault-password',
   unlockVault: 'auth:unlock-vault',
   lockVault: 'auth:lock-vault',
@@ -216,6 +220,28 @@ export type DeleteBookmarkInput = {
   id: number;
 };
 
+export type DownloadState = 'downloading' | 'completed' | 'cancelled' | 'failed';
+
+export type DownloadProgress = {
+  id: string;
+  url: string;
+  filename: string;
+  totalBytes: number;
+  receivedBytes: number;
+  state: DownloadState;
+  error?: string;
+};
+
+export type ExtensionSummary = {
+  id: string;
+  name: string;
+  version: string;
+};
+
+export type LoadExtensionResult = {
+  summary: ExtensionSummary;
+};
+
 export type ElectronAPI = {
   openSettings: () => Promise<void>;
   closeSettings: () => Promise<void>;
@@ -262,6 +288,10 @@ export type BrowserAPI = {
   listBookmarks: () => Promise<OperationResult<BookmarkSummary[]>>;
   createBookmark: (input: CreateBookmarkInput) => Promise<OperationResult<BookmarkSummary>>;
   deleteBookmark: (input: DeleteBookmarkInput) => Promise<OperationResult>;
+  onDownloadUpdate: (handler: (payload: DownloadProgress) => void) => () => void;
+  cancelDownload: (id: string) => Promise<OperationResult>;
+  listExtensions: () => Promise<OperationResult<ExtensionSummary[]>>;
+  loadExtension: () => Promise<OperationResult<LoadExtensionResult>>;
 };
 
 export type AuthScreenMode = 'login' | 'create-account' | 'loading';

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session } from 'electron';
+import { app, BrowserWindow, Menu, session } from 'electron';
 import { DatabaseService } from './db/Database';
 import { registerAuthHandlers } from './ipc/registerAuthHandlers';
 import { registerBrowserHandlers } from './ipc/registerBrowserHandlers';
@@ -11,6 +11,7 @@ import { registerVaultHandlers } from './ipc/registerVaultHandlers';
 import { AuthService } from './services/auth/AuthService';
 import { BookmarkService } from './services/bookmark/BookmarkService';
 import { CryptoService } from './services/crypto/CryptoService';
+import { DownloadService } from './services/download/DownloadService';
 import { ImportService } from './services/import/ImportService';
 import { MetadataService } from './services/import/MetadataService';
 import { ThumbnailService } from './services/import/ThumbnailService';
@@ -56,6 +57,7 @@ export const bootstrapApp = (): void => {
     if (
       text.includes('GUEST_VIEW_MANAGER_CALL') ||
       text.includes('ERR_ABORTED (-3)') ||
+      text.includes('ERR_NAME_NOT_RESOLVED') ||
       text.includes('SharedImageManager::Produce') ||
       text.includes('Invalid mailbox') ||
       text.includes('MojoAudioOutputIPC failed to acquire factory')
@@ -105,6 +107,45 @@ export const bootstrapApp = (): void => {
     browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
       callback(false);
     });
+    browserSession.webRequest.onBeforeSendHeaders((details, callback) => {
+      const headers = details.requestHeaders;
+      headers.DNT = '1';
+      delete headers.Referer;
+
+      try {
+        if (details.resourceType !== 'mainFrame') {
+          const initiator = (details as { initiator?: string }).initiator || details.referrer || '';
+          const initiatorHost = initiator ? new URL(initiator).hostname : '';
+          const targetHost = new URL(details.url).hostname;
+          if (initiatorHost && initiatorHost !== targetHost) {
+            delete headers.Cookie;
+          }
+        }
+      } catch {
+        // Ignore parsing errors.
+      }
+
+      callback({ requestHeaders: headers });
+    });
+
+    browserSession.webRequest.onHeadersReceived((details, callback) => {
+      const responseHeaders = details.responseHeaders ?? {};
+      try {
+        if (details.resourceType !== 'mainFrame') {
+          const initiator = (details as { initiator?: string }).initiator || details.referrer || '';
+          const initiatorHost = initiator ? new URL(initiator).hostname : '';
+          const targetHost = new URL(details.url).hostname;
+          if (initiatorHost && initiatorHost !== targetHost) {
+            delete responseHeaders['set-cookie'];
+            delete responseHeaders['Set-Cookie'];
+          }
+        }
+      } catch {
+        // Ignore parsing errors.
+      }
+
+      callback({ responseHeaders });
+    });
 
     const vaultPaths = new VaultPaths(app.getPath('userData'));
     const database = new DatabaseService(vaultPaths);
@@ -131,8 +172,24 @@ export const bootstrapApp = (): void => {
       metadataService,
       thumbnailService,
     );
+    const downloadService = new DownloadService(
+      browserSession,
+      vaultPaths,
+      importService,
+      browserWindowController,
+      sessionStore,
+    );
     const mediaSessionService = new MediaSessionService(vaultService, vaultPaths);
     mediaSessionService.start();
+
+    downloadService.start();
+
+    browserWindowController.setOnClosed(() => {
+      void browserSession.clearStorageData({
+        storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage', 'websql'],
+      });
+      void browserSession.clearCache();
+    });
 
     void session.defaultSession.protocol.handle('privatevault-media', (request) => {
       const rangeHeader =
@@ -152,6 +209,9 @@ export const bootstrapApp = (): void => {
       browserWindowController,
       mainWindowController,
       bookmarkService,
+      downloadService,
+      settingsService,
+      browserSession,
     });
     registerAuthHandlers({
       authService,
@@ -178,8 +238,45 @@ export const bootstrapApp = (): void => {
       mediaSessionService,
     });
 
+    const isMediaUrl = (url: string): boolean =>
+      /\.(mp4|webm|mov|mkv|jpg|jpeg|png|gif|webp|heic)$/i.test(url);
+
+    app.on('web-contents-created', (_event, contents) => {
+      if (contents.getType() !== 'webview') {
+        return;
+      }
+
+      contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
+      contents.on('context-menu', (_eventMenu, params) => {
+        const targetUrl = params.srcURL || params.linkURL || '';
+        const isMedia =
+          params.mediaType === 'video' ||
+          params.mediaType === 'image' ||
+          (targetUrl && isMediaUrl(targetUrl));
+
+        if (!isMedia || !targetUrl) {
+          return;
+        }
+
+        const menu = Menu.buildFromTemplate([
+          {
+            label: 'Save to Vault',
+            click: () => {
+              contents.downloadURL(targetUrl);
+            },
+          },
+        ]);
+        menu.popup({ window: BrowserWindow.fromWebContents(contents) ?? undefined });
+      });
+    });
+
     app.once('before-quit', () => {
       void mediaSessionService.stop();
+      void browserSession.clearStorageData({
+        storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage', 'websql'],
+      });
+      void browserSession.clearCache();
       session.defaultSession.protocol.unhandle('privatevault-media');
     });
   });
