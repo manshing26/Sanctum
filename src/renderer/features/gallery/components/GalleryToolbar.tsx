@@ -29,11 +29,18 @@ type GalleryToolbarProps = {
   deleteOriginalsOverride: 'default' | 'true' | 'false';
   onDeleteOriginalsOverrideChange: (value: 'default' | 'true' | 'false') => void;
   onImport: () => void;
+  onExportSelected: () => void;
+  onDeleteSelected: () => void;
+  onToggleFavoriteSelected: () => void;
   onRefresh: () => void;
   onLock: () => void;
   isBusy: boolean;
   totalItems: number;
   filteredCount: number;
+  showFavoritesOnly: boolean;
+  onToggleFavoritesOnly: () => void;
+  selectedCount: number;
+  allSelectedFavorite: boolean;
 };
 
 export const GalleryToolbar = ({
@@ -47,11 +54,18 @@ export const GalleryToolbar = ({
   deleteOriginalsOverride,
   onDeleteOriginalsOverrideChange,
   onImport,
+  onExportSelected,
+  onDeleteSelected,
+  onToggleFavoriteSelected,
   onRefresh,
   onLock,
   isBusy,
   totalItems,
   filteredCount,
+  showFavoritesOnly,
+  onToggleFavoritesOnly,
+  selectedCount,
+  allSelectedFavorite,
 }: GalleryToolbarProps): React.JSX.Element => {
   const folderOptions = flattenFolderOptions(folders);
 
@@ -80,6 +94,11 @@ export const GalleryToolbar = ({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={showFavoritesOnly} onChange={onToggleFavoritesOnly} />
+          Favorites only
+        </label>
+
         <label>
           Import folder:
           <select
@@ -140,6 +159,34 @@ export const GalleryToolbar = ({
             Lock
           </button>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+        <span>Selected: {selectedCount}</span>
+        <button
+          type="button"
+          onClick={onExportSelected}
+          disabled={selectedCount === 0 || isBusy}
+          className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-primary disabled:opacity-60"
+        >
+          Export Selected
+        </button>
+        <button
+          type="button"
+          onClick={onDeleteSelected}
+          disabled={selectedCount === 0 || isBusy}
+          className="rounded-lg border border-danger/60 bg-danger/10 px-3 py-1.5 text-xs text-danger disabled:opacity-60"
+        >
+          Delete Selected
+        </button>
+        <button
+          type="button"
+          onClick={onToggleFavoriteSelected}
+          disabled={selectedCount === 0 || isBusy}
+          className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-primary disabled:opacity-60"
+        >
+          {allSelectedFavorite ? 'Unfavorite Selected' : 'Favorite Selected'}
+        </button>
       </div>
     </section>
   );

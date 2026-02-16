@@ -24,6 +24,11 @@ export const IPC_CHANNELS = {
   pickFiles: 'vault:pick-files',
   clearAllVaultItems: 'vault:clear-all-items',
   deleteVaultItem: 'vault:delete-item',
+  toggleFavorite: 'vault:toggle-favorite',
+  renameVaultItem: 'vault:rename-item',
+  exportItems: 'vault:export-items',
+  importProgress: 'vault:import-progress',
+  exportProgress: 'vault:export-progress',
   createFolder: 'folders:create',
   listFoldersTree: 'folders:list-tree',
   renameFolder: 'folders:rename',
@@ -80,6 +85,7 @@ export type VaultItemSummary = {
   size: number;
   mimeType: string;
   hasThumbnail: boolean;
+  isFavorite: boolean;
   folderId?: number;
   folderPath?: string;
   tagIds?: number[];
@@ -225,6 +231,36 @@ export type DeleteVaultItemInput = {
   itemId: string;
 };
 
+export type ToggleFavoriteInput = {
+  itemId: string;
+  isFavorite: boolean;
+};
+
+export type RenameItemInput = {
+  itemId: string;
+  newName: string;
+};
+
+export type ExportItemsInput = {
+  itemIds: string[];
+  targetDir: string;
+};
+
+export type ImportProgress = {
+  total: number;
+  processed: number;
+  failed: number;
+  currentFile?: string;
+};
+
+export type ExportProgress = {
+  total: number;
+  processed: number;
+  failed: number;
+  currentItemId?: string;
+  currentFile?: string;
+};
+
 export type DownloadState = 'downloading' | 'completed' | 'cancelled' | 'failed';
 
 export type DownloadProgress = {
@@ -268,6 +304,11 @@ export type ElectronAPI = {
   pickFiles: () => Promise<string[]>;
   clearAllVaultItems: () => Promise<OperationResult<{ deleted: number }>>;
   deleteVaultItem: (input: DeleteVaultItemInput) => Promise<OperationResult>;
+  toggleFavorite: (input: ToggleFavoriteInput) => Promise<OperationResult>;
+  renameVaultItem: (input: RenameItemInput) => Promise<OperationResult>;
+  exportItems: (input: ExportItemsInput) => Promise<OperationResult<{ exported: number; failed: number }>>;
+  onImportProgress: (handler: (payload: ImportProgress) => void) => () => void;
+  onExportProgress: (handler: (payload: ExportProgress) => void) => () => void;
   createFolder: (input: CreateFolderInput) => Promise<OperationResult<FolderNode>>;
   listFoldersTree: () => Promise<OperationResult<FolderNode[]>>;
   renameFolder: (input: RenameFolderInput) => Promise<OperationResult<FolderNode>>;

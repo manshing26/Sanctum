@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { FolderNode, SecuritySettings, TagSummary, VaultItemSummary } from '../../../../shared/ipc';
 
 const flattenFolders = (folders: FolderNode[], depth = 0): Array<{ id: number; label: string }> => {
@@ -23,6 +23,9 @@ type ItemDetailsPanelProps = {
   onUpdateSecureDeleteDefault: (enabled: boolean) => void;
   onOpenItem: (itemId: string) => void;
   onDeleteItem: (itemId: string) => void;
+  onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
+  onRenameItem: (itemId: string, newName: string) => void;
+  selectedCount: number;
 };
 
 export const ItemDetailsPanel = ({
@@ -35,8 +38,16 @@ export const ItemDetailsPanel = ({
   onUpdateSecureDeleteDefault,
   onOpenItem,
   onDeleteItem,
+  onToggleFavorite,
+  onRenameItem,
+  selectedCount,
 }: ItemDetailsPanelProps): React.JSX.Element => {
   const folderOptions = flattenFolders(folders);
+  const [nameDraft, setNameDraft] = useState('');
+
+  useEffect(() => {
+    setNameDraft(item?.originalName ?? '');
+  }, [item?.id, item?.originalName]);
 
   return (
     <aside className="space-y-3 rounded-xl border border-border bg-surface p-4">
@@ -45,6 +56,11 @@ export const ItemDetailsPanel = ({
         <p className="text-sm text-text-muted">Select an item to inspect metadata and quick actions.</p>
       ) : (
         <>
+          {selectedCount > 1 ? (
+            <div className="rounded-md border border-border bg-bg px-2 py-1 text-xs text-text-muted">
+              Multiple items selected. Viewer disabled.
+            </div>
+          ) : null}
           <p className="truncate text-sm font-medium text-text-primary">{item.originalName}</p>
           <p className="text-xs text-text-muted">{item.mimeType}</p>
           <p className="text-xs text-text-muted">{item.size} bytes</p>
@@ -56,12 +72,22 @@ export const ItemDetailsPanel = ({
           </p>
           <p className="text-xs text-text-muted">Folder: {item.folderPath ?? 'Unfiled'}</p>
 
+        <button
+          type="button"
+          onClick={() => onOpenItem(item.id)}
+          disabled={selectedCount > 1}
+          className="rounded-md border border-border px-2 py-1 text-xs text-text-primary disabled:opacity-60"
+        >
+          Open Viewer
+        </button>
           <button
             type="button"
-            onClick={() => onOpenItem(item.id)}
-            className="rounded-md border border-border px-2 py-1 text-xs text-text-primary"
+            onClick={() => onToggleFavorite(item.id, !item.isFavorite)}
+            className={`rounded-md border px-2 py-1 text-xs ${
+              item.isFavorite ? 'border-accent bg-accent/10 text-accent' : 'border-border text-text-primary'
+            }`}
           >
-            Open Viewer
+            {item.isFavorite ? 'Unfavorite' : 'Favorite'}
           </button>
           <button
             type="button"
@@ -70,6 +96,25 @@ export const ItemDetailsPanel = ({
           >
             Delete
           </button>
+
+          <label className="block text-xs text-text-muted">
+            Rename
+            <div className="mt-1 flex gap-2">
+              <input
+                value={nameDraft}
+                onChange={(event) => setNameDraft(event.target.value)}
+                className="w-full rounded border border-border bg-bg px-2 py-1 text-xs text-text-primary"
+              />
+              <button
+                type="button"
+                onClick={() => onRenameItem(item.id, nameDraft)}
+                disabled={!nameDraft.trim() || nameDraft.trim() === item.originalName}
+                className="rounded-md border border-border px-2 py-1 text-xs text-text-primary disabled:opacity-60"
+              >
+                Save
+              </button>
+            </div>
+          </label>
 
           <label className="block text-xs text-text-muted">
             Assign folder

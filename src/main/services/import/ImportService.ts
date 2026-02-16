@@ -34,6 +34,13 @@ const getMimeType = (filename: string): string => {
   }
 };
 
+export type ImportProgressCallback = (progress: {
+  total: number;
+  processed: number;
+  failed: number;
+  currentFile?: string;
+}) => void;
+
 export class ImportService {
   constructor(
     private readonly vaultService: VaultService,
@@ -43,7 +50,7 @@ export class ImportService {
     private readonly thumbnailService: ThumbnailService,
   ) {}
 
-  async importFiles(request: ImportRequest): Promise<ImportResult> {
+  async importFiles(request: ImportRequest, onProgress?: ImportProgressCallback): Promise<ImportResult> {
     const result: ImportResult = {
       imported: 0,
       failed: 0,
@@ -56,6 +63,10 @@ export class ImportService {
       typeof request.deleteOriginals === 'boolean'
         ? request.deleteOriginals
         : securitySettings.secureDeleteOnImport;
+
+    const total = request.filePaths.length;
+    let processed = 0;
+    let failed = 0;
 
     for (const filePath of request.filePaths) {
       try {
@@ -103,8 +114,17 @@ export class ImportService {
         }
       } catch (error) {
         result.failed += 1;
+        failed += 1;
         const message = error instanceof Error ? error.message : 'Unknown import error';
         result.errors.push(`${filePath}: ${message}`);
+      } finally {
+        processed += 1;
+        onProgress?.({
+          total,
+          processed,
+          failed,
+          currentFile: filePath,
+        });
       }
     }
 

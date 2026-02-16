@@ -69,6 +69,7 @@ type ItemRow = {
   created_at: string;
   file_size: number;
   mime_type: string;
+  is_favorite: number | null;
   folder_id: number | null;
   media_width: number | null;
   media_height: number | null;
@@ -82,6 +83,14 @@ type MediaItemRow = {
   mime_type: string;
   file_size: number;
   content_hash: string | null;
+  iv: Buffer;
+  auth_tag: Buffer;
+};
+
+type ExportItemRow = {
+  id: string;
+  encrypted_filename: string;
+  original_filename_enc: Buffer;
   iv: Buffer;
   auth_tag: Buffer;
 };
@@ -120,6 +129,35 @@ export class VaultService {
       return decrypted.toString('utf8');
     } catch {
       return 'unknown';
+    }
+  }
+
+  private encryptOriginalName(name: string): Buffer {
+    const key = this.sessionStore.getMasterKey();
+    const payload = this.cryptoService.encryptBuffer(Buffer.from(name, 'utf8'), key);
+    return Buffer.from(
+      JSON.stringify({
+        iv: payload.iv.toString('base64'),
+        authTag: payload.authTag.toString('base64'),
+        data: payload.encrypted.toString('base64'),
+      }),
+      'utf8',
+    );
+  }
+
+  private async resolveUniqueExportPath(targetDir: string, filename: string): Promise<string> {
+    const ext = path.extname(filename);
+    const base = ext ? filename.slice(0, -ext.length) : filename;
+    let counter = 0;
+    while (true) {
+      const suffix = counter === 0 ? '' : ` (${counter + 1})`;
+      const candidate = path.join(targetDir, `${base}${suffix}${ext}`);
+      try {
+        await fs.access(candidate);
+        counter += 1;
+      } catch {
+        return candidate;
+      }
     }
   }
 
@@ -183,6 +221,7 @@ export class VaultService {
         size: row.file_size,
         mimeType: row.mime_type,
         hasThumbnail: row.thumbnail_enc !== null,
+        isFavorite: Boolean(row.is_favorite),
         folderId: row.folder_id ?? undefined,
         folderPath: this.resolveFolderPath(row.folder_id, folderById),
         tagIds: itemTags.map((tag) => tag.id),
@@ -290,6 +329,7 @@ export class VaultService {
       size: fileBuffer.byteLength,
       mimeType,
       hasThumbnail: Boolean(thumbnail),
+      isFavorite: false,
       folderId: folderId ?? undefined,
       width: metadata.width,
       height: metadata.height,
@@ -300,7 +340,7 @@ export class VaultService {
   listItems(limit = 50): VaultItemSummary[] {
     const rows = this.db
       .prepare(
-        `SELECT id, original_filename_enc, created_at, file_size, mime_type, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
+        `SELECT id, original_filename_enc, created_at, file_size, mime_type, is_favorite, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
          FROM vault_items
          ORDER BY datetime(created_at) DESC
          LIMIT ?`
@@ -323,7 +363,7 @@ export class VaultService {
     if (needsNameSort) {
       const allRows = this.db
         .prepare(
-          `SELECT id, original_filename_enc, created_at, file_size, mime_type, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
+          `SELECT id, original_filename_enc, created_at, file_size, mime_type, is_favorite, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
            FROM vault_items`
         )
         .all() as ItemRow[];
@@ -346,7 +386,7 @@ export class VaultService {
     const orderBy = SORT_TO_ORDER_BY[sort];
     const rows = this.db
       .prepare(
-        `SELECT id, original_filename_enc, created_at, file_size, mime_type, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
+        `SELECT id, original_filename_enc, created_at, file_size, mime_type, is_favorite, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
          FROM vault_items
          ORDER BY ${orderBy}
          LIMIT ?
@@ -404,6 +444,103 @@ export class VaultService {
     return {
       mimeType: row.thumbnail_mime_type,
       base64Data: decrypted.toString('base64'),
+    };
+  }
+
+  setFavorite(itemId: string, isFavorite: boolean): void {
+    this.db
+      .prepare('UPDATE vault_items SET is_favorite = ? WHERE id = ?')
+      .run(isFavorite ? 1 : 0, itemId);
+  }
+
+  renameItem(itemId: string, newName: string): void {
+    const trimmed = newName.trim();
+    if (!trimmed) {
+      throw new Error('Name is required.');
+    }
+    const safeName = path.basename(trimmed);
+    if (!safeName) {
+      throw new Error('Name is invalid.');
+    }
+
+    const encrypted = this.encryptOriginalName(safeName);
+    this.db
+      .prepare('UPDATE vault_items SET original_filename_enc = ? WHERE id = ?')
+      .run(encrypted, itemId);
+  }
+
+  async exportItems(
+    itemIds: string[],
+    targetDir: string,
+    onProgress?: (progress: {
+      total: number;
+      processed: number;
+      failed: number;
+      currentItemId?: string;
+      currentFile?: string;
+    }) => void,
+  ): Promise<{ exported: number; failed: number }> {
+    const total = itemIds.length;
+    let processed = 0;
+    let failed = 0;
+
+    await fs.access(targetDir);
+
+    for (const itemId of itemIds) {
+      try {
+        const row = this.db
+          .prepare(
+            `SELECT id, encrypted_filename, original_filename_enc, iv, auth_tag
+             FROM vault_items
+             WHERE id = ?`
+          )
+          .get(itemId) as ExportItemRow | undefined;
+
+        if (!row) {
+          throw new Error('Item not found.');
+        }
+
+        const encryptedPath = path.join(this.vaultPaths.filesDir, row.encrypted_filename);
+        const encryptedData = await fs.readFile(encryptedPath);
+        const key = this.sessionStore.getMasterKey();
+        const decrypted = this.cryptoService.decryptBuffer(
+          {
+            iv: row.iv,
+            authTag: row.auth_tag,
+            encrypted: encryptedData,
+          },
+          key,
+        );
+        const originalName = this.decryptOriginalName(row.original_filename_enc);
+        const safeOriginal = originalName && originalName !== 'unknown'
+          ? path.basename(originalName)
+          : `${row.id}`;
+        const resolvedName = safeOriginal || `${row.id}`;
+        const outputPath = await this.resolveUniqueExportPath(targetDir, resolvedName);
+        await fs.writeFile(outputPath, decrypted);
+        onProgress?.({
+          total,
+          processed: processed + 1,
+          failed,
+          currentItemId: itemId,
+          currentFile: outputPath,
+        });
+      } catch {
+        failed += 1;
+        onProgress?.({
+          total,
+          processed: processed + 1,
+          failed,
+          currentItemId: itemId,
+        });
+      } finally {
+        processed += 1;
+      }
+    }
+
+    return {
+      exported: processed - failed,
+      failed,
     };
   }
 

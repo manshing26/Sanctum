@@ -2,8 +2,11 @@ import { dialog, ipcMain, type OpenDialogOptions } from 'electron';
 import {
   IPC_CHANNELS,
   type DeleteVaultItemInput,
+  type ExportItemsInput,
   type ImportRequest,
   type ListItemsQueryInput,
+  type RenameItemInput,
+  type ToggleFavoriteInput,
 } from '../../shared/ipc';
 import { MainWindowController } from '../windows/MainWindowController';
 import { ImportService } from '../services/import/ImportService';
@@ -22,7 +25,10 @@ export const registerVaultHandlers = ({
 }: RegisterVaultHandlersParams): void => {
   ipcMain.handle(IPC_CHANNELS.importFiles, async (_event, input: ImportRequest) => {
     try {
-      const importResult = await importService.importFiles(input);
+      const window = mainWindowController.getWindow();
+      const importResult = await importService.importFiles(input, (progress) => {
+        window?.webContents.send(IPC_CHANNELS.importProgress, progress);
+      });
       return {
         ok: true as const,
         data: importResult,
@@ -90,6 +96,66 @@ export const registerVaultHandlers = ({
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to delete item.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.toggleFavorite, async (_event, input: ToggleFavoriteInput) => {
+    try {
+      vaultService.setFavorite(input.itemId, input.isFavorite);
+      return { ok: true as const };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to update favorite.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.renameVaultItem, async (_event, input: RenameItemInput) => {
+    try {
+      vaultService.renameItem(input.itemId, input.newName);
+      return { ok: true as const };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to rename item.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.exportItems, async (_event, input: ExportItemsInput) => {
+    try {
+      if (!input.itemIds || input.itemIds.length === 0) {
+        return { ok: false as const, error: 'No items selected for export.' };
+      }
+      const window = mainWindowController.getWindow();
+      let targetDir = input.targetDir?.trim();
+      if (!targetDir) {
+        const dialogOptions: OpenDialogOptions = {
+          title: 'Select export folder',
+          properties: ['openDirectory'],
+        };
+        const result = window
+          ? await dialog.showOpenDialog(window, dialogOptions)
+          : await dialog.showOpenDialog(dialogOptions);
+        if (result.canceled || result.filePaths.length === 0) {
+          return { ok: false as const, error: 'Export cancelled.' };
+        }
+        targetDir = result.filePaths[0];
+      }
+
+      const exportResult = await vaultService.exportItems(input.itemIds, targetDir, (progress) => {
+        window?.webContents.send(IPC_CHANNELS.exportProgress, progress);
+      });
+      return {
+        ok: true as const,
+        data: exportResult,
+      };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to export items.',
       };
     }
   });

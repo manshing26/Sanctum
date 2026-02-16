@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
   FolderNode,
   SecuritySettings,
@@ -57,7 +57,9 @@ export const useGalleryState = () => {
   const [sort, setSort] = useState<VaultListSort>('newest');
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [primarySelectedId, setPrimarySelectedId] = useState<string | null>(null);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   const [deleteOriginalsOverride, setDeleteOriginalsOverride] = useState<
     'default' | 'true' | 'false'
@@ -147,7 +149,16 @@ export const useGalleryState = () => {
       setAllItems(itemsResult.data.items);
       setTotalItems(itemsResult.data.total);
       setHasMore(itemsResult.data.hasMore);
-      setSelectedItemId((prev) => {
+      setSelectedItemIds((prev) => {
+        const visible = new Set(itemsResult.data.items.map((item) => item.id));
+        const kept = prev.filter((id) => visible.has(id));
+        if (kept.length > 0) {
+          return kept;
+        }
+        const fallback = itemsResult.data.items[0]?.id;
+        return fallback ? [fallback] : [];
+      });
+      setPrimarySelectedId((prev) => {
         if (!prev) {
           return itemsResult.data.items[0]?.id ?? null;
         }
@@ -234,14 +245,67 @@ export const useGalleryState = () => {
         }
       }
 
+      if (showFavoritesOnly && !item.isFavorite) {
+        return false;
+      }
+
       return true;
     });
-  }, [allItems, descendantSet, selectedTagIds, searchTerm]);
+  }, [allItems, descendantSet, selectedTagIds, searchTerm, showFavoritesOnly]);
 
-  const selectedItem = useMemo(
-    () => filteredItems.find((item) => item.id === selectedItemId) ?? filteredItems[0] ?? null,
-    [filteredItems, selectedItemId],
-  );
+  const selectedItem = useMemo(() => {
+    if (primarySelectedId) {
+      const primary = filteredItems.find((item) => item.id === primarySelectedId);
+      if (primary) {
+        return primary;
+      }
+    }
+    const firstSelected = selectedItemIds
+      .map((id) => filteredItems.find((item) => item.id === id))
+      .find((item): item is VaultItemSummary => Boolean(item));
+    return firstSelected ?? filteredItems[0] ?? null;
+  }, [filteredItems, primarySelectedId, selectedItemIds]);
+
+  useEffect(() => {
+    if (selectedItemIds.length === 0) {
+      if (primarySelectedId !== null) {
+        setPrimarySelectedId(null);
+      }
+      return;
+    }
+
+    const visibleIds = new Set(filteredItems.map((item) => item.id));
+    const nextSelected = selectedItemIds.filter((id) => visibleIds.has(id));
+    if (nextSelected.length !== selectedItemIds.length) {
+      setSelectedItemIds(nextSelected);
+    }
+    if (primarySelectedId && !visibleIds.has(primarySelectedId)) {
+      setPrimarySelectedId(nextSelected[0] ?? null);
+    }
+  }, [filteredItems, selectedItemIds, primarySelectedId]);
+
+  const toggleSelectedItem = useCallback((itemId: string): void => {
+    setSelectedItemIds((prev) => {
+      if (prev.includes(itemId)) {
+        const next = prev.filter((id) => id !== itemId);
+        setPrimarySelectedId((current) => (current === itemId ? next[0] ?? null : current));
+        return next;
+      }
+      setPrimarySelectedId(itemId);
+      return [...prev, itemId];
+    });
+  }, []);
+
+  const setSelectedItems = useCallback((itemIds: string[]): void => {
+    const unique = Array.from(new Set(itemIds));
+    setSelectedItemIds(unique);
+    setPrimarySelectedId(unique[unique.length - 1] ?? null);
+  }, []);
+
+  const clearSelection = useCallback((): void => {
+    setSelectedItemIds([]);
+    setPrimarySelectedId(null);
+  }, []);
 
   return {
     allItems,
@@ -258,14 +322,19 @@ export const useGalleryState = () => {
     selectedFolderId,
     selectedTagIds,
     selectedItem,
-    selectedItemId,
+    selectedItemIds,
+    primarySelectedId,
+    showFavoritesOnly,
     deleteOriginalsOverride,
     importFolderId,
     setSearchTerm,
     setSort,
     setSelectedFolderId,
     setSelectedTagIds,
-    setSelectedItemId,
+    toggleSelectedItem,
+    setSelectedItems,
+    clearSelection,
+    setShowFavoritesOnly,
     setSecuritySettings,
     setDeleteOriginalsOverride,
     setImportFolderId,

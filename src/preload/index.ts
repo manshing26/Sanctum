@@ -6,15 +6,20 @@ import {
   type AssignItemsTagInput,
   type CreateFolderInput,
   type CreateTagInput,
+  type ExportItemsInput,
   IPC_CHANNELS,
   type MoveFolderInput,
+  type RenameItemInput,
   type RenameTagInput,
   type RenameFolderInput,
+  type ToggleFavoriteInput,
   type UnassignItemTagInput,
   type UnassignItemsTagInput,
   type CreateVaultPasswordInput,
   type CloseMediaSessionInput,
+  type ExportProgress,
   type ImportRequest,
+  type ImportProgress,
   type ListItemsQueryInput,
   type OpenMediaSessionInput,
   type UnlockVaultInput,
@@ -46,6 +51,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clearAllVaultItems: () => ipcRenderer.invoke(IPC_CHANNELS.clearAllVaultItems),
   deleteVaultItem: (input: { itemId: string }) =>
     ipcRenderer.invoke(IPC_CHANNELS.deleteVaultItem, input),
+  toggleFavorite: (input: ToggleFavoriteInput) => ipcRenderer.invoke(IPC_CHANNELS.toggleFavorite, input),
+  renameVaultItem: (input: RenameItemInput) => ipcRenderer.invoke(IPC_CHANNELS.renameVaultItem, input),
+  exportItems: (input: ExportItemsInput) => ipcRenderer.invoke(IPC_CHANNELS.exportItems, input),
   createFolder: (input: CreateFolderInput) => ipcRenderer.invoke(IPC_CHANNELS.createFolder, input),
   listFoldersTree: () => ipcRenderer.invoke(IPC_CHANNELS.listFoldersTree),
   renameFolder: (input: RenameFolderInput) => ipcRenderer.invoke(IPC_CHANNELS.renameFolder, input),
@@ -69,4 +77,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSecuritySettings: () => ipcRenderer.invoke(IPC_CHANNELS.getSecuritySettings),
   updateSecuritySettings: (input: UpdateSecuritySettingsInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.updateSecuritySettings, input),
+  onImportProgress: (handler: (payload: ImportProgress) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: ImportProgress) => {
+      handler(payload);
+    };
+    ipcRenderer.on(IPC_CHANNELS.importProgress, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.importProgress, listener);
+    };
+  },
+  onExportProgress: (handler: (payload: ExportProgress) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: ExportProgress) => {
+      handler(payload);
+    };
+    ipcRenderer.on(IPC_CHANNELS.exportProgress, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.exportProgress, listener);
+    };
+  },
 });

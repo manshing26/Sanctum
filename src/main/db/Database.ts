@@ -112,12 +112,14 @@ export class DatabaseService {
     this.ensureVaultItemsColumn('thumbnail_iv', 'BLOB');
     this.ensureVaultItemsColumn('thumbnail_auth_tag', 'BLOB');
     this.ensureVaultItemsColumn('folder_id', 'INTEGER');
+    this.ensureVaultItemsColumn('is_favorite', 'INTEGER');
     this.ensureVaultItemsColumn('content_hash', 'TEXT');
 
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_vault_items_folder_id ON vault_items(folder_id)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_item_tags_item_id ON item_tags(item_id)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_item_tags_tag_id ON item_tags(tag_id)');
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_vault_items_is_favorite ON vault_items(is_favorite)');
   }
 
   private ensureVaultItemsColumn(columnName: string, columnType: string): void {

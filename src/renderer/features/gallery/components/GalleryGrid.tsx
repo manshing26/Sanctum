@@ -5,9 +5,10 @@ import { GalleryCard } from './GalleryCard';
 type GalleryGridProps = {
   items: VaultItemSummary[];
   thumbnails: Record<string, string>;
-  selectedItemId: string | null;
-  onSelectItem: (itemId: string) => void;
+  selectedItemIds: string[];
+  onToggleSelect: (itemId: string) => void;
   onOpenItem: (itemId: string) => void;
+  onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
   hasMore: boolean;
   isLoading: boolean;
   onLoadMore: () => void;
@@ -16,9 +17,10 @@ type GalleryGridProps = {
 export const GalleryGrid = ({
   items,
   thumbnails,
-  selectedItemId,
-  onSelectItem,
+  selectedItemIds,
+  onToggleSelect,
   onOpenItem,
+  onToggleFavorite,
   hasMore,
   isLoading,
   onLoadMore,
@@ -36,9 +38,10 @@ export const GalleryGrid = ({
               key={item.id}
               item={item}
               thumbnailUrl={thumbnails[item.id]}
-              isSelected={selectedItemId === item.id}
-              onSelect={onSelectItem}
+              isSelected={selectedItemIds.includes(item.id)}
+              onToggleSelect={onToggleSelect}
               onOpen={onOpenItem}
+              onToggleFavorite={onToggleFavorite}
             />
           ))}
         </div>
