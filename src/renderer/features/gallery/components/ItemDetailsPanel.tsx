@@ -22,6 +22,7 @@ type ItemDetailsPanelProps = {
   onToggleTag: (itemId: string, tagId: number, assigned: boolean) => void;
   onUpdateSecureDeleteDefault: (enabled: boolean) => void;
   onOpenItem: (itemId: string) => void;
+  onDeleteItem: (itemId: string) => void;
 };
 
 export const ItemDetailsPanel = ({
@@ -33,6 +34,7 @@ export const ItemDetailsPanel = ({
   onToggleTag,
   onUpdateSecureDeleteDefault,
   onOpenItem,
+  onDeleteItem,
 }: ItemDetailsPanelProps): React.JSX.Element => {
   const folderOptions = flattenFolders(folders);
 
@@ -60,6 +62,13 @@ export const ItemDetailsPanel = ({
             className="rounded-md border border-border px-2 py-1 text-xs text-text-primary"
           >
             Open Viewer
+          </button>
+          <button
+            type="button"
+            onClick={() => onDeleteItem(item.id)}
+            className="rounded-md border border-danger/60 bg-danger/10 px-2 py-1 text-xs text-danger"
+          >
+            Delete
           </button>
 
           <label className="block text-xs text-text-muted">

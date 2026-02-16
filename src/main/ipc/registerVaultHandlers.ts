@@ -1,5 +1,10 @@
 import { dialog, ipcMain, type OpenDialogOptions } from 'electron';
-import { IPC_CHANNELS, type ImportRequest, type ListItemsQueryInput } from '../../shared/ipc';
+import {
+  IPC_CHANNELS,
+  type DeleteVaultItemInput,
+  type ImportRequest,
+  type ListItemsQueryInput,
+} from '../../shared/ipc';
 import { MainWindowController } from '../windows/MainWindowController';
 import { ImportService } from '../services/import/ImportService';
 import { VaultService } from '../services/vault/VaultService';
@@ -73,6 +78,18 @@ export const registerVaultHandlers = ({
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to clear vault items.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.deleteVaultItem, async (_event, input: DeleteVaultItemInput) => {
+    try {
+      await vaultService.deleteItem(input.itemId);
+      return { ok: true as const };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to delete item.',
       };
     }
   });

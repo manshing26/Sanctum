@@ -44,6 +44,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.closeMediaSession, input),
   pickFiles: () => ipcRenderer.invoke(IPC_CHANNELS.pickFiles),
   clearAllVaultItems: () => ipcRenderer.invoke(IPC_CHANNELS.clearAllVaultItems),
+  deleteVaultItem: (input: { itemId: string }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.deleteVaultItem, input),
   createFolder: (input: CreateFolderInput) => ipcRenderer.invoke(IPC_CHANNELS.createFolder, input),
   listFoldersTree: () => ipcRenderer.invoke(IPC_CHANNELS.listFoldersTree),
   renameFolder: (input: RenameFolderInput) => ipcRenderer.invoke(IPC_CHANNELS.renameFolder, input),

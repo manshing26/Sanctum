@@ -200,6 +200,27 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
     }
   };
 
+  const handleDeleteItem = async (itemId: string): Promise<void> => {
+    const confirmed = window.confirm('Delete this item? This cannot be undone.');
+    if (!confirmed) {
+      return;
+    }
+    const result = await window.electronAPI.deleteVaultItem({ itemId });
+    if (!result.ok) {
+      onMessage(result.error);
+      return;
+    }
+    const refreshed = await refresh();
+    if (!refreshed.ok) {
+      onMessage(refreshed.error);
+      return;
+    }
+    if (viewerItemId === itemId) {
+      setViewerItemId(null);
+    }
+    onMessage('Item deleted.');
+  };
+
   const handleToggleTag = async (itemId: string, tagId: number, assigned: boolean): Promise<void> => {
     const response = assigned
       ? await window.electronAPI.unassignItemTag({ itemId, tagId })
@@ -313,6 +334,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
             onAssignFolder={(itemId, folderId) => void handleAssignFolder(itemId, folderId)}
             onToggleTag={(itemId, tagId, assigned) => void handleToggleTag(itemId, tagId, assigned)}
             onOpenItem={handleOpenViewer}
+            onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
             onUpdateSecureDeleteDefault={(enabled) =>
               void window.electronAPI
                 .updateSecuritySettings({ secureDeleteOnImport: enabled })
@@ -337,6 +359,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
             onAssignFolder={(itemId, folderId) => void handleAssignFolder(itemId, folderId)}
             onToggleTag={(itemId, tagId, assigned) => void handleToggleTag(itemId, tagId, assigned)}
             onOpenItem={handleOpenViewer}
+            onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
             onUpdateSecureDeleteDefault={(enabled) =>
               void window.electronAPI
                 .updateSecuritySettings({ secureDeleteOnImport: enabled })

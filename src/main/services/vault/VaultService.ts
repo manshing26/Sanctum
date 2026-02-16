@@ -422,6 +422,29 @@ export class VaultService {
     return { deleted: rows.length };
   }
 
+  async deleteItem(itemId: string): Promise<void> {
+    const row = this.db
+      .prepare('SELECT encrypted_filename FROM vault_items WHERE id = ?')
+      .get(itemId) as { encrypted_filename: string } | undefined;
+
+    if (!row) {
+      throw new Error('Item not found.');
+    }
+
+    const filePath = path.join(this.vaultPaths.filesDir, row.encrypted_filename);
+    try {
+      await fs.unlink(filePath);
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError.code !== 'ENOENT') {
+        throw error;
+      }
+    }
+
+    this.db.prepare('DELETE FROM item_tags WHERE item_id = ?').run(itemId);
+    this.db.prepare('DELETE FROM vault_items WHERE id = ?').run(itemId);
+  }
+
   async getDecryptedMedia(itemId: string): Promise<{
     itemId: string;
     mimeType: string;

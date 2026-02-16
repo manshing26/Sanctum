@@ -23,6 +23,7 @@ export const IPC_CHANNELS = {
   closeMediaSession: 'vault:close-media-session',
   pickFiles: 'vault:pick-files',
   clearAllVaultItems: 'vault:clear-all-items',
+  deleteVaultItem: 'vault:delete-item',
   createFolder: 'folders:create',
   listFoldersTree: 'folders:list-tree',
   renameFolder: 'folders:rename',
@@ -220,6 +221,10 @@ export type DeleteBookmarkInput = {
   id: number;
 };
 
+export type DeleteVaultItemInput = {
+  itemId: string;
+};
+
 export type DownloadState = 'downloading' | 'completed' | 'cancelled' | 'failed';
 
 export type DownloadProgress = {
@@ -262,6 +267,7 @@ export type ElectronAPI = {
   closeMediaSession: (input: CloseMediaSessionInput) => Promise<OperationResult>;
   pickFiles: () => Promise<string[]>;
   clearAllVaultItems: () => Promise<OperationResult<{ deleted: number }>>;
+  deleteVaultItem: (input: DeleteVaultItemInput) => Promise<OperationResult>;
   createFolder: (input: CreateFolderInput) => Promise<OperationResult<FolderNode>>;
   listFoldersTree: () => Promise<OperationResult<FolderNode[]>>;
   renameFolder: (input: RenameFolderInput) => Promise<OperationResult<FolderNode>>;
