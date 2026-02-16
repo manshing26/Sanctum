@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, session } from 'electron';
+import { app, BrowserWindow, Menu, protocol, session } from 'electron';
 import { DatabaseService } from './db/Database';
 import { registerAuthHandlers } from './ipc/registerAuthHandlers';
 import { registerBrowserHandlers } from './ipc/registerBrowserHandlers';
@@ -41,6 +41,19 @@ const applyCspHeaders = (): void => {
     });
   });
 };
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'privatevault-media',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+]);
 
 export const bootstrapApp = (): void => {
   // Suppress noisy Chromium guest view logs such as ERR_ABORTED on rapid navigations.

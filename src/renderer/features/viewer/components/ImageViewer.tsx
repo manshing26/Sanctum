@@ -25,7 +25,18 @@ export const ImageViewer = ({
           fitMode === 'fit' ? 'max-h-full max-w-full object-contain' : 'object-none'
         }`}
         style={transformStyle}
-        onError={onError}
+        onLoad={(event) => {
+          const target = event.currentTarget;
+          console.info('[viewer][image] loaded', {
+            src,
+            width: target.naturalWidth,
+            height: target.naturalHeight,
+          });
+        }}
+        onError={() => {
+          console.info('[viewer][image] error', { src });
+          onError?.();
+        }}
       />
     </div>
   );

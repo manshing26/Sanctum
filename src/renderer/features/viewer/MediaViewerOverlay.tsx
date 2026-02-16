@@ -377,6 +377,7 @@ export const MediaViewerOverlay = ({
           </div>
         ) : null}
 
+
         <div className="min-h-0 flex-1">
           {state.isLoading ? (
             <div className="flex h-full items-center justify-center rounded-lg border border-border bg-bg/60 text-sm text-text-muted">

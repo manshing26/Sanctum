@@ -191,7 +191,30 @@ export class MediaSessionService {
     const start = parsedRange?.start ?? 0;
     const end = parsedRange?.end ?? fileSize - 1;
     const contentLength = end - start + 1;
+    console.info('[media-service] response', {
+      token: token.slice(0, 8),
+      range: rangeHeader ?? null,
+      start,
+      end,
+      fileSize,
+      contentLength,
+      mimeType: session.mimeType,
+      status: parsedRange ? 206 : 200,
+    });
     const nodeStream = createReadStream(session.filePath, { start, end });
+    nodeStream.on('error', (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.toLowerCase().includes('aborted')) {
+        return;
+      }
+      console.error('[media-service] stream error', {
+        token: token.slice(0, 8),
+        start,
+        end,
+        filePath: session.filePath,
+        message,
+      });
+    });
     const body = Readable.toWeb(nodeStream) as ReadableStream;
 
     return new Response(body, {

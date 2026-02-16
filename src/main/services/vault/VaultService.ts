@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Database as SqliteDatabase } from 'better-sqlite3';
 import { CryptoService } from '../crypto/CryptoService';
 import { SessionStore } from '../../state/SessionStore';
@@ -80,6 +80,7 @@ type MediaItemRow = {
   encrypted_filename: string;
   mime_type: string;
   file_size: number;
+  content_hash: string | null;
   iv: Buffer;
   auth_tag: Buffer;
 };
@@ -207,6 +208,7 @@ export class VaultService {
 
     const key = this.sessionStore.getMasterKey();
     const fileBuffer = await fs.readFile(sourcePath);
+    const contentHash = createHash('sha256').update(fileBuffer).digest('hex');
 
     const itemId = randomUUID();
     const encryptedFilename = `${itemId}.enc`;
@@ -250,9 +252,10 @@ export class VaultService {
            thumbnail_enc,
            thumbnail_iv,
            thumbnail_auth_tag,
+           content_hash,
            iv,
            auth_tag
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         itemId,
@@ -268,6 +271,7 @@ export class VaultService {
         encryptedThumbnail?.encrypted ?? null,
         encryptedThumbnail?.iv ?? null,
         encryptedThumbnail?.authTag ?? null,
+        contentHash,
         encryptedFile.iv,
         encryptedFile.authTag,
       );
@@ -453,7 +457,7 @@ export class VaultService {
   }> {
     const row = this.db
       .prepare(
-        `SELECT id, encrypted_filename, mime_type, file_size, iv, auth_tag
+        `SELECT id, encrypted_filename, mime_type, file_size, content_hash, iv, auth_tag
          FROM vault_items
          WHERE id = ?`
       )
@@ -474,6 +478,18 @@ export class VaultService {
       },
       key,
     );
+    if (row.content_hash) {
+      const decryptedHash = createHash('sha256').update(decrypted).digest('hex');
+      if (decryptedHash !== row.content_hash) {
+        console.error('[vault] content hash mismatch', {
+          itemId: row.id,
+          expected: row.content_hash,
+          actual: decryptedHash,
+        });
+      } else {
+        console.info('[vault] content hash ok', { itemId: row.id });
+      }
+    }
 
     return {
       itemId: row.id,
