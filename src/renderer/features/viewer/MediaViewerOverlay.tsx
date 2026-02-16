@@ -49,6 +49,7 @@ export const MediaViewerOverlay = ({
   const previousTokenRef = useRef<string | null>(null);
   const openedAtRef = useRef<number>(Date.now());
   const viewerControls = useViewerControls();
+  const [playbackRate, setPlaybackRate] = useState(1);
 
   const currentIndex = useMemo(
     () => items.findIndex((item) => item.id === currentItemId),
@@ -133,6 +134,7 @@ export const MediaViewerOverlay = ({
   useEffect(() => {
     console.info('[viewer] current item changed', { currentItemId });
     viewerControls.reset();
+    setPlaybackRate(1);
     setReopenAttempted(false);
     if (currentItem) {
       void openSession(currentItem.id);
@@ -377,6 +379,24 @@ export const MediaViewerOverlay = ({
           </div>
         ) : null}
 
+        {isVideo ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+            <span>Speed</span>
+            <select
+              value={playbackRate}
+              onChange={(event) => setPlaybackRate(Number(event.target.value))}
+              className="rounded border border-border bg-bg px-2 py-1 text-xs text-text-primary"
+            >
+              <option value={0.5}>0.5x</option>
+              <option value={0.75}>0.75x</option>
+              <option value={1}>1x</option>
+              <option value={1.25}>1.25x</option>
+              <option value={1.5}>1.5x</option>
+              <option value={2}>2x</option>
+            </select>
+          </div>
+        ) : null}
+
 
         <div className="min-h-0 flex-1">
           {state.isLoading ? (
@@ -424,6 +444,7 @@ export const MediaViewerOverlay = ({
             <VideoViewer
               src={state.session.mediaUrl}
               videoRef={videoRef}
+              playbackRate={playbackRate}
               onError={() => {
                 handleVideoError();
               }}

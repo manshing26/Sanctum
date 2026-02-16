@@ -3,14 +3,23 @@ import React, { useEffect } from 'react';
 type VideoViewerProps = {
   src: string;
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  playbackRate?: number;
   onError?: () => void;
 };
 
 export const VideoViewer = ({
   src,
   videoRef,
+  playbackRate = 1,
   onError,
 }: VideoViewerProps): React.JSX.Element => {
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+    video.playbackRate = playbackRate;
+  }, [playbackRate, videoRef]);
   useEffect(() => {
     const video = videoRef.current;
     if (!video) {
