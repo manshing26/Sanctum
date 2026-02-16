@@ -5,20 +5,23 @@ import {
   type OpenMediaSessionInput,
 } from '../../shared/ipc';
 import { MediaSessionService } from '../services/vault/MediaSessionService';
+import { getLogger } from '../logging/logger';
 
 type RegisterMediaHandlersParams = {
   mediaSessionService: MediaSessionService;
 };
+
+const logger = getLogger('media');
 
 export const registerMediaHandlers = ({
   mediaSessionService,
 }: RegisterMediaHandlersParams): void => {
   ipcMain.handle(IPC_CHANNELS.openMediaSession, async (_event, input: OpenMediaSessionInput) => {
     const startedAt = Date.now();
-    console.info('[media] open request', { itemId: input.itemId });
+    logger.info('open request', { itemId: input.itemId });
     try {
       const data = await mediaSessionService.openMediaSession(input.itemId);
-      console.info('[media] open success', {
+      logger.info('open success', {
         itemId: input.itemId,
         token: data.token.slice(0, 8),
         elapsedMs: Date.now() - startedAt,
@@ -28,7 +31,7 @@ export const registerMediaHandlers = ({
         data,
       };
     } catch (error) {
-      console.error('[media] open failed', {
+      logger.error('open failed', {
         itemId: input.itemId,
         elapsedMs: Date.now() - startedAt,
         error: error instanceof Error ? error.message : String(error),
@@ -46,13 +49,13 @@ export const registerMediaHandlers = ({
       const startedAt = Date.now();
       try {
         await mediaSessionService.closeMediaSession(input.token);
-        console.info('[media] close success', {
+        logger.info('close success', {
           token: input.token.slice(0, 8),
           elapsedMs: Date.now() - startedAt,
         });
         return { ok: true as const };
       } catch (error) {
-        console.error('[media] close failed', {
+        logger.error('close failed', {
           token: input.token.slice(0, 8),
           elapsedMs: Date.now() - startedAt,
           error: error instanceof Error ? error.message : String(error),

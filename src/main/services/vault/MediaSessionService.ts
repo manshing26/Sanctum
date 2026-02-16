@@ -6,9 +6,11 @@ import { Readable } from 'node:stream';
 import type { OpenMediaSessionResult } from '../../../shared/ipc';
 import { VaultPaths } from './VaultPaths';
 import { VaultService } from './VaultService';
+import { getLogger } from '../../logging/logger';
 
 const SESSION_TTL_MS = 5 * 60 * 1000;
 const SWEEP_INTERVAL_MS = 60 * 1000;
+const logger = getLogger('media-service');
 
 type MediaSession = {
   token: string;
@@ -99,9 +101,9 @@ export class MediaSessionService {
 
   async openMediaSession(itemId: string): Promise<OpenMediaSessionResult> {
     const startedAt = Date.now();
-    console.info('[media-service] open start', { itemId });
+    logger.info('open start', { itemId });
     const media = await this.vaultService.getDecryptedMedia(itemId);
-    console.info('[media-service] decrypted media', {
+    logger.info('decrypted media', {
       itemId,
       mimeType: media.mimeType,
       fileSize: media.fileSize,
@@ -124,7 +126,7 @@ export class MediaSessionService {
       expiresAt,
     });
 
-    console.info('[media-service] open ready', {
+    logger.info('open ready', {
       itemId,
       token: token.slice(0, 8),
       elapsedMs: Date.now() - startedAt,
@@ -191,7 +193,7 @@ export class MediaSessionService {
     const start = parsedRange?.start ?? 0;
     const end = parsedRange?.end ?? fileSize - 1;
     const contentLength = end - start + 1;
-    console.info('[media-service] response', {
+    logger.debug('response', {
       token: token.slice(0, 8),
       range: rangeHeader ?? null,
       start,
@@ -207,7 +209,7 @@ export class MediaSessionService {
       if (message.toLowerCase().includes('aborted')) {
         return;
       }
-      console.error('[media-service] stream error', {
+      logger.error('stream error', {
         token: token.slice(0, 8),
         start,
         end,

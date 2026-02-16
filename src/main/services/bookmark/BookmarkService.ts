@@ -2,6 +2,7 @@ import type { Database as SqliteDatabase } from 'better-sqlite3';
 import { CryptoService } from '../crypto/CryptoService';
 import { SessionStore } from '../../state/SessionStore';
 import type { BookmarkSummary, CreateBookmarkInput } from '../../../shared/ipc';
+import { getLogger } from '../../logging/logger';
 
 type BookmarkRow = {
   id: number;
@@ -78,6 +79,8 @@ const normalizeHttpUrl = (raw: string): string => {
   return parsed.toString();
 };
 
+const logger = getLogger('bookmark');
+
 export class BookmarkService {
   constructor(
     private readonly db: SqliteDatabase,
@@ -114,7 +117,7 @@ export class BookmarkService {
           updatedAt: row.updated_at,
         });
       } catch (error) {
-        console.warn('[bookmark] skipped corrupted row', {
+        logger.warn('skipped corrupted row', {
           id: row.id,
           error: error instanceof Error ? error.message : String(error),
         });

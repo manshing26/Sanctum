@@ -5,6 +5,7 @@ import type { Database as SqliteDatabase } from 'better-sqlite3';
 import { CryptoService } from '../crypto/CryptoService';
 import { SessionStore } from '../../state/SessionStore';
 import { VaultPaths } from './VaultPaths';
+import { getLogger } from '../../logging/logger';
 import type {
   ItemThumbnail,
   ListItemsQueryInput,
@@ -93,6 +94,8 @@ const SORT_TO_ORDER_BY: Record<ListItemsQueryInput['sort'], string> = {
   size_desc: 'file_size DESC, id DESC',
   size_asc: 'file_size ASC, id ASC',
 };
+
+const logger = getLogger('vault');
 
 export class VaultService {
   constructor(
@@ -481,13 +484,13 @@ export class VaultService {
     if (row.content_hash) {
       const decryptedHash = createHash('sha256').update(decrypted).digest('hex');
       if (decryptedHash !== row.content_hash) {
-        console.error('[vault] content hash mismatch', {
+        logger.error('content hash mismatch', {
           itemId: row.id,
           expected: row.content_hash,
           actual: decryptedHash,
         });
       } else {
-        console.info('[vault] content hash ok', { itemId: row.id });
+        logger.info('content hash ok', { itemId: row.id });
       }
     }
 
