@@ -4,15 +4,36 @@
 
 :root {
   color-scheme: dark;
+
+  /* Background */
   --bg: 10 12 16;
   --surface: 20 24 31;
+  --surface-hover: 28 32 42;
+
+  /* Borders */
   --border: 52 64 84;
+
+  /* Brand / Accent */
   --accent: 99 102 241;
+  --accent-hover: 79 82 221;
   --accent-foreground: 240 245 255;
+
+  /* Text */
   --text-primary: 230 238 255;
   --text-muted: 151 166 196;
+
+  /* Semantic */
   --danger: 248 113 113;
-  --radius-md: 0.625rem;
+  --danger-hover: 239 68 68;
+  --success: 74 222 128;
+  --warning: 251 191 36;
+  --info: 96 165 250;
+
+  /* Radii */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
 }
 
 @layer base {
@@ -37,9 +58,47 @@
   }
 
   button,
-  input {
+  input,
+  select,
+  textarea {
     font: inherit;
   }
+}
+
+/* Animations for Radix UI components */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes slide-in-from-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slide-out-to-right {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+
+@keyframes slide-in-from-top {
+  from { transform: translateY(-8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes scale-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.95); }
 }
 
 @layer utilities {
@@ -49,6 +108,10 @@
 
   .bg-surface {
     background-color: rgb(var(--surface));
+  }
+
+  .bg-surface-hover {
+    background-color: rgb(var(--surface-hover));
   }
 
   .border-border {
@@ -79,23 +142,75 @@
     color: rgb(var(--danger));
   }
 
+  .text-success {
+    color: rgb(var(--success));
+  }
+
+  .text-warning {
+    color: rgb(var(--warning));
+  }
+
+  .text-info {
+    color: rgb(var(--info));
+  }
+
   .border-danger {
     border-color: rgb(var(--danger));
   }
 
-  .focus\:ring-danger\/20:focus {
-    box-shadow: 0 0 0 3px rgb(var(--danger) / 0.2);
-  }
-
-  .focus\:ring-accent\/25:focus {
-    box-shadow: 0 0 0 3px rgb(var(--accent) / 0.25);
-  }
-
-  .rounded-lg {
-    border-radius: var(--radius-md);
-  }
-
   .shadow-soft {
     box-shadow: 0 12px 35px rgb(0 0 0 / 0.35);
+  }
+
+  .animate-fade-in {
+    animation: fade-in 150ms ease-out;
+  }
+
+  .animate-fade-out {
+    animation: fade-out 150ms ease-in;
+  }
+
+  .animate-slide-in-from-right {
+    animation: slide-in-from-right 200ms ease-out;
+  }
+
+  .animate-slide-out-to-right {
+    animation: slide-out-to-right 200ms ease-in;
+  }
+
+  .animate-slide-in-from-top {
+    animation: slide-in-from-top 150ms ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scale-in 150ms ease-out;
+  }
+
+  .animate-scale-out {
+    animation: scale-out 150ms ease-in;
+  }
+
+  /* Scrollbar styling */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--border)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--border));
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--text-muted));
   }
 }

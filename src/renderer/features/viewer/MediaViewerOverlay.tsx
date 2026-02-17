@@ -1,11 +1,26 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  X,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  Maximize2,
+  Minimize2,
+  Loader2,
+  AlertCircle,
+} from 'lucide-react';
 import type { OpenMediaSessionResult } from '../../../shared/ipc';
+import { Button } from '../../components/ui/Button';
+import { Tooltip, TooltipTrigger, TooltipContent } from '../../components/ui/Tooltip';
 import { ImageViewer } from './components/ImageViewer';
 import { VideoViewer } from './components/VideoViewer';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useViewerControls } from './hooks/useViewerControls';
 import type { MediaViewerOverlayProps } from './types';
+import { cn } from '../../lib/utils';
 
 type ViewerLoadState = {
   isLoading: boolean;
@@ -31,6 +46,8 @@ const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMe
   });
 };
 
+const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
 export const MediaViewerOverlay = ({
   items,
   currentItemId,
@@ -50,6 +67,8 @@ export const MediaViewerOverlay = ({
   const openedAtRef = useRef<number>(Date.now());
   const viewerControls = useViewerControls();
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [showControls, setShowControls] = useState(true);
+  const hideTimerRef = useRef<number | null>(null);
 
   const currentIndex = useMemo(
     () => items.findIndex((item) => item.id === currentItemId),
@@ -62,21 +81,26 @@ export const MediaViewerOverlay = ({
   const isImage = mimeType.startsWith('image/');
   const isVideo = mimeType.startsWith('video/');
 
-  const closeToken = async (token: string | null): Promise<void> => {
-    if (!token) {
-      return;
-    }
+  // Auto-hide controls after inactivity
+  const resetControlsTimer = (): void => {
+    setShowControls(true);
+    if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(() => setShowControls(false), 3000);
+  };
 
+  useEffect(() => {
+    return () => {
+      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    };
+  }, []);
+
+  const closeToken = async (token: string | null): Promise<void> => {
+    if (!token) return;
     await window.electronAPI.closeMediaSession({ token });
   };
 
   const openSession = async (itemId: string): Promise<void> => {
-    console.info('[viewer] open requested', { itemId });
-    setState({
-      isLoading: true,
-      error: null,
-      session: null,
-    });
+    setState({ isLoading: true, error: null, session: null });
 
     const previousToken = previousTokenRef.current;
     previousTokenRef.current = null;
@@ -91,61 +115,20 @@ export const MediaViewerOverlay = ({
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to open media session.';
-      console.error('[viewer] open exception', { itemId, error: message });
-      setState({
-        isLoading: false,
-        error: message,
-        session: null,
-      });
+      setState({ isLoading: false, error: message, session: null });
       onMessage(message);
       return;
     }
 
     if (!result.ok) {
-      console.error('[viewer] open failed', { itemId, error: result.error });
       onMessage(result.error);
-      setState({
-        isLoading: false,
-        error: result.error,
-        session: null,
-      });
+      setState({ isLoading: false, error: result.error, session: null });
       return;
     }
 
-    console.info('[viewer] open success', {
-      itemId,
-      token: result.data.token.slice(0, 8),
-    });
     previousTokenRef.current = result.data.token;
-    setState({
-      isLoading: false,
-      error: null,
-      session: result.data,
-    });
+    setState({ isLoading: false, error: null, session: result.data });
   };
-
-  useEffect(() => {
-    console.info('[viewer] overlay mounted', { currentItemId });
-    return () => {
-      console.info('[viewer] overlay unmounted', { currentItemId });
-    };
-  }, []);
-
-  useEffect(() => {
-    console.info('[viewer] current item changed', { currentItemId });
-    viewerControls.reset();
-    setPlaybackRate(1);
-    setReopenAttempted(false);
-    if (currentItem) {
-      void openSession(currentItem.id);
-    } else {
-      setState({
-        isLoading: false,
-        error: 'Selected item is not available.',
-        session: null,
-      });
-    }
-  }, [currentItemId]);
 
   useEffect(() => {
     return () => {
@@ -154,8 +137,19 @@ export const MediaViewerOverlay = ({
     };
   }, []);
 
+  useEffect(() => {
+    viewerControls.reset();
+    setPlaybackRate(1);
+    setReopenAttempted(false);
+    resetControlsTimer();
+    if (currentItem) {
+      void openSession(currentItem.id);
+    } else {
+      setState({ isLoading: false, error: 'Selected item is not available.', session: null });
+    }
+  }, [currentItemId]);
+
   const closeViewer = (): void => {
-    console.info('[viewer] close requested');
     if (document.fullscreenElement) {
       void document.exitFullscreen();
       return;
@@ -164,27 +158,18 @@ export const MediaViewerOverlay = ({
   };
 
   const navigatePrev = (): void => {
-    if (!canPrev) {
-      return;
-    }
-    onNavigate(items[currentIndex - 1].id);
+    if (canPrev) onNavigate(items[currentIndex - 1].id);
   };
 
   const navigateNext = (): void => {
-    if (!canNext) {
-      return;
-    }
-    onNavigate(items[currentIndex + 1].id);
+    if (canNext) onNavigate(items[currentIndex + 1].id);
   };
 
   const togglePlayPause = (): void => {
-    if (!videoRef.current) {
-      return;
-    }
+    if (!videoRef.current) return;
     if (videoRef.current.paused) {
       void videoRef.current.play().catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : 'Video playback failed.';
-        onMessage(message);
+        onMessage(error instanceof Error ? error.message : 'Video playback failed.');
       });
     } else {
       videoRef.current.pause();
@@ -192,16 +177,12 @@ export const MediaViewerOverlay = ({
   };
 
   const seekBy = (seconds: number): void => {
-    if (!videoRef.current) {
-      return;
-    }
+    if (!videoRef.current) return;
     videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime + seconds);
   };
 
   const toggleMute = (): void => {
-    if (!videoRef.current) {
-      return;
-    }
+    if (!videoRef.current) return;
     videoRef.current.muted = !videoRef.current.muted;
   };
 
@@ -210,32 +191,23 @@ export const MediaViewerOverlay = ({
       void document.exitFullscreen();
       return;
     }
-    if (!containerRef.current) {
-      return;
-    }
-    void containerRef.current.requestFullscreen();
+    if (containerRef.current) void containerRef.current.requestFullscreen();
   };
 
   const handleImageError = async (): Promise<void> => {
     if (reopenAttempted || !currentItem) {
-      setState((prev) => ({
-        ...prev,
-        error: prev.error ?? 'Unable to load this image.',
-      }));
+      setState((prev) => ({ ...prev, error: prev.error ?? 'Unable to load this image.' }));
       return;
     }
-
     setReopenAttempted(true);
-    onMessage('Image load failed once, retrying session...');
+    onMessage('Retrying...');
     await openSession(currentItem.id);
   };
 
   const handleVideoError = (): void => {
     setState((prev) => ({
       ...prev,
-      error:
-        prev.error ??
-        'Unable to decode this video file in current runtime. Codec may be unsupported.',
+      error: prev.error ?? 'Unable to decode this video. Codec may be unsupported.',
     }));
   };
 
@@ -256,206 +228,219 @@ export const MediaViewerOverlay = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 2147483647,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '16px',
-        background: 'rgba(0, 0, 0, 0.82)',
-      }}
-      onClick={(event) => {
-        // Prevent the opening click from immediately closing the modal.
-        if (Date.now() - openedAtRef.current < 250) {
-          return;
-        }
-        if (event.target !== event.currentTarget) {
-          return;
-        }
-        console.info('[viewer] backdrop click close');
+      className="fixed inset-0 z-[2147483647] flex items-center justify-center bg-black/90"
+      onClick={(e) => {
+        if (Date.now() - openedAtRef.current < 250) return;
+        if (e.target !== e.currentTarget) return;
         closeViewer();
       }}
+      onMouseMove={resetControlsTimer}
       role="presentation"
     >
       <div
         ref={containerRef}
-        className="flex h-[min(92vh,900px)] w-[min(96vw,1500px)] flex-col gap-3 rounded-xl border border-border bg-surface p-3"
-        style={{
-          width: 'min(96vw, 1500px)',
-          height: 'min(92vh, 900px)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
-          border: '1px solid rgb(var(--border))',
-          borderRadius: '12px',
-          background: 'rgb(var(--surface))',
-          padding: '12px',
-          boxSizing: 'border-box',
-        }}
-        onClick={(event) => event.stopPropagation()}
+        className="relative flex h-full w-full flex-col"
+        onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
       >
-        <div className="flex items-center justify-between gap-2">
+        {/* Top bar — filename, counter, close */}
+        <div
+          className={cn(
+            'absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent px-4 py-3 transition-opacity duration-300',
+            showControls ? 'opacity-100' : 'opacity-0',
+          )}
+        >
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-text-primary">{currentItem?.originalName ?? 'Viewer'}</p>
-            <p className="text-xs text-text-muted">{mimeType}</p>
+            <p className="truncate text-sm font-medium text-white">{currentItem?.originalName ?? 'Viewer'}</p>
+            <p className="text-xs text-white/60">{mimeType}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={!canPrev}
-              onClick={navigatePrev}
-              className="rounded-md border border-border px-2 py-1 text-xs text-text-primary disabled:opacity-40"
-            >
-              Prev [
-            </button>
-            <button
-              type="button"
-              disabled={!canNext}
-              onClick={navigateNext}
-              className="rounded-md border border-border px-2 py-1 text-xs text-text-primary disabled:opacity-40"
-            >
-              Next ]
-            </button>
-            <button
-              type="button"
-              onClick={toggleFullscreen}
-              className="rounded-md border border-border px-2 py-1 text-xs text-text-primary"
-            >
-              Fullscreen
-            </button>
-            <button
-              type="button"
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-white/70">
+              {currentIndex + 1} / {items.length}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon-sm"
               onClick={closeViewer}
-              className="rounded-md border border-border px-2 py-1 text-xs text-text-primary"
+              className="text-white hover:bg-white/10"
+              aria-label="Close viewer"
             >
-              Close
-            </button>
+              <X className="h-5 w-5" />
+            </Button>
           </div>
         </div>
 
-        {isImage ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={viewerControls.zoomOut}
-              className="rounded-md border border-border px-2 py-1 text-xs text-text-primary"
-            >
-              Zoom -
-            </button>
-            <button
-              type="button"
-              onClick={viewerControls.zoomIn}
-              className="rounded-md border border-border px-2 py-1 text-xs text-text-primary"
-            >
-              Zoom +
-            </button>
-            <button
-              type="button"
-              onClick={viewerControls.rotateClockwise}
-              className="rounded-md border border-border px-2 py-1 text-xs text-text-primary"
-            >
-              Rotate
-            </button>
-            <button
-              type="button"
-              onClick={viewerControls.toggleFitMode}
-              className="rounded-md border border-border px-2 py-1 text-xs text-text-primary"
-            >
-              {viewerControls.fitMode === 'fit' ? 'Original size' : 'Fit'}
-            </button>
-            <button
-              type="button"
-              onClick={viewerControls.reset}
-              className="rounded-md border border-border px-2 py-1 text-xs text-text-primary"
-            >
-              Reset
-            </button>
-            <span className="text-xs text-text-muted">Zoom {Math.round(viewerControls.zoom * 100)}%</span>
-          </div>
-        ) : null}
+        {/* Navigation arrows */}
+        {canPrev && (
+          <button
+            type="button"
+            onClick={navigatePrev}
+            className={cn(
+              'absolute left-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white/80 transition-all hover:bg-black/60 hover:text-white',
+              showControls ? 'opacity-100' : 'opacity-0',
+            )}
+            aria-label="Previous"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+        )}
+        {canNext && (
+          <button
+            type="button"
+            onClick={navigateNext}
+            className={cn(
+              'absolute right-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/40 text-white/80 transition-all hover:bg-black/60 hover:text-white',
+              showControls ? 'opacity-100' : 'opacity-0',
+            )}
+            aria-label="Next"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+        )}
 
-        {isVideo ? (
-          <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
-            <span>Speed</span>
-            <select
-              value={playbackRate}
-              onChange={(event) => setPlaybackRate(Number(event.target.value))}
-              className="rounded border border-border bg-bg px-2 py-1 text-xs text-text-primary"
-            >
-              <option value={0.5}>0.5x</option>
-              <option value={0.75}>0.75x</option>
-              <option value={1}>1x</option>
-              <option value={1.25}>1.25x</option>
-              <option value={1.5}>1.5x</option>
-              <option value={2}>2x</option>
-            </select>
-          </div>
-        ) : null}
-
-
-        <div className="min-h-0 flex-1">
-          {state.isLoading ? (
-            <div className="flex h-full items-center justify-center rounded-lg border border-border bg-bg/60 text-sm text-text-muted">
-              Opening media...
+        {/* Content area */}
+        <div className="flex flex-1 items-center justify-center overflow-hidden">
+          {state.isLoading && (
+            <div className="flex flex-col items-center gap-3 text-white/60">
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <span className="text-sm">Loading media...</span>
             </div>
-          ) : null}
+          )}
 
-          {!state.isLoading && state.error ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3 rounded-lg border border-danger/40 bg-danger/5 text-sm text-danger">
-              <p>{state.error}</p>
+          {!state.isLoading && state.error && (
+            <div className="flex flex-col items-center gap-3 text-white/70">
+              <AlertCircle className="h-10 w-10 text-danger" />
+              <p className="max-w-md text-center text-sm">{state.error}</p>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={closeViewer}
-                  className="rounded-md border border-border px-2 py-1 text-xs text-text-primary"
-                >
+                <Button variant="secondary" size="sm" onClick={closeViewer}>
                   Close
-                </button>
-                <button
-                  type="button"
-                  disabled={!canNext}
-                  onClick={navigateNext}
-                  className="rounded-md border border-border px-2 py-1 text-xs text-text-primary disabled:opacity-40"
-                >
-                  Next
-                </button>
+                </Button>
+                {canNext && (
+                  <Button variant="secondary" size="sm" onClick={navigateNext}>
+                    Next
+                  </Button>
+                )}
               </div>
             </div>
-          ) : null}
+          )}
 
-          {!state.isLoading && !state.error && state.session && isImage ? (
+          {!state.isLoading && !state.error && state.session && isImage && (
             <ImageViewer
               src={state.session.mediaUrl}
               alt={currentItem?.originalName ?? 'Image'}
               fitMode={viewerControls.fitMode}
               transformStyle={viewerControls.transformStyle}
-              onError={() => {
-                void handleImageError();
-              }}
+              onError={() => void handleImageError()}
             />
-          ) : null}
+          )}
 
-          {!state.isLoading && !state.error && state.session && isVideo ? (
+          {!state.isLoading && !state.error && state.session && isVideo && (
             <VideoViewer
               src={state.session.mediaUrl}
               videoRef={videoRef}
               playbackRate={playbackRate}
-              onError={() => {
-                handleVideoError();
-              }}
+              onError={handleVideoError}
             />
-          ) : null}
+          )}
 
-          {!state.isLoading && !state.error && state.session && !isImage && !isVideo ? (
-            <div className="flex h-full items-center justify-center rounded-lg border border-border bg-bg/60 text-sm text-text-muted">
+          {!state.isLoading && !state.error && state.session && !isImage && !isVideo && (
+            <div className="text-sm text-white/60">
               Unsupported media type: {state.session.mimeType}
             </div>
-          ) : null}
+          )}
+        </div>
+
+        {/* Bottom control bar */}
+        <div
+          className={cn(
+            'absolute inset-x-0 bottom-0 z-20 flex items-center justify-center bg-gradient-to-t from-black/60 to-transparent px-4 py-3 transition-opacity duration-300',
+            showControls ? 'opacity-100' : 'opacity-0',
+          )}
+        >
+          <div className="flex items-center gap-1 rounded-lg bg-black/50 px-2 py-1 backdrop-blur-sm">
+            {isImage && (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" onClick={viewerControls.zoomOut} className="text-white hover:bg-white/10">
+                      <ZoomOut className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Zoom out (-)</TooltipContent>
+                </Tooltip>
+
+                <span className="min-w-[3rem] text-center text-xs text-white/70">
+                  {Math.round(viewerControls.zoom * 100)}%
+                </span>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" onClick={viewerControls.zoomIn} className="text-white hover:bg-white/10">
+                      <ZoomIn className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Zoom in (+)</TooltipContent>
+                </Tooltip>
+
+                <div className="mx-1 h-4 w-px bg-white/20" />
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" onClick={viewerControls.rotateClockwise} className="text-white hover:bg-white/10">
+                      <RotateCw className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Rotate (R)</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" onClick={viewerControls.toggleFitMode} className="text-white hover:bg-white/10">
+                      {viewerControls.fitMode === 'fit' ? (
+                        <Maximize2 className="h-4 w-4" />
+                      ) : (
+                        <Minimize2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{viewerControls.fitMode === 'fit' ? 'Original size' : 'Fit to view'}</TooltipContent>
+                </Tooltip>
+              </>
+            )}
+
+            {isVideo && (
+              <>
+                <span className="text-xs text-white/60 mr-1">Speed</span>
+                {SPEED_OPTIONS.map((speed) => (
+                  <button
+                    key={speed}
+                    type="button"
+                    onClick={() => setPlaybackRate(speed)}
+                    className={cn(
+                      'rounded px-1.5 py-0.5 text-xs transition-colors',
+                      playbackRate === speed
+                        ? 'bg-accent text-accent-foreground'
+                        : 'text-white/70 hover:bg-white/10 hover:text-white',
+                    )}
+                  >
+                    {speed}x
+                  </button>
+                ))}
+              </>
+            )}
+
+            <div className="mx-1 h-4 w-px bg-white/20" />
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon-sm" onClick={toggleFullscreen} className="text-white hover:bg-white/10">
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Fullscreen (F)</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
       </div>
     </div>,

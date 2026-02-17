@@ -1,5 +1,32 @@
 import React from 'react';
+import {
+  Search,
+  X,
+  Upload,
+  Download,
+  Trash2,
+  RefreshCw,
+  Lock,
+  Heart,
+  Star,
+  ArrowUpDown,
+  ChevronDown,
+} from 'lucide-react';
 import type { FolderNode, VaultListSort } from '../../../../shared/ipc';
+import { Button } from '../../../components/ui/Button';
+import { Badge } from '../../../components/ui/Badge';
+import { Separator } from '../../../components/ui/Separator';
+import { Tooltip, TooltipTrigger, TooltipContent } from '../../../components/ui/Tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '../../../components/ui/DropdownMenu';
+import { cn } from '../../../lib/utils';
 
 type FolderOption = {
   id: number;
@@ -11,12 +38,21 @@ const flattenFolderOptions = (folders: FolderNode[], depth = 0): FolderOption[] 
   for (const folder of folders) {
     result.push({
       id: folder.id,
-      label: `${depth > 0 ? `${'  '.repeat(depth)}- ` : ''}${folder.name}`,
+      label: `${'  '.repeat(depth)}${folder.name}`,
     });
     result.push(...flattenFolderOptions(folder.children, depth + 1));
   }
   return result;
 };
+
+const SORT_OPTIONS: { value: VaultListSort; label: string }[] = [
+  { value: 'newest', label: 'Newest First' },
+  { value: 'oldest', label: 'Oldest First' },
+  { value: 'name_asc', label: 'Name A-Z' },
+  { value: 'name_desc', label: 'Name Z-A' },
+  { value: 'size_desc', label: 'Largest First' },
+  { value: 'size_asc', label: 'Smallest First' },
+];
 
 type GalleryToolbarProps = {
   searchTerm: string;
@@ -68,126 +104,210 @@ export const GalleryToolbar = ({
   allSelectedFavorite,
 }: GalleryToolbarProps): React.JSX.Element => {
   const folderOptions = flattenFolderOptions(folders);
+  const currentSort = SORT_OPTIONS.find((o) => o.value === sort);
 
   return (
-    <section className="space-y-3 rounded-xl border border-border bg-surface p-4">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="space-y-2">
+      {/* Row 1: Search bar (full width) */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
         <input
           type="text"
-          placeholder="Search filename, tag, folder path"
+          placeholder="Search files, tags, folders..."
           value={searchTerm}
-          onChange={(event) => onSearchTermChange(event.target.value)}
-          className="min-w-[220px] flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text-primary"
+          onChange={(e) => onSearchTermChange(e.target.value)}
+          className="h-9 w-full rounded-md border border-border bg-bg pl-9 pr-8 text-sm text-text-primary placeholder:text-text-muted/60 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50"
         />
-        <select
-          value={sort}
-          onChange={(event) => onSortChange(event.target.value as VaultListSort)}
-          className="rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text-primary"
-        >
-          <option value="newest">Newest</option>
-          <option value="oldest">Oldest</option>
-          <option value="name_asc">Name A-Z</option>
-          <option value="name_desc">Name Z-A</option>
-          <option value="size_desc">Size High-Low</option>
-          <option value="size_asc">Size Low-High</option>
-        </select>
+        {searchTerm && (
+          <button
+            type="button"
+            onClick={() => onSearchTermChange('')}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-text-muted hover:text-text-primary"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={showFavoritesOnly} onChange={onToggleFavoritesOnly} />
-          Favorites only
-        </label>
+      {/* Row 2: Action buttons */}
+      <div className="flex items-center gap-1.5">
+        {/* Item count */}
+        <span className="mr-auto text-xs text-text-muted">
+          {filteredCount === totalItems
+            ? `${totalItems} items`
+            : `${filteredCount} of ${totalItems}`}
+        </span>
 
-        <label>
-          Import folder:
-          <select
-            value={importFolderId ?? 'unfiled'}
-            onChange={(event) =>
-              onImportFolderChange(event.target.value === 'unfiled' ? null : Number(event.target.value))
-            }
-            className="ml-2 rounded border border-border bg-bg px-2 py-1 text-xs text-text-primary"
-          >
-            <option value="unfiled">Unfiled</option>
-            {folderOptions.map((folder) => (
-              <option key={folder.id} value={folder.id}>
-                {folder.label}
-              </option>
+        {/* Sort dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm" aria-label="Sort">
+              <ArrowUpDown className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {SORT_OPTIONS.map((option) => (
+              <DropdownMenuCheckboxItem
+                key={option.value}
+                checked={sort === option.value}
+                onCheckedChange={() => onSortChange(option.value)}
+              >
+                {option.label}
+              </DropdownMenuCheckboxItem>
             ))}
-          </select>
-        </label>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-        <label>
-          Secure delete override:
-          <select
-            value={deleteOriginalsOverride}
-            onChange={(event) =>
-              onDeleteOriginalsOverrideChange(event.target.value as 'default' | 'true' | 'false')
-            }
-            className="ml-2 rounded border border-border bg-bg px-2 py-1 text-xs text-text-primary"
-          >
-            <option value="default">Use Default</option>
-            <option value="true">Force On</option>
-            <option value="false">Force Off</option>
-          </select>
-        </label>
+        {/* Favorites filter */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={showFavoritesOnly ? 'default' : 'ghost'}
+              size="icon-sm"
+              onClick={onToggleFavoritesOnly}
+              aria-label="Favorites only"
+            >
+              <Star className={cn('h-4 w-4', showFavoritesOnly && 'fill-current')} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{showFavoritesOnly ? 'Show all' : 'Favorites only'}</TooltipContent>
+        </Tooltip>
 
-        <div className="ml-auto flex items-center gap-2">
-          <span>
-            Showing {filteredCount} / {totalItems}
-          </span>
-          <button
-            type="button"
-            onClick={onImport}
-            disabled={isBusy}
-            className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-accent-foreground disabled:opacity-60"
-          >
-            Import
-          </button>
-          <button
-            type="button"
-            onClick={onRefresh}
-            className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-primary"
-          >
-            Refresh
-          </button>
-          <button
-            type="button"
-            onClick={onLock}
-            className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-primary"
-          >
-            Lock
-          </button>
+        <Separator orientation="vertical" className="mx-0.5 h-5" />
+
+        {/* Import */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" disabled={isBusy} className="h-7 gap-1 px-2.5 text-xs">
+              <Upload className="h-3.5 w-3.5" />
+              Import
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Import Settings</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onImport}>
+              <Upload className="mr-2 h-4 w-4" />
+              Select files...
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[11px]">Target folder</DropdownMenuLabel>
+            <DropdownMenuCheckboxItem
+              checked={importFolderId === null}
+              onCheckedChange={() => onImportFolderChange(null)}
+            >
+              Unfiled
+            </DropdownMenuCheckboxItem>
+            {folderOptions.map((folder) => (
+              <DropdownMenuCheckboxItem
+                key={folder.id}
+                checked={importFolderId === folder.id}
+                onCheckedChange={() => onImportFolderChange(folder.id)}
+              >
+                {folder.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[11px]">Secure delete</DropdownMenuLabel>
+            <DropdownMenuCheckboxItem
+              checked={deleteOriginalsOverride === 'default'}
+              onCheckedChange={() => onDeleteOriginalsOverrideChange('default')}
+            >
+              Use default
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={deleteOriginalsOverride === 'true'}
+              onCheckedChange={() => onDeleteOriginalsOverrideChange('true')}
+            >
+              Force on
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={deleteOriginalsOverride === 'false'}
+              onCheckedChange={() => onDeleteOriginalsOverrideChange('false')}
+            >
+              Force off
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Refresh */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon-sm" onClick={onRefresh} aria-label="Refresh">
+              <RefreshCw className={cn('h-3.5 w-3.5', isBusy && 'animate-spin')} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Refresh</TooltipContent>
+        </Tooltip>
+
+        {/* Lock */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon-sm" onClick={onLock} aria-label="Lock vault">
+              <Lock className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Lock Vault</TooltipContent>
+        </Tooltip>
+      </div>
+
+      {/* Row 3: Selection actions (only when items selected) */}
+      {selectedCount > 0 && (
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="text-[11px]">
+            {selectedCount} selected
+          </Badge>
+
+          <Separator orientation="vertical" className="h-4" />
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onToggleFavoriteSelected}
+                disabled={isBusy}
+                aria-label={allSelectedFavorite ? 'Unfavorite selected' : 'Favorite selected'}
+              >
+                <Heart className={cn('h-3.5 w-3.5', allSelectedFavorite && 'fill-accent text-accent')} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{allSelectedFavorite ? 'Unfavorite' : 'Favorite'}</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onExportSelected}
+                disabled={isBusy}
+                aria-label="Export selected"
+              >
+                <Download className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Export selected</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="danger"
+                size="icon-sm"
+                onClick={onDeleteSelected}
+                disabled={isBusy}
+                aria-label="Delete selected"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete selected</TooltipContent>
+          </Tooltip>
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
-        <span>Selected: {selectedCount}</span>
-        <button
-          type="button"
-          onClick={onExportSelected}
-          disabled={selectedCount === 0 || isBusy}
-          className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-primary disabled:opacity-60"
-        >
-          Export Selected
-        </button>
-        <button
-          type="button"
-          onClick={onDeleteSelected}
-          disabled={selectedCount === 0 || isBusy}
-          className="rounded-lg border border-danger/60 bg-danger/10 px-3 py-1.5 text-xs text-danger disabled:opacity-60"
-        >
-          Delete Selected
-        </button>
-        <button
-          type="button"
-          onClick={onToggleFavoriteSelected}
-          disabled={selectedCount === 0 || isBusy}
-          className="rounded-lg border border-border px-3 py-1.5 text-xs text-text-primary disabled:opacity-60"
-        >
-          {allSelectedFavorite ? 'Unfavorite Selected' : 'Favorite Selected'}
-        </button>
-      </div>
-    </section>
+      )}
+    </div>
   );
 };

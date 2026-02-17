@@ -1,171 +1,271 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { AuthFormErrors, AuthFormValues, AuthScreenMode, SessionState } from '../shared/ipc';
+import { Lock, Globe, Settings, Shield, AlertTriangle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import type { AuthScreenMode, SessionState } from '../shared/ipc';
+import { Button } from './components/ui/Button';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './components/ui/Card';
+import { Label } from './components/ui/Label';
+import { PasswordInput } from './components/ui/PasswordInput';
+import { Alert, AlertDescription } from './components/ui/Alert';
+import { Spinner } from './components/ui/Spinner';
+import { Tooltip, TooltipTrigger, TooltipContent } from './components/ui/Tooltip';
 import { GalleryPage } from './features/gallery/GalleryPage';
+import { SettingsPage } from './features/settings/SettingsPage';
 
 const PASSWORD_MIN_LENGTH = 12;
 
-const getPasswordChecks = (password: string): string[] => {
-  const failures: string[] = [];
+interface PasswordCheck {
+  label: string;
+  met: boolean;
+}
 
-  if (password.length < PASSWORD_MIN_LENGTH) {
-    failures.push(`At least ${PASSWORD_MIN_LENGTH} characters`);
-  }
-  if (!/[A-Z]/.test(password)) {
-    failures.push('One uppercase letter');
-  }
-  if (!/[a-z]/.test(password)) {
-    failures.push('One lowercase letter');
-  }
-  if (!/[0-9]/.test(password)) {
-    failures.push('One number');
-  }
-  if (!/[^A-Za-z0-9]/.test(password)) {
-    failures.push('One special character');
-  }
+const getPasswordChecks = (password: string): PasswordCheck[] => [
+  { label: `At least ${PASSWORD_MIN_LENGTH} characters`, met: password.length >= PASSWORD_MIN_LENGTH },
+  { label: 'One uppercase letter', met: /[A-Z]/.test(password) },
+  { label: 'One lowercase letter', met: /[a-z]/.test(password) },
+  { label: 'One number', met: /[0-9]/.test(password) },
+  { label: 'One special character', met: /[^A-Za-z0-9]/.test(password) },
+];
 
-  return failures;
-};
-
-const validateUnlock = (values: AuthFormValues): AuthFormErrors => ({
-  password: values.password ? undefined : 'Password is required.',
-});
-
-const validateSetup = (values: AuthFormValues): AuthFormErrors => {
-  const passwordChecks = getPasswordChecks(values.password);
-  return {
-    password:
-      passwordChecks.length > 0
-        ? `Password must include: ${passwordChecks.join(', ')}.`
-        : undefined,
-    confirmPassword:
-      values.confirmPassword === values.password ? undefined : 'Passwords do not match.',
-  };
-};
-
-const classNames = (...classes: Array<string | false | undefined>): string =>
-  classes.filter(Boolean).join(' ');
-
-const TopBar = ({
-  onOpenSettings,
-  onOpenBrowser,
-  isUnlocked,
-}: {
+// ── Top Bar ──────────────────────────────────────────────────────────
+const TopBar: React.FC<{
   onOpenSettings: () => void;
   onOpenBrowser: () => void;
   isUnlocked: boolean;
-}): React.JSX.Element => (
-  <header className="mx-auto flex w-full max-w-[1400px] items-center justify-between px-6 py-5">
-    <div>
-      <p className="text-xs uppercase tracking-[0.18em] text-text-muted">privateVault</p>
-      <p className="text-sm text-text-primary">Gallery + Browser integration</p>
+}> = ({ onOpenSettings, onOpenBrowser, isUnlocked }) => (
+  <header className="flex items-center justify-between border-b border-border px-6 py-3">
+    <div className="flex items-center gap-3">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/15">
+        <Shield className="h-4 w-4 text-accent" />
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-text-primary">privateVault</p>
+        <p className="text-xs text-text-muted">Encrypted media vault</p>
+      </div>
     </div>
     <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={onOpenBrowser}
-        disabled={!isUnlocked}
-        className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        Browse Web
-      </button>
-      <button
-        type="button"
-        onClick={onOpenSettings}
-        className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary transition hover:border-accent hover:text-accent"
-      >
-        Open Settings
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpenBrowser}
+            disabled={!isUnlocked}
+            aria-label="Open browser"
+          >
+            <Globe className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Browse Web</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpenSettings}
+            aria-label="Open settings"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Settings</TooltipContent>
+      </Tooltip>
     </div>
   </header>
 );
 
-const PrimaryButton = ({
-  disabled,
-  children,
-}: {
-  disabled: boolean;
-  children: React.ReactNode;
-}): React.JSX.Element => (
-  <button
-    type="submit"
-    disabled={disabled}
-    className={classNames(
-      'w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition',
-      disabled
-        ? 'cursor-not-allowed bg-border text-text-muted'
-        : 'bg-accent text-accent-foreground hover:opacity-90 active:opacity-80',
-    )}
-  >
-    {children}
-  </button>
-);
+// ── Unlock Screen ────────────────────────────────────────────────────
+const UnlockScreen: React.FC<{
+  onUnlock: (password: string) => Promise<void>;
+  isBusy: boolean;
+  error: string;
+}> = ({ onUnlock, isBusy, error }) => {
+  const [password, setPassword] = useState('');
+  const canSubmit = password.length > 0 && !isBusy;
 
-const InputField = ({
-  id,
-  label,
-  type,
-  value,
-  error,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  type: 'password' | 'text';
-  value: string;
-  error?: string;
-  onChange: (value: string) => void;
-}): React.JSX.Element => (
-  <label className="block">
-    <span className="mb-2 block text-sm font-medium text-text-primary">{label}</span>
-    <input
-      id={id}
-      type={type}
-      autoComplete="off"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className={classNames(
-        'w-full rounded-lg border bg-bg px-3 py-2 text-sm text-text-primary outline-none transition focus:ring-2',
-        error
-          ? 'border-danger focus:border-danger focus:ring-danger/20'
-          : 'border-border focus:border-accent focus:ring-accent/25',
-      )}
-    />
-    {error ? <span className="mt-2 block text-xs text-danger">{error}</span> : null}
-  </label>
-);
+  return (
+    <div className="flex flex-1 items-center justify-center p-6">
+      <Card className="w-full max-w-md">
+        <CardHeader className="items-center text-center">
+          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-accent/15">
+            <Lock className="h-6 w-6 text-accent" />
+          </div>
+          <CardTitle>Unlock Vault</CardTitle>
+          <CardDescription>
+            Enter your vault password to access encrypted storage.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (canSubmit) void onUnlock(password);
+            }}
+          >
+            {error && (
+              <Alert variant="danger">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-const AuthCard = ({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
-}): React.JSX.Element => (
-  <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-8 shadow-soft">
-    <h1 className="text-2xl font-semibold tracking-tight text-text-primary">{title}</h1>
-    <p className="mt-2 text-sm text-text-muted">{subtitle}</p>
-    <div className="mt-8 space-y-5">{children}</div>
+            <div className="space-y-2">
+              <Label htmlFor="unlock-password">Password</Label>
+              <PasswordInput
+                id="unlock-password"
+                placeholder="Enter vault password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                error={!!error}
+                autoFocus
+              />
+            </div>
+
+            <Button type="submit" disabled={!canSubmit} className="w-full">
+              {isBusy ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Unlocking...
+                </>
+              ) : (
+                'Unlock Vault'
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// ── Create Account Screen ────────────────────────────────────────────
+const CreateAccountScreen: React.FC<{
+  onCreate: (password: string) => Promise<void>;
+  isBusy: boolean;
+  error: string;
+}> = ({ onCreate, isBusy, error }) => {
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const checks = useMemo(() => getPasswordChecks(password), [password]);
+  const passwordValid = checks.every((c) => c.met);
+  const passwordsMatch = password === confirmPassword;
+  const canSubmit = passwordValid && passwordsMatch && confirmPassword.length > 0 && !isBusy;
+
+  return (
+    <div className="flex flex-1 items-center justify-center p-6">
+      <Card className="w-full max-w-md">
+        <CardHeader className="items-center text-center">
+          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-accent/15">
+            <Shield className="h-6 w-6 text-accent" />
+          </div>
+          <CardTitle>Create Vault Password</CardTitle>
+          <CardDescription>
+            Set a strong password to protect your encrypted vault.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (canSubmit) void onCreate(password);
+            }}
+          >
+            {error && (
+              <Alert variant="danger">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <Alert variant="warning">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Your password cannot be recovered if lost. Choose something memorable.
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-2">
+              <Label htmlFor="create-password">Password</Label>
+              <PasswordInput
+                id="create-password"
+                placeholder="Create a strong password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                showStrength
+                autoFocus
+              />
+            </div>
+
+            {/* Password requirements */}
+            {password.length > 0 && (
+              <div className="space-y-1">
+                {checks.map((check) => (
+                  <div key={check.label} className="flex items-center gap-2 text-xs">
+                    <div
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        check.met ? 'bg-success' : 'bg-border'
+                      }`}
+                    />
+                    <span className={check.met ? 'text-text-muted' : 'text-text-muted/60'}>
+                      {check.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm Password</Label>
+              <PasswordInput
+                id="confirm-password"
+                placeholder="Confirm your password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                error={confirmPassword.length > 0 && !passwordsMatch}
+              />
+              {confirmPassword.length > 0 && !passwordsMatch && (
+                <p className="text-xs text-danger">Passwords do not match.</p>
+              )}
+            </div>
+
+            <Button type="submit" disabled={!canSubmit} className="w-full">
+              {isBusy ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Creating vault...
+                </>
+              ) : (
+                'Create Vault'
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// ── Loading Screen ───────────────────────────────────────────────────
+const LoadingScreen: React.FC = () => (
+  <div className="flex flex-1 items-center justify-center">
+    <div className="flex flex-col items-center gap-3">
+      <Spinner size="lg" />
+      <p className="text-sm text-text-muted">Loading vault...</p>
+    </div>
   </div>
 );
 
-export const App = (): React.JSX.Element => {
+// ── Main App ─────────────────────────────────────────────────────────
+export const App: React.FC = () => {
   const [mode, setMode] = useState<AuthScreenMode>('loading');
   const [session, setSession] = useState<SessionState>({ status: 'locked', hasVault: false });
-  const [message, setMessage] = useState('');
   const [isBusy, setIsBusy] = useState(false);
-
-  const [unlockValues, setUnlockValues] = useState<AuthFormValues>({ password: '' });
-  const [setupValues, setSetupValues] = useState<AuthFormValues>({
-    password: '',
-    confirmPassword: '',
-  });
-
-  const unlockErrors = useMemo(() => validateUnlock(unlockValues), [unlockValues]);
-  const setupErrors = useMemo(() => validateSetup(setupValues), [setupValues]);
-  const canSubmitUnlock = !unlockErrors.password;
-  const canSubmitSetup = !setupErrors.password && !setupErrors.confirmPassword;
+  const [authError, setAuthError] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
 
   const refreshSession = async (): Promise<SessionState> => {
     const state = await window.electronAPI.getSession();
@@ -180,55 +280,50 @@ export const App = (): React.JSX.Element => {
     void refreshSession();
   }, []);
 
-  const openSettings = async (): Promise<void> => {
-    await window.electronAPI.openSettings();
+  const openSettings = (): void => {
+    setShowSettings(true);
   };
 
   const openBrowser = async (): Promise<void> => {
     const result = await refreshSession();
     if (result.status !== 'unlocked') {
-      setMessage('Unlock vault before opening browser.');
+      toast.error('Unlock vault before opening browser.');
       return;
     }
-
     await window.electronAPI.openBrowserWindow();
   };
 
-  const handleUnlock = async (): Promise<void> => {
+  const handleUnlock = async (password: string): Promise<void> => {
     setIsBusy(true);
-    setMessage('');
+    setAuthError('');
     try {
-      const result = await window.electronAPI.unlockVault({ password: unlockValues.password });
+      const result = await window.electronAPI.unlockVault({ password });
       if (!result.ok) {
-        setMessage(result.error);
+        setAuthError(result.error);
         return;
       }
       await refreshSession();
-      setMessage('Vault unlocked.');
-      setUnlockValues({ password: '' });
+      toast.success('Vault unlocked.');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unlock failed.');
+      setAuthError(error instanceof Error ? error.message : 'Unlock failed.');
     } finally {
       setIsBusy(false);
     }
   };
 
-  const handleCreateVaultPassword = async (): Promise<void> => {
+  const handleCreate = async (password: string): Promise<void> => {
     setIsBusy(true);
-    setMessage('');
+    setAuthError('');
     try {
-      const result = await window.electronAPI.createVaultPassword({
-        password: setupValues.password,
-      });
+      const result = await window.electronAPI.createVaultPassword({ password });
       if (!result.ok) {
-        setMessage(result.error);
+        setAuthError(result.error);
         return;
       }
       await refreshSession();
-      setMessage('Vault password set and vault unlocked.');
-      setSetupValues({ password: '', confirmPassword: '' });
+      toast.success('Vault created and unlocked.');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Setup failed.');
+      setAuthError(error instanceof Error ? error.message : 'Setup failed.');
     } finally {
       setIsBusy(false);
     }
@@ -237,100 +332,39 @@ export const App = (): React.JSX.Element => {
   const handleLock = async (): Promise<void> => {
     const result = await window.electronAPI.lockVault();
     if (!result.ok) {
-      setMessage(result.error);
+      toast.error(result.error);
       return;
     }
     await refreshSession();
-    setMessage('Vault locked.');
+    toast.info('Vault locked.');
   };
 
   const isUnlocked = session.status === 'unlocked';
 
   return (
-    <div className="min-h-screen bg-bg text-text-primary">
+    <div className="flex h-screen flex-col bg-bg text-text-primary">
       <TopBar onOpenSettings={openSettings} onOpenBrowser={openBrowser} isUnlocked={isUnlocked} />
 
-      <main className="mx-auto flex min-h-[calc(100vh-88px)] w-full max-w-[1400px] flex-col px-6 py-6">
-        {message ? (
-          <div className="mb-4 rounded-lg border border-accent/25 bg-accent/10 px-4 py-3 text-sm text-accent">
-            {message}
-          </div>
-        ) : null}
+      {mode === 'loading' && <LoadingScreen />}
 
-        {isUnlocked ? (
-          <GalleryPage onLockVault={handleLock} onMessage={setMessage} />
-        ) : null}
+      {isUnlocked && showSettings && (
+        <SettingsPage onBack={() => setShowSettings(false)} />
+      )}
 
-        {!isUnlocked && mode === 'login' ? (
-          <div className="flex justify-center pt-10">
-            <AuthCard
-              title="Unlock vault"
-              subtitle="Enter your vault password to unlock local encrypted storage."
-            >
-              <form
-                className="space-y-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (!canSubmitUnlock) {
-                    return;
-                  }
-                  void handleUnlock();
-                }}
-              >
-                <InputField
-                  id="unlock-password"
-                  label="Password"
-                  type="password"
-                  value={unlockValues.password}
-                  error={unlockErrors.password}
-                  onChange={(value) => setUnlockValues((prev) => ({ ...prev, password: value }))}
-                />
-                <PrimaryButton disabled={!canSubmitUnlock || isBusy}>Unlock Vault</PrimaryButton>
-              </form>
-            </AuthCard>
-          </div>
-        ) : null}
+      {isUnlocked && !showSettings && (
+        <GalleryPage
+          onLockVault={handleLock}
+          onMessage={(msg) => toast.info(msg)}
+        />
+      )}
 
-        {!isUnlocked && mode === 'create-account' ? (
-          <div className="flex justify-center pt-10">
-            <AuthCard
-              title="Create vault password"
-              subtitle="Set a strong password. It cannot be recovered if lost."
-            >
-              <form
-                className="space-y-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (!canSubmitSetup) {
-                    return;
-                  }
-                  void handleCreateVaultPassword();
-                }}
-              >
-                <InputField
-                  id="create-password"
-                  label="Password"
-                  type="password"
-                  value={setupValues.password}
-                  error={setupErrors.password}
-                  onChange={(value) => setSetupValues((prev) => ({ ...prev, password: value }))}
-                />
-                <InputField
-                  id="create-confirm-password"
-                  label="Confirm password"
-                  type="password"
-                  value={setupValues.confirmPassword ?? ''}
-                  error={setupErrors.confirmPassword}
-                  onChange={(value) =>
-                    setSetupValues((prev) => ({ ...prev, confirmPassword: value }))
-                  }
-                />
-                <PrimaryButton disabled={!canSubmitSetup || isBusy}>Set Vault Password</PrimaryButton>
-              </form>
-            </AuthCard>
-          </div>
-        ) : null}
-      </main>
+      {!isUnlocked && mode === 'login' && (
+        <UnlockScreen onUnlock={handleUnlock} isBusy={isBusy} error={authError} />
+      )}
+
+      {!isUnlocked && mode === 'create-account' && (
+        <CreateAccountScreen onCreate={handleCreate} isBusy={isBusy} error={authError} />
+      )}
     </div>
   );
 };

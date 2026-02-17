@@ -1,16 +1,47 @@
 import React, { useEffect, useState } from 'react';
+import {
+  Eye,
+  Trash2,
+  Heart,
+  Pencil,
+  Check,
+  X,
+  Hash,
+  FolderOpen,
+  FileType,
+  HardDrive,
+  Maximize2,
+  Clock,
+  Image,
+  Film,
+  Info,
+} from 'lucide-react';
 import type { FolderNode, SecuritySettings, TagSummary, VaultItemSummary } from '../../../../shared/ipc';
+import { Button } from '../../../components/ui/Button';
+import { Input } from '../../../components/ui/Input';
+import { Badge } from '../../../components/ui/Badge';
+import { Separator } from '../../../components/ui/Separator';
+import { ScrollArea } from '../../../components/ui/ScrollArea';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../../../components/ui/Sheet';
+import { cn } from '../../../lib/utils';
 
 const flattenFolders = (folders: FolderNode[], depth = 0): Array<{ id: number; label: string }> => {
   const options: Array<{ id: number; label: string }> = [];
   for (const folder of folders) {
     options.push({
       id: folder.id,
-      label: `${depth > 0 ? `${'  '.repeat(depth)}- ` : ''}${folder.name}`,
+      label: `${'  '.repeat(depth)}${folder.name}`,
     });
     options.push(...flattenFolders(folder.children, depth + 1));
   }
   return options;
+};
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 };
 
 type ItemDetailsPanelProps = {
@@ -28,154 +59,256 @@ type ItemDetailsPanelProps = {
   selectedCount: number;
 };
 
-export const ItemDetailsPanel = ({
+// ── Inline details content (used both in sidebar and sheet) ──────────
+const DetailsContent: React.FC<
+  Omit<ItemDetailsPanelProps, 'selectedCount'> & { selectedCount: number }
+> = ({
   item,
   folders,
   tags,
-  securitySettings,
   onAssignFolder,
   onToggleTag,
-  onUpdateSecureDeleteDefault,
   onOpenItem,
   onDeleteItem,
   onToggleFavorite,
   onRenameItem,
   selectedCount,
-}: ItemDetailsPanelProps): React.JSX.Element => {
+}) => {
   const folderOptions = flattenFolders(folders);
+  const [isRenaming, setIsRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
 
   useEffect(() => {
     setNameDraft(item?.originalName ?? '');
+    setIsRenaming(false);
   }, [item?.id, item?.originalName]);
 
+  if (!item) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-12 text-text-muted">
+        <Info className="h-8 w-8 opacity-40" />
+        <p className="text-sm">Select an item to see details</p>
+      </div>
+    );
+  }
+
+  if (selectedCount > 1) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-12 text-text-muted">
+        <Info className="h-8 w-8 opacity-40" />
+        <p className="text-sm">{selectedCount} items selected</p>
+        <p className="text-xs">Select a single item for details</p>
+      </div>
+    );
+  }
+
+  const isVideo = item.mimeType.startsWith('video/');
+
   return (
-    <aside className="space-y-3 rounded-xl border border-border bg-surface p-4">
-      <h2 className="text-sm font-semibold text-text-primary">Details</h2>
-      {!item ? (
-        <p className="text-sm text-text-muted">Select an item to inspect metadata and quick actions.</p>
-      ) : (
-        <>
-          {selectedCount > 1 ? (
-            <div className="rounded-md border border-border bg-bg px-2 py-1 text-xs text-text-muted">
-              Multiple items selected. Viewer disabled.
-            </div>
-          ) : null}
-          <p className="truncate text-sm font-medium text-text-primary">{item.originalName}</p>
-          <p className="text-xs text-text-muted">{item.mimeType}</p>
-          <p className="text-xs text-text-muted">{item.size} bytes</p>
-          <p className="text-xs text-text-muted">
-            {item.width ?? '-'} x {item.height ?? '-'}
-          </p>
-          <p className="text-xs text-text-muted">
-            Duration: {item.durationSeconds !== undefined ? `${item.durationSeconds.toFixed(2)}s` : '-'}
-          </p>
-          <p className="text-xs text-text-muted">Folder: {item.folderPath ?? 'Unfiled'}</p>
-
-        <button
-          type="button"
-          onClick={() => onOpenItem(item.id)}
-          disabled={selectedCount > 1}
-          className="rounded-md border border-border px-2 py-1 text-xs text-text-primary disabled:opacity-60"
-        >
-          Open Viewer
-        </button>
-          <button
-            type="button"
-            onClick={() => onToggleFavorite(item.id, !item.isFavorite)}
-            className={`rounded-md border px-2 py-1 text-xs ${
-              item.isFavorite ? 'border-accent bg-accent/10 text-accent' : 'border-border text-text-primary'
-            }`}
-          >
-            {item.isFavorite ? 'Unfavorite' : 'Favorite'}
-          </button>
-          <button
-            type="button"
-            onClick={() => onDeleteItem(item.id)}
-            className="rounded-md border border-danger/60 bg-danger/10 px-2 py-1 text-xs text-danger"
-          >
-            Delete
-          </button>
-
-          <label className="block text-xs text-text-muted">
-            Rename
-            <div className="mt-1 flex gap-2">
-              <input
-                value={nameDraft}
-                onChange={(event) => setNameDraft(event.target.value)}
-                className="w-full rounded border border-border bg-bg px-2 py-1 text-xs text-text-primary"
-              />
-              <button
-                type="button"
-                onClick={() => onRenameItem(item.id, nameDraft)}
-                disabled={!nameDraft.trim() || nameDraft.trim() === item.originalName}
-                className="rounded-md border border-border px-2 py-1 text-xs text-text-primary disabled:opacity-60"
-              >
-                Save
-              </button>
-            </div>
-          </label>
-
-          <label className="block text-xs text-text-muted">
-            Assign folder
-            <select
-              value={item.folderId ?? 'unfiled'}
-              onChange={(event) =>
-                onAssignFolder(item.id, event.target.value === 'unfiled' ? null : Number(event.target.value))
-              }
-              className="mt-1 w-full rounded border border-border bg-bg px-2 py-1 text-xs text-text-primary"
+    <div className="space-y-4">
+      {/* Name + rename */}
+      <div>
+        {isRenaming ? (
+          <div className="flex items-center gap-1">
+            <Input
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              className="h-8 text-sm"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && nameDraft.trim() && nameDraft.trim() !== item.originalName) {
+                  onRenameItem(item.id, nameDraft.trim());
+                  setIsRenaming(false);
+                }
+                if (e.key === 'Escape') {
+                  setNameDraft(item.originalName);
+                  setIsRenaming(false);
+                }
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => {
+                if (nameDraft.trim() && nameDraft.trim() !== item.originalName) {
+                  onRenameItem(item.id, nameDraft.trim());
+                }
+                setIsRenaming(false);
+              }}
+              disabled={!nameDraft.trim() || nameDraft.trim() === item.originalName}
             >
-              <option value="unfiled">Unfiled</option>
-              {folderOptions.map((folder) => (
-                <option key={folder.id} value={folder.id}>
-                  {folder.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="flex flex-wrap gap-2">
-            {tags.map((tag) => {
-              const assigned = Boolean(item.tagIds?.includes(tag.id));
-              return (
-                <button
-                  key={tag.id}
-                  type="button"
-                  onClick={() => onToggleTag(item.id, tag.id, assigned)}
-                  className={`rounded-md border px-2 py-1 text-xs ${
-                    assigned ? 'border-accent bg-accent/10 text-accent' : 'border-border text-text-muted'
-                  }`}
-                >
-                  {assigned ? `#${tag.name} x` : `+ #${tag.name}`}
-                </button>
-              );
-            })}
+              <Check className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => {
+                setNameDraft(item.originalName);
+                setIsRenaming(false);
+              }}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
           </div>
-        </>
-      )}
+        ) : (
+          <div className="flex items-center gap-2">
+            <p className="flex-1 truncate text-sm font-medium text-text-primary">{item.originalName}</p>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setIsRenaming(true)}
+              aria-label="Rename"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+      </div>
 
-      <details>
-        <summary className="cursor-pointer text-xs text-text-muted">Security (secondary)</summary>
-        <div className="mt-2 flex gap-2">
-          <button
-            type="button"
-            onClick={() => onUpdateSecureDeleteDefault(true)}
-            className="rounded-md border border-border px-2 py-1 text-xs text-text-primary"
-          >
-            Set Default On
-          </button>
-          <button
-            type="button"
-            onClick={() => onUpdateSecureDeleteDefault(false)}
-            className="rounded-md border border-border px-2 py-1 text-xs text-text-primary"
-          >
-            Set Default Off
-          </button>
+      {/* Action buttons */}
+      <div className="flex gap-2">
+        <Button size="sm" onClick={() => onOpenItem(item.id)} className="flex-1 gap-1.5">
+          <Eye className="h-3.5 w-3.5" />
+          Open
+        </Button>
+        <Button
+          variant={item.isFavorite ? 'default' : 'secondary'}
+          size="icon"
+          onClick={() => onToggleFavorite(item.id, !item.isFavorite)}
+          aria-label={item.isFavorite ? 'Unfavorite' : 'Favorite'}
+        >
+          <Heart className={cn('h-4 w-4', item.isFavorite && 'fill-current')} />
+        </Button>
+        <Button
+          variant="danger"
+          size="icon"
+          onClick={() => onDeleteItem(item.id)}
+          aria-label="Delete"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <Separator />
+
+      {/* Metadata */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Info</h3>
+        <div className="space-y-1.5">
+          <MetadataRow icon={FileType} label="Type" value={item.mimeType} />
+          <MetadataRow icon={HardDrive} label="Size" value={formatFileSize(item.size)} />
+          {item.width && item.height && (
+            <MetadataRow icon={Maximize2} label="Dimensions" value={`${item.width} × ${item.height}`} />
+          )}
+          {item.durationSeconds !== undefined && item.durationSeconds > 0 && (
+            <MetadataRow icon={Clock} label="Duration" value={`${item.durationSeconds.toFixed(1)}s`} />
+          )}
+          <MetadataRow
+            icon={FolderOpen}
+            label="Folder"
+            value={item.folderPath ?? 'Unfiled'}
+          />
         </div>
-        <p className="mt-2 text-xs text-text-muted">
-          Default secure delete: {securitySettings.secureDeleteOnImport ? 'On' : 'Off'}
-        </p>
-      </details>
-    </aside>
+      </div>
+
+      <Separator />
+
+      {/* Folder assignment */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Folder</h3>
+        <select
+          value={item.folderId ?? 'unfiled'}
+          onChange={(e) =>
+            onAssignFolder(item.id, e.target.value === 'unfiled' ? null : Number(e.target.value))
+          }
+          className="h-8 w-full rounded-md border border-border bg-bg px-2 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50"
+        >
+          <option value="unfiled">Unfiled</option>
+          {folderOptions.map((folder) => (
+            <option key={folder.id} value={folder.id}>
+              {folder.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <Separator />
+
+      {/* Tags */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Tags</h3>
+        <div className="flex flex-wrap gap-1.5">
+          {tags.map((tag) => {
+            const assigned = Boolean(item.tagIds?.includes(tag.id));
+            return (
+              <button
+                key={tag.id}
+                type="button"
+                onClick={() => onToggleTag(item.id, tag.id, assigned)}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors',
+                  assigned
+                    ? 'border-accent bg-accent/15 text-accent'
+                    : 'border-border text-text-muted hover:border-accent/40',
+                )}
+              >
+                <Hash className="h-3 w-3" />
+                {tag.name}
+                {assigned && <X className="h-3 w-3 opacity-60" />}
+              </button>
+            );
+          })}
+          {tags.length === 0 && (
+            <p className="text-xs text-text-muted">No tags available</p>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
+
+// ── Metadata row helper ──────────────────────────────────────────────
+const MetadataRow: React.FC<{
+  icon: React.FC<{ className?: string }>;
+  label: string;
+  value: string;
+}> = ({ icon: Icon, label, value }) => (
+  <div className="flex items-center gap-2 text-xs">
+    <Icon className="h-3.5 w-3.5 shrink-0 text-text-muted" />
+    <span className="shrink-0 text-text-muted">{label}</span>
+    <span className="ml-auto truncate text-text-primary">{value}</span>
+  </div>
+);
+
+// ── Inline panel (for wide screens) ─────────────────────────────────
+export const ItemDetailsSidebar: React.FC<ItemDetailsPanelProps> = (props) => (
+  <aside className="flex h-full flex-col rounded-lg border border-border bg-surface">
+    <div className="border-b border-border px-3 py-2">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Details</h2>
+    </div>
+    <ScrollArea className="flex-1 px-3 py-3">
+      <DetailsContent {...props} />
+    </ScrollArea>
+  </aside>
+);
+
+// ── Sheet panel (for smaller screens) ────────────────────────────────
+export const ItemDetailsSheet: React.FC<
+  ItemDetailsPanelProps & { open: boolean; onOpenChange: (open: boolean) => void }
+> = ({ open, onOpenChange, ...props }) => (
+  <Sheet open={open} onOpenChange={onOpenChange}>
+    <SheetContent side="right" className="w-80 p-0">
+      <div className="border-b border-border px-4 py-3">
+        <SheetTitle className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+          Details
+        </SheetTitle>
+      </div>
+      <ScrollArea className="h-[calc(100vh-52px)] px-4 py-3">
+        <DetailsContent {...props} />
+      </ScrollArea>
+    </SheetContent>
+  </Sheet>
+);
+
+// ── Legacy export for backward compatibility ─────────────────────────
+export const ItemDetailsPanel = ItemDetailsSidebar;

@@ -16,7 +16,7 @@ export const ImageViewer = ({
   onError,
 }: ImageViewerProps): React.JSX.Element => {
   return (
-    <div className="flex h-full w-full items-center justify-center overflow-auto rounded-lg border border-border bg-bg/80 p-4">
+    <div className="flex h-full w-full items-center justify-center overflow-auto p-4">
       <img
         src={src}
         alt={alt}
@@ -25,18 +25,7 @@ export const ImageViewer = ({
           fitMode === 'fit' ? 'max-h-full max-w-full object-contain' : 'object-none'
         }`}
         style={transformStyle}
-        onLoad={(event) => {
-          const target = event.currentTarget;
-          console.info('[viewer][image] loaded', {
-            src,
-            width: target.naturalWidth,
-            height: target.naturalHeight,
-          });
-        }}
-        onError={() => {
-          console.info('[viewer][image] error', { src });
-          onError?.();
-        }}
+        onError={() => onError?.()}
       />
     </div>
   );

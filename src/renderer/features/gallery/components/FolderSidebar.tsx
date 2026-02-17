@@ -1,5 +1,32 @@
-import React from 'react';
+import React, { useState } from 'react';
+import {
+  ChevronRight,
+  ChevronDown,
+  Folder,
+  FolderPlus,
+  Plus,
+  Trash2,
+  Library,
+} from 'lucide-react';
 import type { FolderNode } from '../../../../shared/ipc';
+import { Button } from '../../../components/ui/Button';
+import { Input } from '../../../components/ui/Input';
+import { ScrollArea } from '../../../components/ui/ScrollArea';
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from '../../../components/ui/ContextMenu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../../../components/ui/Dialog';
+import { Tooltip, TooltipTrigger, TooltipContent } from '../../../components/ui/Tooltip';
+import { cn } from '../../../lib/utils';
 
 type FolderSidebarProps = {
   folders: FolderNode[];
@@ -18,50 +45,92 @@ const flattenFolders = (folders: FolderNode[], depth = 0): Array<{ id: number; l
   for (const folder of folders) {
     options.push({
       id: folder.id,
-      label: `${depth > 0 ? `${'  '.repeat(depth)}- ` : ''}${folder.name}`,
+      label: `${'  '.repeat(depth)}${folder.name}`,
     });
     options.push(...flattenFolders(folder.children, depth + 1));
   }
   return options;
 };
 
-const FolderTree = ({
-  folders,
-  selectedFolderId,
-  onSelectFolder,
-}: {
-  folders: FolderNode[];
+// ── Folder tree node ─────────────────────────────────────────────────
+const FolderTreeNode: React.FC<{
+  folder: FolderNode;
   selectedFolderId: number | null;
-  onSelectFolder: (folderId: number | null) => void;
-}): React.JSX.Element => {
+  onSelectFolder: (folderId: number) => void;
+  onDeleteFolder: (folderId: number) => void;
+  depth: number;
+}> = ({ folder, selectedFolderId, onSelectFolder, onDeleteFolder, depth }) => {
+  const [expanded, setExpanded] = useState(true);
+  const hasChildren = folder.children.length > 0;
+  const isActive = selectedFolderId === folder.id;
+
   return (
-    <ul className="space-y-1 text-sm">
-      {folders.map((folder) => (
-        <li key={folder.id}>
+    <li>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
           <button
             type="button"
             onClick={() => onSelectFolder(folder.id)}
-            className={`w-full rounded px-2 py-1 text-left ${
-              selectedFolderId === folder.id ? 'bg-accent/15 text-accent' : 'text-text-muted hover:bg-bg'
-            }`}
+            className={cn(
+              'flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-sm transition-colors',
+              isActive
+                ? 'bg-accent/15 text-accent font-medium'
+                : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
+            )}
+            style={{ paddingLeft: `${8 + depth * 14}px` }}
           >
-            {folder.name}
+            {hasChildren ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpanded((prev) => !prev);
+                }}
+                className="flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-surface-hover"
+              >
+                {expanded ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+              </button>
+            ) : (
+              <span className="h-4 w-4 shrink-0" />
+            )}
+            <Folder className={cn('h-4 w-4 shrink-0', isActive ? 'text-accent' : 'text-text-muted')} />
+            <span className="truncate">{folder.name}</span>
           </button>
-          {folder.children.length > 0 ? (
-            <div className="ml-3 border-l border-border pl-2">
-              <FolderTree
-                folders={folder.children}
-                selectedFolderId={selectedFolderId}
-                onSelectFolder={onSelectFolder}
-              />
-            </div>
-          ) : null}
-        </li>
-      ))}
-    </ul>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem
+            onClick={() => onDeleteFolder(folder.id)}
+            className="text-danger focus:text-danger"
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Folder
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+
+      {hasChildren && expanded && (
+        <ul className="space-y-0.5">
+          {folder.children.map((child) => (
+            <FolderTreeNode
+              key={child.id}
+              folder={child}
+              selectedFolderId={selectedFolderId}
+              onSelectFolder={onSelectFolder}
+              onDeleteFolder={onDeleteFolder}
+              depth={depth + 1}
+            />
+          ))}
+        </ul>
+      )}
+    </li>
   );
 };
 
+// ── Main Sidebar ─────────────────────────────────────────────────────
 export const FolderSidebar = ({
   folders,
   selectedFolderId,
@@ -73,81 +142,136 @@ export const FolderSidebar = ({
   onCreateFolder,
   onDeleteFolder,
 }: FolderSidebarProps): React.JSX.Element => {
-  const options = flattenFolders(folders);
+  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
+  const parentOptions = flattenFolders(folders);
+
+  const handleCreate = (): void => {
+    if (!newFolderName.trim()) return;
+    onCreateFolder();
+    setShowNewFolderDialog(false);
+  };
 
   return (
-    <aside className="space-y-3 rounded-xl border border-border bg-surface p-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-text-primary">Folders</h2>
-        <button
-          type="button"
-          onClick={() => onSelectFolder(null)}
-          className="rounded border border-border px-2 py-1 text-xs text-text-muted"
-        >
-          All
-        </button>
+    <aside className="flex h-full flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2.5">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+          Folders
+        </span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setShowNewFolderDialog(true)}
+              aria-label="New folder"
+            >
+              <FolderPlus className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>New folder</TooltipContent>
+        </Tooltip>
       </div>
 
-      {folders.length === 0 ? (
-        <p className="text-xs text-text-muted">No folders yet.</p>
-      ) : (
-        <FolderTree
-          folders={folders}
-          selectedFolderId={selectedFolderId}
-          onSelectFolder={onSelectFolder}
-        />
-      )}
+      <ScrollArea className="flex-1">
+        <div className="px-2 pb-2">
+          {/* All items */}
+          <button
+            type="button"
+            onClick={() => onSelectFolder(null)}
+            className={cn(
+              'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+              selectedFolderId === null
+                ? 'bg-accent/15 text-accent font-medium'
+                : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
+            )}
+          >
+            <Library className="h-4 w-4 shrink-0" />
+            <span>All Items</span>
+          </button>
 
-      <details>
-        <summary className="cursor-pointer text-xs text-text-muted">Manage Folders</summary>
-        <div className="mt-3 space-y-2">
-          <div className="space-y-2">
-            <input
-              type="text"
-              value={newFolderName}
-              onChange={(event) => onNewFolderNameChange(event.target.value)}
-              placeholder="New folder name"
-              className="w-full rounded border border-border bg-bg px-2 py-1 text-xs text-text-primary"
-            />
-            <select
-              value={newFolderParentId ?? 'root'}
-              onChange={(event) =>
-                onNewFolderParentIdChange(
-                  event.target.value === 'root' ? null : Number(event.target.value),
-                )
-              }
-              className="w-full rounded border border-border bg-bg px-2 py-1 text-xs text-text-primary"
-            >
-              <option value="root">Root</option>
-              {options.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={onCreateFolder}
-              className="rounded-md border border-border px-2 py-1 text-xs text-text-primary"
-            >
-              Create Folder
-            </button>
-          </div>
+          {/* Folder tree */}
+          {folders.length > 0 && (
+            <div className="mt-2 border-t border-border pt-2">
+              <ul className="space-y-0.5">
+                {folders.map((folder) => (
+                  <FolderTreeNode
+                    key={folder.id}
+                    folder={folder}
+                    selectedFolderId={selectedFolderId}
+                    onSelectFolder={onSelectFolder}
+                    onDeleteFolder={onDeleteFolder}
+                    depth={0}
+                  />
+                ))}
+              </ul>
+            </div>
+          )}
 
-          <div className="flex flex-wrap gap-2">
-            {options.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => onDeleteFolder(option.id)}
-                className="rounded-md border border-danger px-2 py-1 text-xs text-danger"
-              >
-                Delete {option.label}
-              </button>
-            ))}
-          </div>
+          {folders.length === 0 && (
+            <p className="px-2 py-6 text-center text-xs text-text-muted/60">
+              No folders yet
+            </p>
+          )}
         </div>
-      </details>
+      </ScrollArea>
+
+      {/* New Folder Dialog */}
+      <Dialog open={showNewFolderDialog} onOpenChange={setShowNewFolderDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Folder</DialogTitle>
+            <DialogDescription>Create a new folder to organize your vault items.</DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleCreate();
+            }}
+          >
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-text-primary">Folder name</label>
+              <Input
+                value={newFolderName}
+                onChange={(e) => onNewFolderNameChange(e.target.value)}
+                placeholder="My folder"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-text-primary">Parent folder</label>
+              <select
+                value={newFolderParentId ?? 'root'}
+                onChange={(e) =>
+                  onNewFolderParentIdChange(e.target.value === 'root' ? null : Number(e.target.value))
+                }
+                className="h-9 w-full rounded-md border border-border bg-bg px-3 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50"
+              >
+                <option value="root">Root (no parent)</option>
+                {parentOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setShowNewFolderDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!newFolderName.trim()}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                Create
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 };

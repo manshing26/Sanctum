@@ -1,12 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Upload, PanelRight } from 'lucide-react';
+import { toast } from 'sonner';
 import type { CreateFolderInput, VaultListSort } from '../../../shared/ipc';
+import { Button } from '../../components/ui/Button';
+import { Progress } from '../../components/ui/Progress';
+import { Tooltip, TooltipTrigger, TooltipContent } from '../../components/ui/Tooltip';
 import { FolderSidebar } from './components/FolderSidebar';
 import { GalleryGrid } from './components/GalleryGrid';
 import { GalleryToolbar } from './components/GalleryToolbar';
-import { ItemDetailsPanel } from './components/ItemDetailsPanel';
+import { ItemDetailsSidebar, ItemDetailsSheet } from './components/ItemDetailsPanel';
 import { TagFilterBar } from './components/TagFilterBar';
 import { useGalleryState } from './state/useGalleryState';
 import { MediaViewerOverlay } from '../viewer/MediaViewerOverlay';
+import { cn } from '../../lib/utils';
 
 type GalleryPageProps = {
   onLockVault: () => Promise<void>;
@@ -49,10 +55,12 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
     refresh,
     loadSupportingData,
   } = state;
+
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderParentId, setNewFolderParentId] = useState<number | null>(null);
   const [newTagName, setNewTagName] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
+  const [showDetailsSheet, setShowDetailsSheet] = useState(false);
   const [viewerItemId, setViewerItemId] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [importProgress, setImportProgress] = useState<{
@@ -71,7 +79,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
   useEffect(() => {
     void loadFirstPage().then((result) => {
       if (!result.ok) {
-        onMessage(result.error);
+        toast.error(result.error);
       }
     });
   }, []);
@@ -96,39 +104,23 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
   }, []);
 
   useEffect(() => {
-    if (!viewerItemId) {
-      return;
-    }
-
+    if (!viewerItemId) return;
     const stillVisible = filteredItems.some((item) => item.id === viewerItemId);
     if (!stillVisible) {
-      console.warn('[gallery] viewer auto-closed because item is no longer visible in filteredItems', {
-        viewerItemId,
-        filteredCount: filteredItems.length,
-      });
-      onMessage('Viewer auto-closed because selected item is no longer in current filters.');
+      toast.info('Viewer closed — item no longer matches filters.');
       setViewerItemId(null);
     }
   }, [viewerItemId, filteredItems]);
 
-  useEffect(() => {
-    console.info('[gallery] viewerItemId changed', { viewerItemId });
-  }, [viewerItemId]);
-
+  // ── Handlers ─────────────────────────────────────────────────────
   const handleSortChange = async (nextSort: VaultListSort): Promise<void> => {
     const result = await loadFirstPage(nextSort);
-    if (!result.ok) {
-      onMessage(result.error);
-    }
+    if (!result.ok) toast.error(result.error);
   };
 
   const handleImport = async (): Promise<void> => {
     const selectedFiles = await window.electronAPI.pickFiles();
-    if (selectedFiles.length === 0) {
-      onMessage('No files selected.');
-      return;
-    }
-
+    if (selectedFiles.length === 0) return;
     await runImport(selectedFiles);
   };
 
@@ -143,154 +135,138 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
     });
 
     if (!importResult.ok) {
-      onMessage(importResult.error);
+      toast.error(importResult.error);
       return;
     }
 
     const refreshed = await refresh();
     if (!refreshed.ok) {
-      onMessage(refreshed.error);
+      toast.error(refreshed.error);
       return;
     }
 
-    onMessage(
-      `Import complete: ${importResult.data.imported} imported, ${importResult.data.failed} failed.`,
+    toast.success(
+      `Imported ${importResult.data.imported} file(s)${importResult.data.failed > 0 ? `, ${importResult.data.failed} failed` : ''}`,
     );
   };
 
   const handleRefresh = async (): Promise<void> => {
     const result = await refresh();
     if (!result.ok) {
-      onMessage(result.error);
+      toast.error(result.error);
       return;
     }
-    onMessage(`Refreshed. Loaded ${allItems.length} item(s).`);
+    toast.success(`Refreshed — ${allItems.length} items loaded.`);
   };
 
   const handleCreateFolder = async (): Promise<void> => {
-    const payload: CreateFolderInput = {
-      name: newFolderName,
-      parentId: newFolderParentId,
-    };
+    const payload: CreateFolderInput = { name: newFolderName, parentId: newFolderParentId };
     const result = await window.electronAPI.createFolder(payload);
     if (!result.ok) {
-      onMessage(result.error);
+      toast.error(result.error);
       return;
     }
     setNewFolderName('');
     const supportResult = await loadSupportingData();
     if (!supportResult.ok) {
-      onMessage(supportResult.error);
+      toast.error(supportResult.error);
       return;
     }
-    onMessage('Folder created.');
+    toast.success('Folder created.');
   };
 
   const handleDeleteFolder = async (folderId: number): Promise<void> => {
     const result = await window.electronAPI.deleteFolder(folderId);
     if (!result.ok) {
-      onMessage(result.error);
+      toast.error(result.error);
       return;
     }
     const refreshed = await refresh();
-    if (!refreshed.ok) {
-      onMessage(refreshed.error);
-      return;
-    }
-    onMessage('Folder deleted.');
+    if (!refreshed.ok) toast.error(refreshed.error);
+    else toast.success('Folder deleted.');
   };
 
   const handleCreateTag = async (): Promise<void> => {
     const result = await window.electronAPI.createTag({ name: newTagName });
     if (!result.ok) {
-      onMessage(result.error);
+      toast.error(result.error);
       return;
     }
     setNewTagName('');
     const supportResult = await loadSupportingData();
-    if (!supportResult.ok) {
-      onMessage(supportResult.error);
-      return;
-    }
-    onMessage('Tag created.');
+    if (!supportResult.ok) toast.error(supportResult.error);
+    else toast.success('Tag created.');
   };
 
   const handleDeleteTag = async (tagId: number): Promise<void> => {
     const result = await window.electronAPI.deleteTag(tagId);
     if (!result.ok) {
-      onMessage(result.error);
+      toast.error(result.error);
       return;
     }
     const refreshed = await refresh();
-    if (!refreshed.ok) {
-      onMessage(refreshed.error);
-      return;
-    }
-    onMessage('Tag deleted.');
+    if (!refreshed.ok) toast.error(refreshed.error);
+    else toast.success('Tag deleted.');
   };
 
   const handleAssignFolder = async (itemId: string, folderId: number | null): Promise<void> => {
     const result = await window.electronAPI.assignItemFolder({ itemId, folderId });
     if (!result.ok) {
-      onMessage(result.error);
+      toast.error(result.error);
       return;
     }
     const refreshed = await refresh();
-    if (!refreshed.ok) {
-      onMessage(refreshed.error);
-    }
+    if (!refreshed.ok) toast.error(refreshed.error);
   };
 
   const handleDeleteItem = async (itemId: string): Promise<void> => {
     const confirmed = window.confirm('Delete this item? This cannot be undone.');
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
+
     const result = await window.electronAPI.deleteVaultItem({ itemId });
     if (!result.ok) {
-      onMessage(result.error);
+      toast.error(result.error);
       return;
     }
     const refreshed = await refresh();
-    if (!refreshed.ok) {
-      onMessage(refreshed.error);
-      return;
-    }
-    if (viewerItemId === itemId) {
-      setViewerItemId(null);
-    }
-    onMessage('Item deleted.');
+    if (!refreshed.ok) toast.error(refreshed.error);
+    if (viewerItemId === itemId) setViewerItemId(null);
+    toast.success('Item deleted.');
   };
 
   const handleToggleFavorite = async (itemId: string, isFavorite: boolean): Promise<void> => {
     const result = await window.electronAPI.toggleFavorite({ itemId, isFavorite });
     if (!result.ok) {
-      onMessage(result.error);
+      toast.error(result.error);
       return;
     }
     const refreshed = await refresh();
-    if (!refreshed.ok) {
-      onMessage(refreshed.error);
-    }
+    if (!refreshed.ok) toast.error(refreshed.error);
   };
 
   const handleRenameItem = async (itemId: string, newName: string): Promise<void> => {
     const result = await window.electronAPI.renameVaultItem({ itemId, newName });
     if (!result.ok) {
-      onMessage(result.error);
+      toast.error(result.error);
       return;
     }
     const refreshed = await refresh();
-    if (!refreshed.ok) {
-      onMessage(refreshed.error);
+    if (!refreshed.ok) toast.error(refreshed.error);
+    else toast.success('Item renamed.');
+  };
+
+  const handleExportItem = async (itemId: string): Promise<void> => {
+    const result = await window.electronAPI.exportItems({ itemIds: [itemId], targetDir: '' });
+    if (!result.ok) {
+      toast.error(result.error);
       return;
     }
-    onMessage('Item renamed.');
+    toast.success('Exported.');
   };
 
   const handleExportSelected = async (): Promise<void> => {
     if (selectedItemIds.length === 0) {
-      onMessage('Select items to export.');
+      toast.warning('Select items to export.');
       return;
     }
     const result = await window.electronAPI.exportItems({
@@ -298,54 +274,46 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
       targetDir: '',
     });
     if (!result.ok) {
-      onMessage(result.error);
+      toast.error(result.error);
       return;
     }
-    onMessage(`Export complete: ${result.data.exported} exported, ${result.data.failed} failed.`);
+    toast.success(`Exported ${result.data.exported} file(s).`);
   };
 
   const handleDeleteSelected = async (): Promise<void> => {
     if (selectedItemIds.length === 0) {
-      onMessage('Select items to delete.');
+      toast.warning('Select items to delete.');
       return;
     }
     const confirmed = window.confirm(`Delete ${selectedItemIds.length} item(s)? This cannot be undone.`);
-    if (!confirmed) {
-      return;
-    }
+    if (!confirmed) return;
+
     for (const itemId of selectedItemIds) {
       const result = await window.electronAPI.deleteVaultItem({ itemId });
       if (!result.ok) {
-        onMessage(result.error);
+        toast.error(result.error);
         return;
       }
     }
     clearSelection();
     const refreshed = await refresh();
-    if (!refreshed.ok) {
-      onMessage(refreshed.error);
-      return;
-    }
-    onMessage('Items deleted.');
+    if (!refreshed.ok) toast.error(refreshed.error);
+    else toast.success('Items deleted.');
   };
 
   const handleToggleFavoriteSelected = async (): Promise<void> => {
-    if (selectedItemIds.length === 0) {
-      return;
-    }
+    if (selectedItemIds.length === 0) return;
     const selectedItems = filteredItems.filter((item) => selectedItemIds.includes(item.id));
     const allFavorite = selectedItems.length > 0 && selectedItems.every((item) => item.isFavorite);
     for (const item of selectedItems) {
       const result = await window.electronAPI.toggleFavorite({ itemId: item.id, isFavorite: !allFavorite });
       if (!result.ok) {
-        onMessage(result.error);
+        toast.error(result.error);
         return;
       }
     }
     const refreshed = await refresh();
-    if (!refreshed.ok) {
-      onMessage(refreshed.error);
-    }
+    if (!refreshed.ok) toast.error(refreshed.error);
   };
 
   const handleToggleTag = async (itemId: string, tagId: number, assigned: boolean): Promise<void> => {
@@ -353,20 +321,16 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
       ? await window.electronAPI.unassignItemTag({ itemId, tagId })
       : await window.electronAPI.assignItemTag({ itemId, tagId });
     if (!response.ok) {
-      onMessage(response.error);
+      toast.error(response.error);
       return;
     }
     const refreshed = await refresh();
-    if (!refreshed.ok) {
-      onMessage(refreshed.error);
-    }
+    if (!refreshed.ok) toast.error(refreshed.error);
   };
 
   const handleLoadMore = async (): Promise<void> => {
     const result = await loadMore();
-    if (!result.ok) {
-      onMessage(result.error);
-    }
+    if (!result.ok) toast.error(result.error);
   };
 
   const handleToggleTagFilter = (tagId: number): void => {
@@ -380,117 +344,156 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
   const filteredCount = useMemo(() => filteredItems.length, [filteredItems.length]);
 
   const handleOpenViewer = (itemId: string): void => {
-    if (selectedItemIds.length !== 1) {
-      onMessage('Viewer is disabled when multiple items are selected.');
-      return;
-    }
-    console.info('[gallery] open viewer requested', { itemId });
     setSelectedItems([itemId]);
     setViewerItemId(itemId);
-    onMessage('Opening viewer...');
+  };
+
+  const detailsPanelProps = {
+    item: selectedItem,
+    folders,
+    tags,
+    securitySettings,
+    onAssignFolder: (itemId: string, folderId: number | null) => void handleAssignFolder(itemId, folderId),
+    onToggleTag: (itemId: string, tagId: number, assigned: boolean) => void handleToggleTag(itemId, tagId, assigned),
+    onOpenItem: handleOpenViewer,
+    onDeleteItem: (itemId: string) => void handleDeleteItem(itemId),
+    onToggleFavorite: (itemId: string, isFavorite: boolean) => void handleToggleFavorite(itemId, isFavorite),
+    onRenameItem: (itemId: string, newName: string) => void handleRenameItem(itemId, newName),
+    selectedCount: selectedItemIds.length,
+    onUpdateSecureDeleteDefault: (enabled: boolean) =>
+      void window.electronAPI
+        .updateSecuritySettings({ secureDeleteOnImport: enabled })
+        .then((result) => {
+          if (!result.ok) {
+            toast.error(result.error);
+            return;
+          }
+          setSecuritySettings(result.data);
+          toast.success(`Secure delete default: ${enabled ? 'on' : 'off'}`);
+        }),
   };
 
   return (
     <div
-      className="relative space-y-4"
-      onDragOver={(event) => {
-        event.preventDefault();
-      }}
-      onDragEnter={(event) => {
-        event.preventDefault();
+      className="relative flex flex-1 flex-col overflow-hidden"
+      onDragOver={(e) => e.preventDefault()}
+      onDragEnter={(e) => {
+        e.preventDefault();
         setIsDragOver(true);
       }}
-      onDragLeave={(event) => {
-        if (event.currentTarget === event.target) {
-          setIsDragOver(false);
-        }
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setIsDragOver(false);
       }}
-      onDrop={(event) => {
-        event.preventDefault();
+      onDrop={(e) => {
+        e.preventDefault();
         setIsDragOver(false);
-        const files = Array.from(event.dataTransfer.files)
+        const files = Array.from(e.dataTransfer.files)
           .map((file) => (file as { path?: string }).path)
           .filter((path): path is string => Boolean(path));
-        if (files.length === 0) {
-          onMessage('No files dropped.');
-          return;
-        }
+        if (files.length === 0) return;
         void runImport(files);
       }}
     >
-      {isDragOver ? (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-accent bg-accent/10 text-sm text-accent">
-          Drop files to import
+      {/* Drag overlay */}
+      {isDragOver && (
+        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center border-2 border-dashed border-accent bg-accent/10 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-2 text-accent">
+            <Upload className="h-10 w-10" />
+            <span className="text-sm font-medium">Drop files to import</span>
+          </div>
         </div>
-      ) : null}
+      )}
 
-      {(importProgress || exportProgress) ? (
-        <div className="rounded-lg border border-border bg-surface px-4 py-2 text-xs text-text-muted">
-          {importProgress ? (
-            <div>
-              Importing {importProgress.processed}/{importProgress.total} (failed: {importProgress.failed})
-              {importProgress.currentFile ? ` • ${importProgress.currentFile}` : ''}
+      {/* Progress bars */}
+      {(importProgress || exportProgress) && (
+        <div className="border-b border-border bg-surface px-4 py-2 space-y-1.5">
+          {importProgress && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs text-text-muted">
+                <span>
+                  Importing {importProgress.processed}/{importProgress.total}
+                  {importProgress.failed > 0 ? ` (${importProgress.failed} failed)` : ''}
+                </span>
+                {importProgress.currentFile && (
+                  <span className="truncate ml-2 max-w-[200px]">{importProgress.currentFile}</span>
+                )}
+              </div>
+              <Progress
+                value={importProgress.total > 0 ? (importProgress.processed / importProgress.total) * 100 : 0}
+                className="h-1.5"
+              />
             </div>
-          ) : null}
-          {exportProgress ? (
-            <div>
-              Exporting {exportProgress.processed}/{exportProgress.total} (failed: {exportProgress.failed})
-              {exportProgress.currentFile ? ` • ${exportProgress.currentFile}` : ''}
+          )}
+          {exportProgress && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs text-text-muted">
+                <span>
+                  Exporting {exportProgress.processed}/{exportProgress.total}
+                  {exportProgress.failed > 0 ? ` (${exportProgress.failed} failed)` : ''}
+                </span>
+              </div>
+              <Progress
+                value={exportProgress.total > 0 ? (exportProgress.processed / exportProgress.total) * 100 : 0}
+                className="h-1.5"
+              />
             </div>
-          ) : null}
+          )}
         </div>
-      ) : null}
+      )}
 
-      <GalleryToolbar
-        searchTerm={searchTerm}
-        onSearchTermChange={setSearchTerm}
-        sort={sort}
-        onSortChange={(value) => void handleSortChange(value)}
-        folders={folders}
-        importFolderId={importFolderId}
-        onImportFolderChange={setImportFolderId}
-        deleteOriginalsOverride={deleteOriginalsOverride}
-        onDeleteOriginalsOverrideChange={setDeleteOriginalsOverride}
-        onImport={() => void handleImport()}
-        onExportSelected={() => void handleExportSelected()}
-        onDeleteSelected={() => void handleDeleteSelected()}
-        onToggleFavoriteSelected={() => void handleToggleFavoriteSelected()}
-        onRefresh={() => void handleRefresh()}
-        onLock={() => void onLockVault()}
-        isBusy={isLoading}
-        totalItems={totalItems}
-        filteredCount={filteredCount}
-        showFavoritesOnly={showFavoritesOnly}
-        onToggleFavoritesOnly={() => setShowFavoritesOnly((prev) => !prev)}
-        selectedCount={selectedItemIds.length}
-        allSelectedFavorite={
-          selectedItemIds.length > 0 &&
-          filteredItems.filter((item) => selectedItemIds.includes(item.id)).every((item) => item.isFavorite)
-        }
-      />
+      {/* Toolbar area */}
+      <div className="space-y-2 border-b border-border px-4 py-3">
+        <GalleryToolbar
+          searchTerm={searchTerm}
+          onSearchTermChange={setSearchTerm}
+          sort={sort}
+          onSortChange={(value) => void handleSortChange(value)}
+          folders={folders}
+          importFolderId={importFolderId}
+          onImportFolderChange={setImportFolderId}
+          deleteOriginalsOverride={deleteOriginalsOverride}
+          onDeleteOriginalsOverrideChange={setDeleteOriginalsOverride}
+          onImport={() => void handleImport()}
+          onExportSelected={() => void handleExportSelected()}
+          onDeleteSelected={() => void handleDeleteSelected()}
+          onToggleFavoriteSelected={() => void handleToggleFavoriteSelected()}
+          onRefresh={() => void handleRefresh()}
+          onLock={() => void onLockVault()}
+          isBusy={isLoading}
+          totalItems={totalItems}
+          filteredCount={filteredCount}
+          showFavoritesOnly={showFavoritesOnly}
+          onToggleFavoritesOnly={() => setShowFavoritesOnly((prev) => !prev)}
+          selectedCount={selectedItemIds.length}
+          allSelectedFavorite={
+            selectedItemIds.length > 0 &&
+            filteredItems
+              .filter((item) => selectedItemIds.includes(item.id))
+              .every((item) => item.isFavorite)
+          }
+        />
 
-      <TagFilterBar
-        tags={tags}
-        selectedTagIds={selectedTagIds}
-        onToggleTagFilter={handleToggleTagFilter}
-        newTagName={newTagName}
-        onNewTagNameChange={setNewTagName}
-        onCreateTag={() => void handleCreateTag()}
-        onDeleteTag={(tagId) => void handleDeleteTag(tagId)}
-      />
-
-      <div className="lg:hidden">
-        <button
-          type="button"
-          onClick={() => setShowSidebar((prev) => !prev)}
-          className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
-        >
-          {showSidebar ? 'Hide Folders' : 'Show Folders'}
-        </button>
+        {/* Tag filter bar */}
+        <TagFilterBar
+          tags={tags}
+          selectedTagIds={selectedTagIds}
+          onToggleTagFilter={handleToggleTagFilter}
+          newTagName={newTagName}
+          onNewTagNameChange={setNewTagName}
+          onCreateTag={() => void handleCreateTag()}
+          onDeleteTag={(tagId) => void handleDeleteTag(tagId)}
+        />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)] 2xl:grid-cols-[260px_minmax(0,1fr)_320px]">
-        <div className={`${showSidebar ? 'block' : 'hidden'} lg:block`}>
+      {/* Main content area */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Folder sidebar */}
+        <div
+          className={cn(
+            'shrink-0 border-r border-border transition-all duration-200',
+            showSidebar ? 'w-56' : 'w-0 overflow-hidden border-r-0',
+          )}
+        >
           <FolderSidebar
             folders={folders}
             selectedFolderId={selectedFolderId}
@@ -504,76 +507,56 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
           />
         </div>
 
-        <GalleryGrid
-          items={filteredItems}
-          thumbnails={thumbnails}
-          selectedItemIds={selectedItemIds}
-          onToggleSelect={toggleSelectedItem}
-          onOpenItem={handleOpenViewer}
-          onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
-          hasMore={hasMore}
-          isLoading={isLoading}
-          onLoadMore={() => void handleLoadMore()}
-        />
-
-        <div className="2xl:hidden">
-          <ItemDetailsPanel
-            item={selectedItem}
-            folders={folders}
-            tags={tags}
-            securitySettings={securitySettings}
-            onAssignFolder={(itemId, folderId) => void handleAssignFolder(itemId, folderId)}
-            onToggleTag={(itemId, tagId, assigned) => void handleToggleTag(itemId, tagId, assigned)}
+        {/* Gallery grid */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <GalleryGrid
+            items={filteredItems}
+            thumbnails={thumbnails}
+            selectedItemIds={selectedItemIds}
+            onToggleSelect={toggleSelectedItem}
             onOpenItem={handleOpenViewer}
-            onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
             onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
-            onRenameItem={(itemId, newName) => void handleRenameItem(itemId, newName)}
-            selectedCount={selectedItemIds.length}
-            onUpdateSecureDeleteDefault={(enabled) =>
-              void window.electronAPI
-                .updateSecuritySettings({ secureDeleteOnImport: enabled })
-                .then((result) => {
-                  if (!result.ok) {
-                    onMessage(result.error);
-                    return;
-                  }
-                  setSecuritySettings(result.data);
-                  onMessage(`Default secure delete is now ${enabled ? 'enabled' : 'disabled'}.`);
-                })
-            }
+            onExportItem={(itemId) => void handleExportItem(itemId)}
+            onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
+            hasMore={hasMore}
+            isLoading={isLoading}
+            onLoadMore={() => void handleLoadMore()}
           />
         </div>
 
-        <div className="hidden 2xl:block">
-          <ItemDetailsPanel
-            item={selectedItem}
-            folders={folders}
-            tags={tags}
-            securitySettings={securitySettings}
-            onAssignFolder={(itemId, folderId) => void handleAssignFolder(itemId, folderId)}
-            onToggleTag={(itemId, tagId, assigned) => void handleToggleTag(itemId, tagId, assigned)}
-            onOpenItem={handleOpenViewer}
-            onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
-            onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
-            onRenameItem={(itemId, newName) => void handleRenameItem(itemId, newName)}
-            selectedCount={selectedItemIds.length}
-            onUpdateSecureDeleteDefault={(enabled) =>
-              void window.electronAPI
-                .updateSecuritySettings({ secureDeleteOnImport: enabled })
-                .then((result) => {
-                  if (!result.ok) {
-                    onMessage(result.error);
-                    return;
-                  }
-                  setSecuritySettings(result.data);
-                  onMessage(`Default secure delete is now ${enabled ? 'enabled' : 'disabled'}.`);
-                })
-            }
-          />
+        {/* Details sidebar — visible on wide screens */}
+        <div className="hidden w-72 shrink-0 border-l border-border 2xl:block">
+          <ItemDetailsSidebar {...detailsPanelProps} />
         </div>
       </div>
 
-      {viewerItemId ? (
+      {/* Details sheet — for smaller screens, toggled by button */}
+      <ItemDetailsSheet
+        open={showDetailsSheet}
+        onOpenChange={setShowDetailsSheet}
+        {...detailsPanelProps}
+      />
+
+      {/* Floating detail toggle button (visible below 2xl) */}
+      <div className="absolute bottom-4 right-4 2xl:hidden">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="default"
+              size="icon"
+              onClick={() => setShowDetailsSheet(true)}
+              className="h-10 w-10 rounded-full shadow-lg"
+              aria-label="Show details"
+            >
+              <PanelRight className="h-5 w-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">Item Details</TooltipContent>
+        </Tooltip>
+      </div>
+
+      {/* Media viewer overlay */}
+      {viewerItemId && (
         <MediaViewerOverlay
           items={filteredItems}
           currentItemId={viewerItemId}
@@ -582,9 +565,9 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
             setSelectedItems([itemId]);
             setViewerItemId(itemId);
           }}
-          onMessage={onMessage}
+          onMessage={(msg) => toast.info(msg)}
         />
-      ) : null}
+      )}
     </div>
   );
 };
