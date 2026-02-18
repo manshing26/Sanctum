@@ -330,7 +330,7 @@ export const GalleryToolbar = ({
                 checked={importFolderId === null}
                 onCheckedChange={() => onImportFolderChange(null)}
               >
-                Unfiled
+                Root
               </DropdownMenuCheckboxItem>
               {folderOptions.map((folder) => (
                 <DropdownMenuCheckboxItem

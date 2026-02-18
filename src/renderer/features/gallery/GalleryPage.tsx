@@ -527,7 +527,7 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
       }
 
       const destinationLabel =
-        folderId === null ? 'Unfiled' : findFolderNameById(folders, folderId) ?? 'selected folder';
+        folderId === null ? 'Root' : findFolderNameById(folders, folderId) ?? 'selected folder';
 
       if (moveDialogSource === 'bulk') {
         toast.success(`Moved ${itemIds.length} item(s) to ${destinationLabel}.`);

@@ -188,7 +188,7 @@ export const MoveToFolderDialog = ({
                 )}
               >
                 <FolderOpen className={cn('h-4 w-4', selectedDestination === null ? 'text-accent' : 'text-text-muted')} />
-                <span>Unfiled</span>
+                <span>Root</span>
               </button>
 
               {visibleFolders.length > 0 ? (

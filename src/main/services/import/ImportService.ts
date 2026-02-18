@@ -95,7 +95,7 @@ export class ImportService {
             if (shouldFallbackToUnfiled) {
               await this.vaultService.addEncryptedFile(filePath, metadata, thumbnail, null);
               result.warnings?.push(
-                `${filePath}: Folder assignment failed, item imported as Unfiled.`,
+                `${filePath}: Folder assignment failed, item imported to Root.`,
               );
             } else {
               throw error;
