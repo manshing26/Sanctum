@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Upload, PanelRight } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CreateFolderInput, FolderNode, VaultListSort } from '../../../shared/ipc';
 import { Button } from '../../components/ui/Button';
-import { Progress } from '../../components/ui/Progress';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../../components/ui/Tooltip';
 import { FolderSidebar } from './components/FolderSidebar';
 import { GalleryGrid } from './components/GalleryGrid';
@@ -145,18 +144,8 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [isMultiSelect, setIsMultiSelect] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [importProgress, setImportProgress] = useState<{
-    total: number;
-    processed: number;
-    failed: number;
-    currentFile?: string;
-  } | null>(null);
-  const [exportProgress, setExportProgress] = useState<{
-    total: number;
-    processed: number;
-    failed: number;
-    currentFile?: string;
-  } | null>(null);
+  const importToastIdRef = useRef<string | number | null>(null);
+  const exportToastIdRef = useRef<string | number | null>(null);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [moveDialogItemIds, setMoveDialogItemIds] = useState<string[]>([]);
   const [moveDialogSource, setMoveDialogSource] = useState<'single' | 'bulk'>('single');
@@ -172,18 +161,52 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
 
   useEffect(() => {
     const unsubscribeImport = window.electronAPI.onImportProgress((progress) => {
-      setImportProgress(progress);
-      if (progress.processed >= progress.total) {
-        window.setTimeout(() => setImportProgress(null), 2500);
+      const description = progress.currentFile
+        ? progress.currentFile
+        : undefined;
+      if (progress.processed < progress.total) {
+        const id = importToastIdRef.current ?? toast('Importing files...', {
+          duration: Infinity,
+        });
+        importToastIdRef.current = id;
+        toast(`Importing ${progress.processed}/${progress.total}`, {
+          id,
+          duration: Infinity,
+          description,
+        });
+      } else if (importToastIdRef.current !== null) {
+        toast.dismiss(importToastIdRef.current);
+        importToastIdRef.current = null;
       }
     });
     const unsubscribeExport = window.electronAPI.onExportProgress((progress) => {
-      setExportProgress(progress);
-      if (progress.processed >= progress.total) {
-        window.setTimeout(() => setExportProgress(null), 2500);
+      const description = progress.currentFile
+        ? progress.currentFile
+        : undefined;
+      if (progress.processed < progress.total) {
+        const id = exportToastIdRef.current ?? toast('Exporting files...', {
+          duration: Infinity,
+        });
+        exportToastIdRef.current = id;
+        toast(`Exporting ${progress.processed}/${progress.total}`, {
+          id,
+          duration: Infinity,
+          description,
+        });
+      } else if (exportToastIdRef.current !== null) {
+        toast.dismiss(exportToastIdRef.current);
+        exportToastIdRef.current = null;
       }
     });
     return () => {
+      if (importToastIdRef.current !== null) {
+        toast.dismiss(importToastIdRef.current);
+        importToastIdRef.current = null;
+      }
+      if (exportToastIdRef.current !== null) {
+        toast.dismiss(exportToastIdRef.current);
+        exportToastIdRef.current = null;
+      }
       unsubscribeImport();
       unsubscribeExport();
     };
@@ -569,43 +592,6 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
             <Upload className="h-10 w-10" />
             <span className="text-sm font-medium">Drop files to import</span>
           </div>
-        </div>
-      )}
-
-      {/* Progress bars */}
-      {(importProgress || exportProgress) && (
-        <div className="border-b border-border bg-surface px-4 py-2 space-y-1.5">
-          {importProgress && (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs text-text-muted">
-                <span>
-                  Importing {importProgress.processed}/{importProgress.total}
-                  {importProgress.failed > 0 ? ` (${importProgress.failed} failed)` : ''}
-                </span>
-                {importProgress.currentFile && (
-                  <span className="truncate ml-2 max-w-[200px]">{importProgress.currentFile}</span>
-                )}
-              </div>
-              <Progress
-                value={importProgress.total > 0 ? (importProgress.processed / importProgress.total) * 100 : 0}
-                className="h-1.5"
-              />
-            </div>
-          )}
-          {exportProgress && (
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs text-text-muted">
-                <span>
-                  Exporting {exportProgress.processed}/{exportProgress.total}
-                  {exportProgress.failed > 0 ? ` (${exportProgress.failed} failed)` : ''}
-                </span>
-              </div>
-              <Progress
-                value={exportProgress.total > 0 ? (exportProgress.processed / exportProgress.total) * 100 : 0}
-                className="h-1.5"
-              />
-            </div>
-          )}
         </div>
       )}
 
