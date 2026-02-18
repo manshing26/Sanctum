@@ -145,7 +145,7 @@ const ListRow: React.FC<{
 
       {/* Dimensions / Duration */}
       <span className="hidden w-20 shrink-0 text-right text-[11px] text-text-muted md:block">
-        {item.durationSeconds !== undefined && item.durationSeconds > 0
+        {isVideo(item.mimeType) && item.durationSeconds !== undefined && item.durationSeconds > 0
           ? formatDuration(item.durationSeconds)
           : item.width && item.height
             ? `${item.width}×${item.height}`

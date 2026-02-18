@@ -124,6 +124,11 @@ export class DatabaseService {
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_item_tags_item_id ON item_tags(item_id)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_item_tags_tag_id ON item_tags(tag_id)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_vault_items_is_favorite ON vault_items(is_favorite)');
+
+    // Cleanup legacy rows where ffprobe reported pseudo-duration for still images.
+    this.db.exec(
+      "UPDATE vault_items SET media_duration_seconds = NULL WHERE mime_type LIKE 'image/%' AND media_duration_seconds IS NOT NULL",
+    );
   }
 
   private ensureTableColumn(tableName: string, columnName: string, columnType: string): void {

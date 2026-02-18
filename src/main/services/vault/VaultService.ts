@@ -152,7 +152,7 @@ export class VaultService {
     const ext = path.extname(filename);
     const base = ext ? filename.slice(0, -ext.length) : filename;
     let counter = 0;
-    while (true) {
+    while (counter < Number.MAX_SAFE_INTEGER) {
       const suffix = counter === 0 ? '' : ` (${counter + 1})`;
       const candidate = path.join(targetDir, `${base}${suffix}${ext}`);
       try {
@@ -162,6 +162,8 @@ export class VaultService {
         return candidate;
       }
     }
+
+    throw new Error('Unable to resolve a unique export path.');
   }
 
   private resolveFolderPath(folderId: number | null, folderById: Map<number, FolderRow>): string | undefined {
@@ -217,6 +219,7 @@ export class VaultService {
 
     return rows.map((row) => {
       const itemTags = tagsByItemId.get(row.id) ?? [];
+      const isVideo = row.mime_type.startsWith('video/');
       return {
         id: row.id,
         originalName: this.decryptOriginalName(row.original_filename_enc),
@@ -231,7 +234,7 @@ export class VaultService {
         tags: itemTags.map((tag) => tag.name),
         width: row.media_width ?? undefined,
         height: row.media_height ?? undefined,
-        durationSeconds: row.media_duration_seconds ?? undefined,
+        durationSeconds: isVideo ? row.media_duration_seconds ?? undefined : undefined,
         rating: row.rating ?? undefined,
       };
     });
@@ -278,6 +281,8 @@ export class VaultService {
     );
 
     const mimeType = getMimeType(sourcePath);
+    const sanitizedDurationSeconds =
+      mimeType.startsWith('video/') ? metadata.durationSeconds : undefined;
     const encryptedThumbnail = thumbnail
       ? this.cryptoService.encryptBuffer(thumbnail.data, key)
       : undefined;
@@ -312,7 +317,7 @@ export class VaultService {
         folderId ?? null,
         metadata.width ?? null,
         metadata.height ?? null,
-        metadata.durationSeconds ?? null,
+        sanitizedDurationSeconds ?? null,
         thumbnail?.mimeType ?? null,
         encryptedThumbnail?.encrypted ?? null,
         encryptedThumbnail?.iv ?? null,
@@ -337,7 +342,7 @@ export class VaultService {
       folderId: folderId ?? undefined,
       width: metadata.width,
       height: metadata.height,
-      durationSeconds: metadata.durationSeconds,
+      durationSeconds: sanitizedDurationSeconds,
     };
   }
 
