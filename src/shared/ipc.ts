@@ -25,6 +25,7 @@ export const IPC_CHANNELS = {
   clearAllVaultItems: 'vault:clear-all-items',
   deleteVaultItem: 'vault:delete-item',
   toggleFavorite: 'vault:toggle-favorite',
+  setRating: 'vault:set-rating',
   renameVaultItem: 'vault:rename-item',
   exportItems: 'vault:export-items',
   importProgress: 'vault:import-progress',
@@ -40,12 +41,17 @@ export const IPC_CHANNELS = {
   listTags: 'tags:list',
   renameTag: 'tags:rename',
   deleteTag: 'tags:delete',
+  updateTagColor: 'tags:update-color',
   assignItemTag: 'tags:assign-item',
   unassignItemTag: 'tags:unassign-item',
   assignItemsTag: 'tags:assign-items',
   unassignItemsTag: 'tags:unassign-items',
   getSecuritySettings: 'settings:get-security',
   updateSecuritySettings: 'settings:update-security',
+  getAppearanceSettings: 'settings:get-appearance',
+  updateAppearanceSettings: 'settings:update-appearance',
+  getBrowserSettings: 'settings:get-browser',
+  updateBrowserSettings: 'settings:update-browser',
 } as const;
 
 export type CreateVaultPasswordInput = {
@@ -93,6 +99,7 @@ export type VaultItemSummary = {
   width?: number;
   height?: number;
   durationSeconds?: number;
+  rating?: number;
 };
 
 export type VaultListSort =
@@ -101,7 +108,9 @@ export type VaultListSort =
   | 'name_asc'
   | 'name_desc'
   | 'size_desc'
-  | 'size_asc';
+  | 'size_asc'
+  | 'rating_desc'
+  | 'rating_asc';
 
 export type ListItemsQueryInput = {
   limit: number;
@@ -142,6 +151,23 @@ export type SecuritySettings = {
 
 export type UpdateSecuritySettingsInput = Partial<SecuritySettings>;
 
+export type AppearanceSettings = {
+  thumbnailSize: 'small' | 'medium' | 'large';
+  gridDensity: 'compact' | 'comfortable' | 'spacious';
+  defaultView: 'grid' | 'list';
+};
+
+export type UpdateAppearanceSettingsInput = Partial<AppearanceSettings>;
+
+export type BrowserSettings = {
+  clearOnExit: boolean;
+  blockPopups: boolean;
+  blockThirdPartyCookies: boolean;
+  homepage: string;
+};
+
+export type UpdateBrowserSettingsInput = Partial<BrowserSettings>;
+
 export type FolderNode = {
   id: number;
   name: string;
@@ -178,11 +204,18 @@ export type AssignItemsFolderInput = {
 export type TagSummary = {
   id: number;
   name: string;
+  color?: string;
   createdAt: string;
 };
 
 export type CreateTagInput = {
   name: string;
+  color?: string;
+};
+
+export type UpdateTagColorInput = {
+  tagId: number;
+  color: string | null;
 };
 
 export type RenameTagInput = {
@@ -234,6 +267,11 @@ export type DeleteVaultItemInput = {
 export type ToggleFavoriteInput = {
   itemId: string;
   isFavorite: boolean;
+};
+
+export type SetRatingInput = {
+  itemId: string;
+  rating: number | null;
 };
 
 export type RenameItemInput = {
@@ -305,6 +343,7 @@ export type ElectronAPI = {
   clearAllVaultItems: () => Promise<OperationResult<{ deleted: number }>>;
   deleteVaultItem: (input: DeleteVaultItemInput) => Promise<OperationResult>;
   toggleFavorite: (input: ToggleFavoriteInput) => Promise<OperationResult>;
+  setRating: (input: SetRatingInput) => Promise<OperationResult>;
   renameVaultItem: (input: RenameItemInput) => Promise<OperationResult>;
   exportItems: (input: ExportItemsInput) => Promise<OperationResult<{ exported: number; failed: number }>>;
   onImportProgress: (handler: (payload: ImportProgress) => void) => () => void;
@@ -320,6 +359,7 @@ export type ElectronAPI = {
   listTags: () => Promise<OperationResult<TagSummary[]>>;
   renameTag: (input: RenameTagInput) => Promise<OperationResult<TagSummary>>;
   deleteTag: (tagId: number) => Promise<OperationResult>;
+  updateTagColor: (input: UpdateTagColorInput) => Promise<OperationResult<TagSummary>>;
   assignItemTag: (input: AssignItemTagInput) => Promise<OperationResult>;
   unassignItemTag: (input: UnassignItemTagInput) => Promise<OperationResult>;
   assignItemsTag: (input: AssignItemsTagInput) => Promise<OperationResult>;
@@ -328,6 +368,14 @@ export type ElectronAPI = {
   updateSecuritySettings: (
     input: UpdateSecuritySettingsInput,
   ) => Promise<OperationResult<SecuritySettings>>;
+  getAppearanceSettings: () => Promise<OperationResult<AppearanceSettings>>;
+  updateAppearanceSettings: (
+    input: UpdateAppearanceSettingsInput,
+  ) => Promise<OperationResult<AppearanceSettings>>;
+  getBrowserSettings: () => Promise<OperationResult<BrowserSettings>>;
+  updateBrowserSettings: (
+    input: UpdateBrowserSettingsInput,
+  ) => Promise<OperationResult<BrowserSettings>>;
 };
 
 export type BrowserAPI = {

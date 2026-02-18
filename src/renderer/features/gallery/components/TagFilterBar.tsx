@@ -11,13 +11,24 @@ import {
 } from '../../../components/ui/ContextMenu';
 import { cn } from '../../../lib/utils';
 
+const TAG_COLOR_PRESETS = [
+  { name: 'Red', value: '#ef4444' },
+  { name: 'Orange', value: '#f97316' },
+  { name: 'Yellow', value: '#eab308' },
+  { name: 'Green', value: '#22c55e' },
+  { name: 'Teal', value: '#14b8a6' },
+  { name: 'Blue', value: '#3b82f6' },
+  { name: 'Purple', value: '#a855f7' },
+  { name: 'Pink', value: '#ec4899' },
+];
+
 type TagFilterBarProps = {
   tags: TagSummary[];
   selectedTagIds: number[];
   onToggleTagFilter: (tagId: number) => void;
   newTagName: string;
   onNewTagNameChange: (value: string) => void;
-  onCreateTag: () => void;
+  onCreateTag: (color?: string) => void;
   onDeleteTag: (tagId: number) => void;
 };
 
@@ -31,6 +42,15 @@ export const TagFilterBar = ({
   onDeleteTag,
 }: TagFilterBarProps): React.JSX.Element => {
   const [showInput, setShowInput] = useState(false);
+  const [selectedColor, setSelectedColor] = useState<string | undefined>(undefined);
+
+  const handleSubmit = (): void => {
+    if (newTagName.trim()) {
+      onCreateTag(selectedColor);
+      setShowInput(false);
+      setSelectedColor(undefined);
+    }
+  };
 
   if (tags.length === 0 && !showInput) {
     return (
@@ -66,7 +86,14 @@ export const TagFilterBar = ({
                     : 'border-border bg-surface text-text-secondary hover:border-text-muted/40 hover:text-text-primary',
                 )}
               >
-                <Hash className="h-3 w-3 opacity-70" />
+                {tag.color ? (
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: tag.color }}
+                  />
+                ) : (
+                  <Hash className="h-3 w-3 opacity-70" />
+                )}
                 {tag.name}
                 {active && (
                   <X className="ml-0.5 h-3 w-3 opacity-60 hover:opacity-100" />
@@ -88,13 +115,10 @@ export const TagFilterBar = ({
       {/* Inline add tag */}
       {showInput ? (
         <form
-          className="flex shrink-0 items-center gap-1"
+          className="flex shrink-0 items-center gap-1.5"
           onSubmit={(e) => {
             e.preventDefault();
-            if (newTagName.trim()) {
-              onCreateTag();
-              setShowInput(false);
-            }
+            handleSubmit();
           }}
         >
           <Input
@@ -104,6 +128,28 @@ export const TagFilterBar = ({
             className="h-7 w-24 text-xs"
             autoFocus
           />
+
+          {/* Color swatches */}
+          <div className="flex items-center gap-0.5">
+            {TAG_COLOR_PRESETS.map((color) => (
+              <button
+                key={color.value}
+                type="button"
+                onClick={() =>
+                  setSelectedColor(selectedColor === color.value ? undefined : color.value)
+                }
+                className={cn(
+                  'h-4 w-4 shrink-0 rounded-full border-2 transition-transform',
+                  selectedColor === color.value
+                    ? 'scale-125 border-white'
+                    : 'border-transparent hover:scale-110',
+                )}
+                style={{ backgroundColor: color.value }}
+                title={color.name}
+              />
+            ))}
+          </div>
+
           <Button type="submit" variant="ghost" size="icon-sm" disabled={!newTagName.trim()}>
             <Plus className="h-3.5 w-3.5" />
           </Button>
@@ -114,6 +160,7 @@ export const TagFilterBar = ({
             onClick={() => {
               setShowInput(false);
               onNewTagNameChange('');
+              setSelectedColor(undefined);
             }}
           >
             <X className="h-3.5 w-3.5" />

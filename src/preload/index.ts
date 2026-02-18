@@ -24,6 +24,10 @@ import {
   type OpenMediaSessionInput,
   type UnlockVaultInput,
   type UpdateSecuritySettingsInput,
+  type UpdateAppearanceSettingsInput,
+  type UpdateBrowserSettingsInput,
+  type UpdateTagColorInput,
+  type SetRatingInput,
 } from '../shared/ipc';
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -52,6 +56,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteVaultItem: (input: { itemId: string }) =>
     ipcRenderer.invoke(IPC_CHANNELS.deleteVaultItem, input),
   toggleFavorite: (input: ToggleFavoriteInput) => ipcRenderer.invoke(IPC_CHANNELS.toggleFavorite, input),
+  setRating: (input: SetRatingInput) => ipcRenderer.invoke(IPC_CHANNELS.setRating, input),
   renameVaultItem: (input: RenameItemInput) => ipcRenderer.invoke(IPC_CHANNELS.renameVaultItem, input),
   exportItems: (input: ExportItemsInput) => ipcRenderer.invoke(IPC_CHANNELS.exportItems, input),
   createFolder: (input: CreateFolderInput) => ipcRenderer.invoke(IPC_CHANNELS.createFolder, input),
@@ -67,6 +72,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listTags: () => ipcRenderer.invoke(IPC_CHANNELS.listTags),
   renameTag: (input: RenameTagInput) => ipcRenderer.invoke(IPC_CHANNELS.renameTag, input),
   deleteTag: (tagId: number) => ipcRenderer.invoke(IPC_CHANNELS.deleteTag, tagId),
+  updateTagColor: (input: UpdateTagColorInput) => ipcRenderer.invoke(IPC_CHANNELS.updateTagColor, input),
   assignItemTag: (input: AssignItemTagInput) => ipcRenderer.invoke(IPC_CHANNELS.assignItemTag, input),
   unassignItemTag: (input: UnassignItemTagInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.unassignItemTag, input),
@@ -77,6 +83,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSecuritySettings: () => ipcRenderer.invoke(IPC_CHANNELS.getSecuritySettings),
   updateSecuritySettings: (input: UpdateSecuritySettingsInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.updateSecuritySettings, input),
+  getAppearanceSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getAppearanceSettings),
+  updateAppearanceSettings: (input: UpdateAppearanceSettingsInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.updateAppearanceSettings, input),
+  getBrowserSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getBrowserSettings),
+  updateBrowserSettings: (input: UpdateBrowserSettingsInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.updateBrowserSettings, input),
   onImportProgress: (handler: (payload: ImportProgress) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: ImportProgress) => {
       handler(payload);

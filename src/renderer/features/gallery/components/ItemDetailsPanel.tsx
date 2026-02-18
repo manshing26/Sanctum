@@ -23,6 +23,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { Separator } from '../../../components/ui/Separator';
 import { ScrollArea } from '../../../components/ui/ScrollArea';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../../../components/ui/Sheet';
+import { StarRating } from '../../../components/ui/StarRating';
 import { cn } from '../../../lib/utils';
 
 const flattenFolders = (folders: FolderNode[], depth = 0): Array<{ id: number; label: string }> => {
@@ -56,6 +57,7 @@ type ItemDetailsPanelProps = {
   onDeleteItem: (itemId: string) => void;
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
   onRenameItem: (itemId: string, newName: string) => void;
+  onSetRating: (itemId: string, rating: number | null) => void;
   selectedCount: number;
 };
 
@@ -72,6 +74,7 @@ const DetailsContent: React.FC<
   onDeleteItem,
   onToggleFavorite,
   onRenameItem,
+  onSetRating,
   selectedCount,
 }) => {
   const folderOptions = flattenFolders(folders);
@@ -213,6 +216,17 @@ const DetailsContent: React.FC<
 
       <Separator />
 
+      {/* Rating */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Rating</h3>
+        <StarRating
+          value={item.rating}
+          onChange={(rating) => onSetRating(item.id, rating)}
+        />
+      </div>
+
+      <Separator />
+
       {/* Folder assignment */}
       <div className="space-y-2">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Folder</h3>
@@ -252,7 +266,14 @@ const DetailsContent: React.FC<
                     : 'border-border text-text-muted hover:border-accent/40',
                 )}
               >
-                <Hash className="h-3 w-3" />
+                {tag.color ? (
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: tag.color }}
+                  />
+                ) : (
+                  <Hash className="h-3 w-3" />
+                )}
                 {tag.name}
                 {assigned && <X className="h-3 w-3 opacity-60" />}
               </button>

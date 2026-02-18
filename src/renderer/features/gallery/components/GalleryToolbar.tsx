@@ -11,6 +11,8 @@ import {
   Star,
   ArrowUpDown,
   ChevronDown,
+  LayoutGrid,
+  List,
 } from 'lucide-react';
 import type { FolderNode, VaultListSort } from '../../../../shared/ipc';
 import { Button } from '../../../components/ui/Button';
@@ -52,6 +54,8 @@ const SORT_OPTIONS: { value: VaultListSort; label: string }[] = [
   { value: 'name_desc', label: 'Name Z-A' },
   { value: 'size_desc', label: 'Largest First' },
   { value: 'size_asc', label: 'Smallest First' },
+  { value: 'rating_desc', label: 'Highest Rated' },
+  { value: 'rating_asc', label: 'Lowest Rated' },
 ];
 
 type GalleryToolbarProps = {
@@ -77,6 +81,8 @@ type GalleryToolbarProps = {
   onToggleFavoritesOnly: () => void;
   selectedCount: number;
   allSelectedFavorite: boolean;
+  viewMode: 'grid' | 'list';
+  onViewModeChange: (mode: 'grid' | 'list') => void;
 };
 
 export const GalleryToolbar = ({
@@ -102,6 +108,8 @@ export const GalleryToolbar = ({
   onToggleFavoritesOnly,
   selectedCount,
   allSelectedFavorite,
+  viewMode,
+  onViewModeChange,
 }: GalleryToolbarProps): React.JSX.Element => {
   const folderOptions = flattenFolderOptions(folders);
   const currentSort = SORT_OPTIONS.find((o) => o.value === sort);
@@ -137,6 +145,38 @@ export const GalleryToolbar = ({
             ? `${totalItems} items`
             : `${filteredCount} of ${totalItems}`}
         </span>
+
+        {/* View mode toggle */}
+        <div className="flex rounded-md border border-border">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                size="icon-sm"
+                onClick={() => onViewModeChange('grid')}
+                aria-label="Grid view"
+                className="rounded-r-none border-0"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Grid view</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="icon-sm"
+                onClick={() => onViewModeChange('list')}
+                aria-label="List view"
+                className="rounded-l-none border-0"
+              >
+                <List className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>List view</TooltipContent>
+          </Tooltip>
+        </div>
 
         {/* Sort dropdown */}
         <DropdownMenu>

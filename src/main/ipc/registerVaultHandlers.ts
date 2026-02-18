@@ -7,6 +7,7 @@ import {
   type ListItemsQueryInput,
   type RenameItemInput,
   type ToggleFavoriteInput,
+  type SetRatingInput,
 } from '../../shared/ipc';
 import { MainWindowController } from '../windows/MainWindowController';
 import { ImportService } from '../services/import/ImportService';
@@ -108,6 +109,18 @@ export const registerVaultHandlers = ({
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to update favorite.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.setRating, async (_event, input: SetRatingInput) => {
+    try {
+      vaultService.setRating(input.itemId, input.rating);
+      return { ok: true as const };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to set rating.',
       };
     }
   });

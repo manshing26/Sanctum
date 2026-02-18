@@ -5,6 +5,7 @@ import type {
   CreateTagInput,
   RenameTagInput,
   TagSummary,
+  UpdateTagColorInput,
   UnassignItemTagInput,
   UnassignItemsTagInput,
 } from '../../../shared/ipc';
@@ -13,6 +14,7 @@ import { SessionStore } from '../../state/SessionStore';
 type TagRow = {
   id: number;
   name: string;
+  color: string | null;
   created_at: string;
 };
 
@@ -38,7 +40,7 @@ export class TagService {
 
   private getTag(tagId: number): TagRow {
     const row = this.db
-      .prepare('SELECT id, name, created_at FROM tags WHERE id = ?')
+      .prepare('SELECT id, name, color, created_at FROM tags WHERE id = ?')
       .get(tagId) as TagRow | undefined;
     if (!row) {
       throw new Error('Tag not found.');
@@ -50,6 +52,7 @@ export class TagService {
     return {
       id: row.id,
       name: row.name,
+      color: row.color ?? undefined,
       createdAt: row.created_at,
     };
   }
@@ -60,8 +63,8 @@ export class TagService {
 
     try {
       const result = this.db
-        .prepare('INSERT INTO tags (name, updated_at) VALUES (?, CURRENT_TIMESTAMP)')
-        .run(name);
+        .prepare('INSERT INTO tags (name, color, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)')
+        .run(name, input.color ?? null);
       return this.toSummary(this.getTag(Number(result.lastInsertRowid)));
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException & { code?: string };
@@ -75,7 +78,7 @@ export class TagService {
   listTags(): TagSummary[] {
     this.ensureUnlocked();
     const rows = this.db
-      .prepare('SELECT id, name, created_at FROM tags ORDER BY name COLLATE NOCASE')
+      .prepare('SELECT id, name, color, created_at FROM tags ORDER BY name COLLATE NOCASE')
       .all() as TagRow[];
     return rows.map((row) => this.toSummary(row));
   }
@@ -97,6 +100,15 @@ export class TagService {
       throw error;
     }
 
+    return this.toSummary(this.getTag(input.tagId));
+  }
+
+  updateTagColor(input: UpdateTagColorInput): TagSummary {
+    this.ensureUnlocked();
+    this.getTag(input.tagId);
+    this.db
+      .prepare('UPDATE tags SET color = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(input.color, input.tagId);
     return this.toSummary(this.getTag(input.tagId));
   }
 

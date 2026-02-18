@@ -5,8 +5,11 @@ import {
   Info,
   ArrowLeft,
   Trash2,
-  Lock,
   AlertTriangle,
+  Palette,
+  Globe,
+  Timer,
+  Monitor,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/Button';
@@ -14,6 +17,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../..
 import { Switch } from '../../components/ui/Switch';
 import { Separator } from '../../components/ui/Separator';
 import { Label } from '../../components/ui/Label';
+import { Input } from '../../components/ui/Input';
 import { Alert, AlertDescription } from '../../components/ui/Alert';
 import {
   Dialog,
@@ -24,9 +28,9 @@ import {
 } from '../../components/ui/Dialog';
 import { ScrollArea } from '../../components/ui/ScrollArea';
 import { cn } from '../../lib/utils';
-import type { SecuritySettings } from '../../../shared/ipc';
+import type { SecuritySettings, AppearanceSettings, BrowserSettings } from '../../../shared/ipc';
 
-type SettingsCategory = 'security' | 'storage' | 'about';
+type SettingsCategory = 'security' | 'appearance' | 'browser' | 'storage' | 'about';
 
 type SettingsPageProps = {
   onBack: () => void;
@@ -34,9 +38,45 @@ type SettingsPageProps = {
 
 const NAV_ITEMS: { id: SettingsCategory; label: string; icon: React.FC<{ className?: string }> }[] = [
   { id: 'security', label: 'Security', icon: Shield },
+  { id: 'appearance', label: 'Appearance', icon: Palette },
+  { id: 'browser', label: 'Browser', icon: Globe },
   { id: 'storage', label: 'Storage', icon: HardDrive },
   { id: 'about', label: 'About', icon: Info },
 ];
+
+// ── Reusable setting row ─────────────────────────────────────────────
+const SettingRow: React.FC<{
+  label: string;
+  description?: string;
+  children: React.ReactNode;
+}> = ({ label, description, children }) => (
+  <div className="flex items-center justify-between gap-4">
+    <div className="min-w-0 space-y-0.5">
+      <Label className="text-sm font-medium">{label}</Label>
+      {description && <p className="text-xs text-text-muted">{description}</p>}
+    </div>
+    <div className="shrink-0">{children}</div>
+  </div>
+);
+
+// ── Select component for settings ────────────────────────────────────
+const SettingSelect: React.FC<{
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+}> = ({ value, onChange, options }) => (
+  <select
+    value={value}
+    onChange={(e) => onChange(e.target.value)}
+    className="h-8 rounded-md border border-border bg-bg px-2 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50"
+  >
+    {options.map((opt) => (
+      <option key={opt.value} value={opt.value}>
+        {opt.label}
+      </option>
+    ))}
+  </select>
+);
 
 // ── Security Settings ────────────────────────────────────────────────
 const SecuritySection: React.FC = () => {
@@ -72,20 +112,42 @@ const SecuritySection: React.FC = () => {
       </div>
 
       <Card>
-        <CardContent className="space-y-4 pt-6">
-          {/* Secure delete on import */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label className="text-sm font-medium">Secure delete on import</Label>
-              <p className="text-xs text-text-muted">
-                Overwrite original files with 3-pass secure erase after importing to vault.
-              </p>
-            </div>
+        <CardContent className="space-y-5 pt-6">
+          <SettingRow
+            label="Secure delete on import"
+            description="Overwrite original files with 3-pass secure erase after importing to vault."
+          >
             <Switch
               checked={settings.secureDeleteOnImport}
               onCheckedChange={(checked) => void updateSetting('secureDeleteOnImport', checked)}
             />
-          </div>
+          </SettingRow>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-5 pt-6">
+          <SettingRow
+            label="Auto-lock timeout"
+            description="Automatically lock the vault after a period of inactivity."
+          >
+            <div className="flex items-center gap-2 text-xs text-text-muted">
+              <Timer className="h-3.5 w-3.5" />
+              Coming soon
+            </div>
+          </SettingRow>
+
+          <Separator />
+
+          <SettingRow
+            label="Lock on minimize"
+            description="Automatically lock the vault when the window is minimized."
+          >
+            <div className="flex items-center gap-2 text-xs text-text-muted">
+              <Monitor className="h-3.5 w-3.5" />
+              Coming soon
+            </div>
+          </SettingRow>
         </CardContent>
       </Card>
 
@@ -103,6 +165,182 @@ const SecuritySection: React.FC = () => {
               Password change is not yet available. This feature is planned for a future update.
             </AlertDescription>
           </Alert>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// ── Appearance Settings ──────────────────────────────────────────────
+const AppearanceSection: React.FC = () => {
+  const [settings, setSettings] = useState<AppearanceSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    void window.electronAPI.getAppearanceSettings().then((result) => {
+      if (result.ok) setSettings(result.data);
+      setLoading(false);
+    });
+  }, []);
+
+  const update = async (patch: Partial<AppearanceSettings>): Promise<void> => {
+    const result = await window.electronAPI.updateAppearanceSettings(patch);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    setSettings(result.data);
+    toast.success('Setting updated.');
+  };
+
+  if (loading || !settings) {
+    return <p className="text-sm text-text-muted">Loading...</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-text-primary">Appearance</h2>
+        <p className="text-sm text-text-muted">Customize the look and feel of the gallery.</p>
+      </div>
+
+      <Card>
+        <CardContent className="space-y-5 pt-6">
+          <SettingRow
+            label="Thumbnail size"
+            description="Size of thumbnail previews in the gallery grid."
+          >
+            <SettingSelect
+              value={settings.thumbnailSize}
+              onChange={(v) => void update({ thumbnailSize: v as AppearanceSettings['thumbnailSize'] })}
+              options={[
+                { value: 'small', label: 'Small' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'large', label: 'Large' },
+              ]}
+            />
+          </SettingRow>
+
+          <Separator />
+
+          <SettingRow
+            label="Grid density"
+            description="Spacing between items in the gallery."
+          >
+            <SettingSelect
+              value={settings.gridDensity}
+              onChange={(v) => void update({ gridDensity: v as AppearanceSettings['gridDensity'] })}
+              options={[
+                { value: 'compact', label: 'Compact' },
+                { value: 'comfortable', label: 'Comfortable' },
+                { value: 'spacious', label: 'Spacious' },
+              ]}
+            />
+          </SettingRow>
+
+          <Separator />
+
+          <SettingRow
+            label="Default view"
+            description="Default gallery layout when opening the app."
+          >
+            <SettingSelect
+              value={settings.defaultView}
+              onChange={(v) => void update({ defaultView: v as AppearanceSettings['defaultView'] })}
+              options={[
+                { value: 'grid', label: 'Grid' },
+                { value: 'list', label: 'List' },
+              ]}
+            />
+          </SettingRow>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// ── Browser Settings ─────────────────────────────────────────────────
+const BrowserSection: React.FC = () => {
+  const [settings, setSettings] = useState<BrowserSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    void window.electronAPI.getBrowserSettings().then((result) => {
+      if (result.ok) setSettings(result.data);
+      setLoading(false);
+    });
+  }, []);
+
+  const update = async (patch: Partial<BrowserSettings>): Promise<void> => {
+    const result = await window.electronAPI.updateBrowserSettings(patch);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    setSettings(result.data);
+    toast.success('Setting updated.');
+  };
+
+  if (loading || !settings) {
+    return <p className="text-sm text-text-muted">Loading...</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-text-primary">Browser</h2>
+        <p className="text-sm text-text-muted">Configure the built-in private browser.</p>
+      </div>
+
+      <Card>
+        <CardContent className="space-y-5 pt-6">
+          <SettingRow
+            label="Clear data on exit"
+            description="Clear browsing data (cookies, cache, history) when closing the browser."
+          >
+            <Switch
+              checked={settings.clearOnExit}
+              onCheckedChange={(checked) => void update({ clearOnExit: checked })}
+            />
+          </SettingRow>
+
+          <Separator />
+
+          <SettingRow
+            label="Block pop-ups"
+            description="Prevent websites from opening pop-up windows."
+          >
+            <Switch
+              checked={settings.blockPopups}
+              onCheckedChange={(checked) => void update({ blockPopups: checked })}
+            />
+          </SettingRow>
+
+          <Separator />
+
+          <SettingRow
+            label="Block third-party cookies"
+            description="Block cookies from domains other than the page you're visiting."
+          >
+            <Switch
+              checked={settings.blockThirdPartyCookies}
+              onCheckedChange={(checked) => void update({ blockThirdPartyCookies: checked })}
+            />
+          </SettingRow>
+
+          <Separator />
+
+          <SettingRow
+            label="Homepage URL"
+            description="URL to load when opening a new browser tab."
+          >
+            <Input
+              value={settings.homepage}
+              onChange={(e) => void update({ homepage: e.target.value })}
+              placeholder="about:blank"
+              className="h-8 w-48 text-xs"
+            />
+          </SettingRow>
         </CardContent>
       </Card>
     </div>
@@ -271,6 +509,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
         <ScrollArea className="flex-1">
           <div className="mx-auto max-w-2xl p-6">
             {category === 'security' && <SecuritySection />}
+            {category === 'appearance' && <AppearanceSection />}
+            {category === 'browser' && <BrowserSection />}
             {category === 'storage' && <StorageSection />}
             {category === 'about' && <AboutSection />}
           </div>

@@ -4,6 +4,7 @@ import type {
   AssignItemsTagInput,
   CreateTagInput,
   RenameTagInput,
+  UpdateTagColorInput,
   UnassignItemTagInput,
   UnassignItemsTagInput,
 } from '../../shared/ipc';
@@ -53,6 +54,20 @@ export const registerTagHandlers = ({ tagService }: RegisterTagHandlersParams): 
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to rename tag.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.updateTagColor, (_event, input: UpdateTagColorInput) => {
+    try {
+      return {
+        ok: true as const,
+        data: tagService.updateTagColor(input),
+      };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to update tag color.',
       };
     }
   });

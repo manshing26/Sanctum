@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Heart, Image, Film, Play, Eye } from 'lucide-react';
+import { Heart, Image, Film, Play, Eye, Star } from 'lucide-react';
 import type { VaultItemSummary } from '../../../../shared/ipc';
 import { Badge } from '../../../components/ui/Badge';
 import { Skeleton } from '../../../components/ui/Skeleton';
@@ -174,10 +174,19 @@ export const GalleryCard = ({
         <p className="truncate text-xs font-medium text-text-primary" title={item.originalName}>
           {item.originalName}
         </p>
-        <p className="mt-0.5 truncate text-[11px] text-text-muted">
-          {formatFileSize(item.size)}
-          {item.width && item.height ? ` · ${item.width}×${item.height}` : ''}
-        </p>
+        <div className="mt-0.5 flex items-center gap-1.5">
+          <span className="truncate text-[11px] text-text-muted">
+            {formatFileSize(item.size)}
+            {item.width && item.height ? ` · ${item.width}×${item.height}` : ''}
+          </span>
+          {item.rating !== undefined && item.rating > 0 && (
+            <span className="ml-auto flex shrink-0 items-center gap-px">
+              {Array.from({ length: item.rating }, (_, i) => (
+                <Star key={i} className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
+              ))}
+            </span>
+          )}
+        </div>
       </div>
     </button>
   );

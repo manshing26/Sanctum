@@ -70,6 +70,7 @@ type ItemRow = {
   file_size: number;
   mime_type: string;
   is_favorite: number | null;
+  rating: number | null;
   folder_id: number | null;
   media_width: number | null;
   media_height: number | null;
@@ -99,6 +100,8 @@ const SORT_TO_ORDER_BY: Record<ListItemsQueryInput['sort'], string> = {
   newest: 'datetime(created_at) DESC, id DESC',
   oldest: 'datetime(created_at) ASC, id ASC',
   name_asc: 'datetime(created_at) DESC, id DESC',
+  rating_desc: 'COALESCE(rating, 0) DESC, datetime(created_at) DESC, id DESC',
+  rating_asc: 'COALESCE(rating, 0) ASC, datetime(created_at) ASC, id ASC',
   name_desc: 'datetime(created_at) DESC, id DESC',
   size_desc: 'file_size DESC, id DESC',
   size_asc: 'file_size ASC, id ASC',
@@ -229,6 +232,7 @@ export class VaultService {
         width: row.media_width ?? undefined,
         height: row.media_height ?? undefined,
         durationSeconds: row.media_duration_seconds ?? undefined,
+        rating: row.rating ?? undefined,
       };
     });
   }
@@ -340,7 +344,7 @@ export class VaultService {
   listItems(limit = 50): VaultItemSummary[] {
     const rows = this.db
       .prepare(
-        `SELECT id, original_filename_enc, created_at, file_size, mime_type, is_favorite, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
+        `SELECT id, original_filename_enc, created_at, file_size, mime_type, is_favorite, rating, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
          FROM vault_items
          ORDER BY datetime(created_at) DESC
          LIMIT ?`
@@ -363,7 +367,7 @@ export class VaultService {
     if (needsNameSort) {
       const allRows = this.db
         .prepare(
-          `SELECT id, original_filename_enc, created_at, file_size, mime_type, is_favorite, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
+          `SELECT id, original_filename_enc, created_at, file_size, mime_type, is_favorite, rating, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
            FROM vault_items`
         )
         .all() as ItemRow[];
@@ -386,7 +390,7 @@ export class VaultService {
     const orderBy = SORT_TO_ORDER_BY[sort];
     const rows = this.db
       .prepare(
-        `SELECT id, original_filename_enc, created_at, file_size, mime_type, is_favorite, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
+        `SELECT id, original_filename_enc, created_at, file_size, mime_type, is_favorite, rating, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
          FROM vault_items
          ORDER BY ${orderBy}
          LIMIT ?
@@ -445,6 +449,12 @@ export class VaultService {
       mimeType: row.thumbnail_mime_type,
       base64Data: decrypted.toString('base64'),
     };
+  }
+
+  setRating(itemId: string, rating: number | null): void {
+    this.db
+      .prepare('UPDATE vault_items SET rating = ? WHERE id = ?')
+      .run(rating, itemId);
   }
 
   setFavorite(itemId: string, isFavorite: boolean): void {

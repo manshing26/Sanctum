@@ -114,12 +114,29 @@ export class DatabaseService {
     this.ensureVaultItemsColumn('folder_id', 'INTEGER');
     this.ensureVaultItemsColumn('is_favorite', 'INTEGER');
     this.ensureVaultItemsColumn('content_hash', 'TEXT');
+    this.ensureVaultItemsColumn('rating', 'INTEGER');
+
+    // Tags table migrations
+    this.ensureTableColumn('tags', 'color', 'TEXT');
 
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_vault_items_folder_id ON vault_items(folder_id)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_item_tags_item_id ON item_tags(item_id)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_item_tags_tag_id ON item_tags(tag_id)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_vault_items_is_favorite ON vault_items(is_favorite)');
+  }
+
+  private ensureTableColumn(tableName: string, columnName: string, columnType: string): void {
+    const columns = this.db
+      .prepare(`PRAGMA table_info('${tableName}')`)
+      .all() as Array<{ name: string }>;
+
+    const hasColumn = columns.some((column) => column.name === columnName);
+    if (hasColumn) {
+      return;
+    }
+
+    this.db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnType}`);
   }
 
   private ensureVaultItemsColumn(columnName: string, columnType: string): void {

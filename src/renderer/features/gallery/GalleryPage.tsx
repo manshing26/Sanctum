@@ -7,6 +7,7 @@ import { Progress } from '../../components/ui/Progress';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../../components/ui/Tooltip';
 import { FolderSidebar } from './components/FolderSidebar';
 import { GalleryGrid } from './components/GalleryGrid';
+import { GalleryListView } from './components/GalleryListView';
 import { GalleryToolbar } from './components/GalleryToolbar';
 import { ItemDetailsSidebar, ItemDetailsSheet } from './components/ItemDetailsPanel';
 import { TagFilterBar } from './components/TagFilterBar';
@@ -62,6 +63,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
   const [showSidebar, setShowSidebar] = useState(true);
   const [showDetailsSheet, setShowDetailsSheet] = useState(false);
   const [viewerItemId, setViewerItemId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [isDragOver, setIsDragOver] = useState(false);
   const [importProgress, setImportProgress] = useState<{
     total: number;
@@ -186,8 +188,8 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
     else toast.success('Folder deleted.');
   };
 
-  const handleCreateTag = async (): Promise<void> => {
-    const result = await window.electronAPI.createTag({ name: newTagName });
+  const handleCreateTag = async (color?: string): Promise<void> => {
+    const result = await window.electronAPI.createTag({ name: newTagName, color });
     if (!result.ok) {
       toast.error(result.error);
       return;
@@ -203,6 +205,10 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
     if (!result.ok) {
       toast.error(result.error);
       return;
+    }
+    // Remove from active tag filters so stale filter doesn't hide items
+    if (selectedTagIds.includes(tagId)) {
+      setSelectedTagIds(selectedTagIds.filter((id) => id !== tagId));
     }
     const refreshed = await refresh();
     if (!refreshed.ok) toast.error(refreshed.error);
@@ -236,6 +242,16 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
 
   const handleToggleFavorite = async (itemId: string, isFavorite: boolean): Promise<void> => {
     const result = await window.electronAPI.toggleFavorite({ itemId, isFavorite });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    const refreshed = await refresh();
+    if (!refreshed.ok) toast.error(refreshed.error);
+  };
+
+  const handleSetRating = async (itemId: string, rating: number | null): Promise<void> => {
+    const result = await window.electronAPI.setRating({ itemId, rating });
     if (!result.ok) {
       toast.error(result.error);
       return;
@@ -359,6 +375,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
     onDeleteItem: (itemId: string) => void handleDeleteItem(itemId),
     onToggleFavorite: (itemId: string, isFavorite: boolean) => void handleToggleFavorite(itemId, isFavorite),
     onRenameItem: (itemId: string, newName: string) => void handleRenameItem(itemId, newName),
+    onSetRating: (itemId: string, rating: number | null) => void handleSetRating(itemId, rating),
     selectedCount: selectedItemIds.length,
     onUpdateSecureDeleteDefault: (enabled: boolean) =>
       void window.electronAPI
@@ -471,6 +488,8 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
               .filter((item) => selectedItemIds.includes(item.id))
               .every((item) => item.isFavorite)
           }
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
         />
 
         {/* Tag filter bar */}
@@ -480,7 +499,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
           onToggleTagFilter={handleToggleTagFilter}
           newTagName={newTagName}
           onNewTagNameChange={setNewTagName}
-          onCreateTag={() => void handleCreateTag()}
+          onCreateTag={(color) => void handleCreateTag(color)}
           onDeleteTag={(tagId) => void handleDeleteTag(tagId)}
         />
       </div>
@@ -507,21 +526,37 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
           />
         </div>
 
-        {/* Gallery grid */}
+        {/* Gallery content */}
         <div className="flex-1 overflow-y-auto p-4">
-          <GalleryGrid
-            items={filteredItems}
-            thumbnails={thumbnails}
-            selectedItemIds={selectedItemIds}
-            onToggleSelect={toggleSelectedItem}
-            onOpenItem={handleOpenViewer}
-            onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
-            onExportItem={(itemId) => void handleExportItem(itemId)}
-            onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
-            hasMore={hasMore}
-            isLoading={isLoading}
-            onLoadMore={() => void handleLoadMore()}
-          />
+          {viewMode === 'grid' ? (
+            <GalleryGrid
+              items={filteredItems}
+              thumbnails={thumbnails}
+              selectedItemIds={selectedItemIds}
+              onToggleSelect={toggleSelectedItem}
+              onOpenItem={handleOpenViewer}
+              onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
+              onExportItem={(itemId) => void handleExportItem(itemId)}
+              onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
+              hasMore={hasMore}
+              isLoading={isLoading}
+              onLoadMore={() => void handleLoadMore()}
+            />
+          ) : (
+            <GalleryListView
+              items={filteredItems}
+              thumbnails={thumbnails}
+              selectedItemIds={selectedItemIds}
+              onToggleSelect={toggleSelectedItem}
+              onOpenItem={handleOpenViewer}
+              onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
+              onExportItem={(itemId) => void handleExportItem(itemId)}
+              onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
+              hasMore={hasMore}
+              isLoading={isLoading}
+              onLoadMore={() => void handleLoadMore()}
+            />
+          )}
         </div>
 
         {/* Details sidebar — visible on wide screens */}
