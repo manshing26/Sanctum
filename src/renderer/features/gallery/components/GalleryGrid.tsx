@@ -17,6 +17,7 @@ type GalleryGridProps = {
   hasMore: boolean;
   isLoading: boolean;
   onLoadMore: () => void;
+  isMultiSelect: boolean;
 };
 
 export const GalleryGrid = ({
@@ -31,6 +32,7 @@ export const GalleryGrid = ({
   hasMore,
   isLoading,
   onLoadMore,
+  isMultiSelect,
 }: GalleryGridProps): React.JSX.Element => {
   if (items.length === 0 && !isLoading) {
     return (
@@ -55,6 +57,7 @@ export const GalleryGrid = ({
             onToggleFavorite={onToggleFavorite}
             onExport={onExportItem}
             onDelete={onDeleteItem}
+            isMultiSelect={isMultiSelect}
           />
         ))}
       </div>

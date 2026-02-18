@@ -21,6 +21,7 @@ type GalleryCardProps = {
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
   onExport?: (itemId: string) => void;
   onDelete?: (itemId: string) => void;
+  isMultiSelect: boolean;
 };
 
 const formatDuration = (seconds: number): string => {
@@ -48,6 +49,7 @@ export const GalleryCard = ({
   onToggleFavorite,
   onExport,
   onDelete,
+  isMultiSelect,
 }: GalleryCardProps): React.JSX.Element => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const showSkeleton = item.hasThumbnail && thumbnailUrl && !imageLoaded;
@@ -74,25 +76,27 @@ export const GalleryCard = ({
     >
       {/* Thumbnail area */}
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-bg">
-        {/* Checkbox overlay - visible on hover or when selected */}
-        <div
-          className={cn(
-            'absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded border transition-opacity',
-            isSelected
-              ? 'border-accent bg-accent opacity-100'
-              : 'border-text-muted/40 bg-bg/70 opacity-0 group-hover:opacity-100',
-          )}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleSelect(item.id);
-          }}
-        >
-          {isSelected && (
-            <svg className="h-3 w-3 text-accent-foreground" viewBox="0 0 12 12" fill="none">
-              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          )}
-        </div>
+        {/* Checkbox overlay - only in multi-select mode */}
+        {isMultiSelect && (
+          <div
+            className={cn(
+              'absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded border transition-opacity',
+              isSelected
+                ? 'border-accent bg-accent opacity-100'
+                : 'border-text-muted/40 bg-bg/70 opacity-0 group-hover:opacity-100',
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSelect(item.id);
+            }}
+          >
+            {isSelected && (
+              <svg className="h-3 w-3 text-accent-foreground" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </div>
+        )}
 
         {/* Favorite button */}
         <button

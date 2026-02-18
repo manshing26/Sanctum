@@ -64,6 +64,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
   const [showDetailsSheet, setShowDetailsSheet] = useState(false);
   const [viewerItemId, setViewerItemId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [isMultiSelect, setIsMultiSelect] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [importProgress, setImportProgress] = useState<{
     total: number;
@@ -113,6 +114,19 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
       setViewerItemId(null);
     }
   }, [viewerItemId, filteredItems]);
+
+  const handleToggleMultiSelect = (): void => {
+    if (isMultiSelect) clearSelection();
+    setIsMultiSelect((prev) => !prev);
+  };
+
+  const handleItemClick = (itemId: string): void => {
+    if (isMultiSelect) {
+      toggleSelectedItem(itemId);
+    } else {
+      setSelectedItems([itemId]);
+    }
+  };
 
   // ── Handlers ─────────────────────────────────────────────────────
   const handleSortChange = async (nextSort: VaultListSort): Promise<void> => {
@@ -490,6 +504,8 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
           }
           viewMode={viewMode}
           onViewModeChange={setViewMode}
+          isMultiSelect={isMultiSelect}
+          onToggleMultiSelect={handleToggleMultiSelect}
         />
 
         {/* Tag filter bar */}
@@ -533,7 +549,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
               items={filteredItems}
               thumbnails={thumbnails}
               selectedItemIds={selectedItemIds}
-              onToggleSelect={toggleSelectedItem}
+              onToggleSelect={handleItemClick}
               onOpenItem={handleOpenViewer}
               onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
               onExportItem={(itemId) => void handleExportItem(itemId)}
@@ -541,13 +557,14 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
               hasMore={hasMore}
               isLoading={isLoading}
               onLoadMore={() => void handleLoadMore()}
+              isMultiSelect={isMultiSelect}
             />
           ) : (
             <GalleryListView
               items={filteredItems}
               thumbnails={thumbnails}
               selectedItemIds={selectedItemIds}
-              onToggleSelect={toggleSelectedItem}
+              onToggleSelect={handleItemClick}
               onOpenItem={handleOpenViewer}
               onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
               onExportItem={(itemId) => void handleExportItem(itemId)}
@@ -555,6 +572,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
               hasMore={hasMore}
               isLoading={isLoading}
               onLoadMore={() => void handleLoadMore()}
+              isMultiSelect={isMultiSelect}
             />
           )}
         </div>

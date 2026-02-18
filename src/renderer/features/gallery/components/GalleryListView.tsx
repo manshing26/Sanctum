@@ -25,6 +25,7 @@ type GalleryListViewProps = {
   hasMore: boolean;
   isLoading: boolean;
   onLoadMore: () => void;
+  isMultiSelect: boolean;
 };
 
 const formatDuration = (seconds: number): string => {
@@ -52,7 +53,8 @@ const ListRow: React.FC<{
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
   onExport?: (itemId: string) => void;
   onDelete?: (itemId: string) => void;
-}> = ({ item, thumbnailUrl, isSelected, onToggleSelect, onOpen, onToggleFavorite, onExport, onDelete }) => {
+  isMultiSelect: boolean;
+}> = ({ item, thumbnailUrl, isSelected, onToggleSelect, onOpen, onToggleFavorite, onExport, onDelete, isMultiSelect }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
 
   const rowContent = (
@@ -67,25 +69,27 @@ const ListRow: React.FC<{
           : 'hover:bg-surface-hover',
       )}
     >
-      {/* Checkbox */}
-      <div
-        className={cn(
-          'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
-          isSelected
-            ? 'border-accent bg-accent'
-            : 'border-border group-hover:border-text-muted',
-        )}
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleSelect(item.id);
-        }}
-      >
-        {isSelected && (
-          <svg className="h-2.5 w-2.5 text-accent-foreground" viewBox="0 0 12 12" fill="none">
-            <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </div>
+      {/* Checkbox - only in multi-select mode */}
+      {isMultiSelect && (
+        <div
+          className={cn(
+            'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
+            isSelected
+              ? 'border-accent bg-accent'
+              : 'border-border group-hover:border-text-muted',
+          )}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect(item.id);
+          }}
+        >
+          {isSelected && (
+            <svg className="h-2.5 w-2.5 text-accent-foreground" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </div>
+      )}
 
       {/* Thumbnail */}
       <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded bg-bg">
@@ -211,6 +215,7 @@ export const GalleryListView = ({
   hasMore,
   isLoading,
   onLoadMore,
+  isMultiSelect,
 }: GalleryListViewProps): React.JSX.Element => {
   if (items.length === 0 && !isLoading) {
     return (
@@ -225,7 +230,7 @@ export const GalleryListView = ({
     <div className="space-y-1">
       {/* Header row */}
       <div className="flex items-center gap-3 px-2 py-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
-        <span className="w-4 shrink-0" />
+        {isMultiSelect && <span className="w-4 shrink-0" />}
         <span className="w-10 shrink-0" />
         <span className="min-w-0 flex-1">Name</span>
         <span className="hidden w-20 shrink-0 sm:block">Type</span>
@@ -247,6 +252,7 @@ export const GalleryListView = ({
           onToggleFavorite={onToggleFavorite}
           onExport={onExportItem}
           onDelete={onDeleteItem}
+          isMultiSelect={isMultiSelect}
         />
       ))}
 

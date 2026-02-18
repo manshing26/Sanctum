@@ -13,6 +13,7 @@ import {
   ChevronDown,
   LayoutGrid,
   List,
+  CheckSquare,
 } from 'lucide-react';
 import type { FolderNode, VaultListSort } from '../../../../shared/ipc';
 import { Button } from '../../../components/ui/Button';
@@ -83,6 +84,8 @@ type GalleryToolbarProps = {
   allSelectedFavorite: boolean;
   viewMode: 'grid' | 'list';
   onViewModeChange: (mode: 'grid' | 'list') => void;
+  isMultiSelect: boolean;
+  onToggleMultiSelect: () => void;
 };
 
 export const GalleryToolbar = ({
@@ -110,6 +113,8 @@ export const GalleryToolbar = ({
   allSelectedFavorite,
   viewMode,
   onViewModeChange,
+  isMultiSelect,
+  onToggleMultiSelect,
 }: GalleryToolbarProps): React.JSX.Element => {
   const folderOptions = flattenFolderOptions(folders);
   const currentSort = SORT_OPTIONS.find((o) => o.value === sort);
@@ -177,6 +182,21 @@ export const GalleryToolbar = ({
             <TooltipContent>List view</TooltipContent>
           </Tooltip>
         </div>
+
+        {/* Multi-select toggle */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={isMultiSelect ? 'default' : 'ghost'}
+              size="icon-sm"
+              onClick={onToggleMultiSelect}
+              aria-label={isMultiSelect ? 'Exit multi-select' : 'Multi-select'}
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{isMultiSelect ? 'Exit multi-select' : 'Multi-select'}</TooltipContent>
+        </Tooltip>
 
         {/* Sort dropdown */}
         <DropdownMenu>
@@ -293,8 +313,8 @@ export const GalleryToolbar = ({
         </Tooltip>
       </div>
 
-      {/* Row 3: Selection actions (only when items selected) */}
-      {selectedCount > 0 && (
+      {/* Row 3: Selection actions (only in multi-select mode with items selected) */}
+      {isMultiSelect && selectedCount > 0 && (
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="text-[11px]">
             {selectedCount} selected
