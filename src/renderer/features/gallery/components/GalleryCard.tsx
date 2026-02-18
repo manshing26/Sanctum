@@ -18,6 +18,14 @@ type GalleryCardProps = {
   onToggleSelect: (itemId: string) => void;
   onOpen: (itemId: string) => void;
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
+  onContextMenuOpen?: (itemId: string) => void;
+  contextTargetIdsForItem?: (itemId: string) => string[];
+  onOpenViewerForIds?: (itemIds: string[]) => void;
+  onToggleFavoriteForIds?: (itemIds: string[]) => void;
+  onOpenMoveDialogForIds?: (itemIds: string[]) => void;
+  onExportForIds?: (itemIds: string[]) => void;
+  onDeleteForIds?: (itemIds: string[]) => void;
+  isOpenViewerDisabledForItem?: (itemId: string) => boolean;
   onOpenMoveDialog?: (itemId: string) => void;
   onExport?: (itemId: string) => void;
   onDelete?: (itemId: string) => void;
@@ -47,6 +55,14 @@ export const GalleryCard = ({
   onToggleSelect,
   onOpen,
   onToggleFavorite,
+  onContextMenuOpen,
+  contextTargetIdsForItem,
+  onOpenViewerForIds,
+  onToggleFavoriteForIds,
+  onOpenMoveDialogForIds,
+  onExportForIds,
+  onDeleteForIds,
+  isOpenViewerDisabledForItem,
   onOpenMoveDialog,
   onExport,
   onDelete,
@@ -54,6 +70,8 @@ export const GalleryCard = ({
 }: GalleryCardProps): React.JSX.Element => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const showSkeleton = item.hasThumbnail && thumbnailUrl && !imageLoaded;
+  const contextTargetIds = contextTargetIdsForItem?.(item.id) ?? [item.id];
+  const openViewerDisabled = isOpenViewerDisabledForItem?.(item.id) ?? contextTargetIds.length > 1;
 
   const mediaType = isVideo(item.mimeType) ? 'video' : isGif(item.mimeType) ? 'gif' : 'image';
 
@@ -62,6 +80,7 @@ export const GalleryCard = ({
       data-gallery-item-id={item.id}
       role="button"
       tabIndex={0}
+      onContextMenu={() => onContextMenuOpen?.(item.id)}
       onClick={(e) => {
         if (e.metaKey || e.ctrlKey) {
           onToggleSelect(item.id);
@@ -210,33 +229,88 @@ export const GalleryCard = ({
         {cardContent}
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onClick={() => onOpen(item.id)}>
+        <ContextMenuItem
+          disabled={openViewerDisabled}
+          onClick={() => {
+            if (openViewerDisabled) {
+              return;
+            }
+            if (onOpenViewerForIds) {
+              onOpenViewerForIds(contextTargetIds);
+              return;
+            }
+            onOpen(item.id);
+          }}
+        >
           <Eye className="mr-2 h-4 w-4" />
           Open in Viewer
         </ContextMenuItem>
-        <ContextMenuItem onClick={() => onToggleFavorite(item.id, !item.isFavorite)}>
+        <ContextMenuItem
+          onClick={() => {
+            if (onToggleFavoriteForIds) {
+              onToggleFavoriteForIds(contextTargetIds);
+              return;
+            }
+            onToggleFavorite(item.id, !item.isFavorite);
+          }}
+        >
           <Heart className={cn('mr-2 h-4 w-4', item.isFavorite && 'fill-accent text-accent')} />
-          {item.isFavorite ? 'Remove Favorite' : 'Add to Favorites'}
+          {contextTargetIds.length > 1
+            ? 'Toggle Favorites'
+            : item.isFavorite
+              ? 'Remove Favorite'
+              : 'Add to Favorites'}
         </ContextMenuItem>
-        {onOpenMoveDialog && (
-          <ContextMenuItem onClick={() => onOpenMoveDialog(item.id)}>
-            <FolderOpen className="mr-2 h-4 w-4" />
-            Move to Folder...
-          </ContextMenuItem>
-        )}
-        {onExport && (
-          <ContextMenuItem onClick={() => onExport(item.id)}>
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </ContextMenuItem>
-        )}
-        {onDelete && (
+        {(onOpenMoveDialog || onOpenMoveDialogForIds) && (
           <ContextMenuItem
-            onClick={() => onDelete(item.id)}
+            onClick={() => {
+              if (onOpenMoveDialogForIds) {
+                onOpenMoveDialogForIds(contextTargetIds);
+                return;
+              }
+              if (!onOpenMoveDialog) {
+                return;
+              }
+              onOpenMoveDialog(item.id);
+            }}
+          >
+            <FolderOpen className="mr-2 h-4 w-4" />
+            {contextTargetIds.length > 1 ? 'Move Selected...' : 'Move to Folder...'}
+          </ContextMenuItem>
+        )}
+        {(onExport || onExportForIds) && (
+          <ContextMenuItem
+            onClick={() => {
+              if (onExportForIds) {
+                onExportForIds(contextTargetIds);
+                return;
+              }
+              if (!onExport) {
+                return;
+              }
+              onExport(item.id);
+            }}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            {contextTargetIds.length > 1 ? 'Export Selected' : 'Export'}
+          </ContextMenuItem>
+        )}
+        {(onDelete || onDeleteForIds) && (
+          <ContextMenuItem
+            onClick={() => {
+              if (onDeleteForIds) {
+                onDeleteForIds(contextTargetIds);
+                return;
+              }
+              if (!onDelete) {
+                return;
+              }
+              onDelete(item.id);
+            }}
             className="text-danger focus:text-danger"
           >
             <Trash2 className="mr-2 h-4 w-4 text-danger" />
-            Delete
+            {contextTargetIds.length > 1 ? 'Delete Selected' : 'Delete'}
           </ContextMenuItem>
         )}
       </ContextMenuContent>

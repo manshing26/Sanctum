@@ -16,6 +16,14 @@ type GalleryGridProps = {
   onEmptyBackgroundClick?: () => void;
   onOpenItem: (itemId: string) => void;
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
+  onContextMenuOpen?: (itemId: string) => void;
+  contextTargetIdsForItem?: (itemId: string) => string[];
+  onOpenViewerForIds?: (itemIds: string[]) => void;
+  onToggleFavoriteForIds?: (itemIds: string[]) => void;
+  onOpenMoveDialogForIds?: (itemIds: string[]) => void;
+  onExportForIds?: (itemIds: string[]) => void;
+  onDeleteForIds?: (itemIds: string[]) => void;
+  isOpenViewerDisabledForItem?: (itemId: string) => boolean;
   onOpenMoveDialog?: (itemId: string) => void;
   onExportItem?: (itemId: string) => void;
   onDeleteItem?: (itemId: string) => void;
@@ -35,6 +43,14 @@ export const GalleryGrid = ({
   onEmptyBackgroundClick,
   onOpenItem,
   onToggleFavorite,
+  onContextMenuOpen,
+  contextTargetIdsForItem,
+  onOpenViewerForIds,
+  onToggleFavoriteForIds,
+  onOpenMoveDialogForIds,
+  onExportForIds,
+  onDeleteForIds,
+  isOpenViewerDisabledForItem,
   onOpenMoveDialog,
   onExportItem,
   onDeleteItem,
@@ -78,6 +94,14 @@ export const GalleryGrid = ({
               onToggleSelect={onToggleSelect}
               onOpen={onOpenItem}
               onToggleFavorite={onToggleFavorite}
+              onContextMenuOpen={onContextMenuOpen}
+              contextTargetIdsForItem={contextTargetIdsForItem}
+              onOpenViewerForIds={onOpenViewerForIds}
+              onToggleFavoriteForIds={onToggleFavoriteForIds}
+              onOpenMoveDialogForIds={onOpenMoveDialogForIds}
+              onExportForIds={onExportForIds}
+              onDeleteForIds={onDeleteForIds}
+              isOpenViewerDisabledForItem={isOpenViewerDisabledForItem}
               onOpenMoveDialog={onOpenMoveDialog}
               onExport={onExportItem}
               onDelete={onDeleteItem}

@@ -234,6 +234,20 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     }
   };
 
+  const resolveContextTargetIds = (clickedItemId: string): string[] => {
+    if (!isMultiSelect || selectedItemIds.length <= 1) {
+      return [clickedItemId];
+    }
+    if (selectedItemIds.includes(clickedItemId)) {
+      return selectedItemIds;
+    }
+    return [clickedItemId];
+  };
+
+  const handleItemContextMenu = (itemId: string): void => {
+    setSelectedItems(resolveContextTargetIds(itemId));
+  };
+
   const handleEmptyBackgroundClick = (): void => {
     if (selectedItemIds.length === 0) {
       return;
@@ -348,19 +362,36 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     else toast.success('Tag deleted.');
   };
 
-  const handleDeleteItem = async (itemId: string): Promise<void> => {
-    const confirmed = window.confirm('Delete this item? This cannot be undone.');
-    if (!confirmed) return;
-
-    const result = await window.electronAPI.deleteVaultItem({ itemId });
-    if (!result.ok) {
-      toast.error(result.error);
+  const handleDeleteByIds = async (itemIds: string[]): Promise<void> => {
+    if (itemIds.length === 0) {
+      toast.warning('Select items to delete.');
       return;
     }
+    const confirmed = window.confirm(
+      itemIds.length === 1
+        ? 'Delete this item? This cannot be undone.'
+        : `Delete ${itemIds.length} item(s)? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    for (const itemId of itemIds) {
+      const result = await window.electronAPI.deleteVaultItem({ itemId });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      if (viewerItemId === itemId) {
+        setViewerItemId(null);
+      }
+    }
+
     const refreshed = await refresh();
     if (!refreshed.ok) toast.error(refreshed.error);
-    if (viewerItemId === itemId) setViewerItemId(null);
-    toast.success('Item deleted.');
+    else toast.success(itemIds.length === 1 ? 'Item deleted.' : 'Items deleted.');
+  };
+
+  const handleDeleteItem = async (itemId: string): Promise<void> => {
+    await handleDeleteByIds([itemId]);
   };
 
   const handleToggleFavorite = async (itemId: string, isFavorite: boolean): Promise<void> => {
@@ -394,57 +425,37 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     else toast.success('Item renamed.');
   };
 
-  const handleExportItem = async (itemId: string): Promise<void> => {
-    const result = await window.electronAPI.exportItems({ itemIds: [itemId], targetDir: '' });
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success('Exported.');
-  };
-
-  const handleExportSelected = async (): Promise<void> => {
-    if (selectedItemIds.length === 0) {
+  const handleExportByIds = async (itemIds: string[]): Promise<void> => {
+    if (itemIds.length === 0) {
       toast.warning('Select items to export.');
       return;
     }
-    const result = await window.electronAPI.exportItems({
-      itemIds: selectedItemIds,
-      targetDir: '',
-    });
+    const result = await window.electronAPI.exportItems({ itemIds, targetDir: '' });
     if (!result.ok) {
       toast.error(result.error);
       return;
     }
-    toast.success(`Exported ${result.data.exported} file(s).`);
+    toast.success(itemIds.length === 1 ? 'Exported.' : `Exported ${result.data.exported} file(s).`);
+  };
+
+  const handleExportItem = async (itemId: string): Promise<void> => {
+    await handleExportByIds([itemId]);
+  };
+
+  const handleExportSelected = async (): Promise<void> => {
+    await handleExportByIds(selectedItemIds);
   };
 
   const handleDeleteSelected = async (): Promise<void> => {
-    if (selectedItemIds.length === 0) {
-      toast.warning('Select items to delete.');
-      return;
-    }
-    const confirmed = window.confirm(`Delete ${selectedItemIds.length} item(s)? This cannot be undone.`);
-    if (!confirmed) return;
-
-    for (const itemId of selectedItemIds) {
-      const result = await window.electronAPI.deleteVaultItem({ itemId });
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
-      }
-    }
+    await handleDeleteByIds(selectedItemIds);
     clearSelection();
-    const refreshed = await refresh();
-    if (!refreshed.ok) toast.error(refreshed.error);
-    else toast.success('Items deleted.');
   };
 
-  const handleToggleFavoriteSelected = async (): Promise<void> => {
-    if (selectedItemIds.length === 0) return;
-    const selectedItems = filteredItems.filter((item) => selectedItemIds.includes(item.id));
-    const allFavorite = selectedItems.length > 0 && selectedItems.every((item) => item.isFavorite);
-    for (const item of selectedItems) {
+  const handleToggleFavoriteByIds = async (itemIds: string[]): Promise<void> => {
+    if (itemIds.length === 0) return;
+    const targetItems = filteredItems.filter((item) => itemIds.includes(item.id));
+    const allFavorite = targetItems.length > 0 && targetItems.every((item) => item.isFavorite);
+    for (const item of targetItems) {
       const result = await window.electronAPI.toggleFavorite({ itemId: item.id, isFavorite: !allFavorite });
       if (!result.ok) {
         toast.error(result.error);
@@ -455,20 +466,33 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     if (!refreshed.ok) toast.error(refreshed.error);
   };
 
-  const openSingleMoveDialog = (itemId: string): void => {
-    setMoveDialogSource('single');
-    setMoveDialogItemIds([itemId]);
-    setMoveDialogOpen(true);
+  const handleToggleFavoriteSelected = async (): Promise<void> => {
+    await handleToggleFavoriteByIds(selectedItemIds);
   };
 
-  const openBulkMoveDialog = (): void => {
-    if (selectedItemIds.length === 0) {
+  const openMoveDialogForIds = (itemIds: string[]): void => {
+    if (itemIds.length === 0) {
       toast.warning('Select items to move.');
       return;
     }
-    setMoveDialogSource('bulk');
-    setMoveDialogItemIds(selectedItemIds);
+    setMoveDialogSource(itemIds.length > 1 ? 'bulk' : 'single');
+    setMoveDialogItemIds(itemIds);
     setMoveDialogOpen(true);
+  };
+
+  const openSingleMoveDialog = (itemId: string): void => {
+    openMoveDialogForIds([itemId]);
+  };
+
+  const openBulkMoveDialog = (): void => {
+    openMoveDialogForIds(selectedItemIds);
+  };
+
+  const handleOpenViewerForIds = (itemIds: string[]): void => {
+    if (itemIds.length !== 1) {
+      return;
+    }
+    handleOpenViewer(itemIds[0]);
   };
 
   const handleConfirmMoveDialog = async (folderId: number | null, itemIds: string[]): Promise<void> => {
@@ -722,6 +746,14 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
               onEmptyBackgroundClick={handleEmptyBackgroundClick}
               onOpenItem={handleOpenViewer}
               onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
+              onContextMenuOpen={handleItemContextMenu}
+              contextTargetIdsForItem={resolveContextTargetIds}
+              onOpenViewerForIds={handleOpenViewerForIds}
+              onToggleFavoriteForIds={(itemIds) => void handleToggleFavoriteByIds(itemIds)}
+              onOpenMoveDialogForIds={openMoveDialogForIds}
+              onExportForIds={(itemIds) => void handleExportByIds(itemIds)}
+              onDeleteForIds={(itemIds) => void handleDeleteByIds(itemIds)}
+              isOpenViewerDisabledForItem={(itemId) => resolveContextTargetIds(itemId).length > 1}
               onOpenMoveDialog={openSingleMoveDialog}
               onExportItem={(itemId) => void handleExportItem(itemId)}
               onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
@@ -741,6 +773,14 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
               onEmptyBackgroundClick={handleEmptyBackgroundClick}
               onOpenItem={handleOpenViewer}
               onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
+              onContextMenuOpen={handleItemContextMenu}
+              contextTargetIdsForItem={resolveContextTargetIds}
+              onOpenViewerForIds={handleOpenViewerForIds}
+              onToggleFavoriteForIds={(itemIds) => void handleToggleFavoriteByIds(itemIds)}
+              onOpenMoveDialogForIds={openMoveDialogForIds}
+              onExportForIds={(itemIds) => void handleExportByIds(itemIds)}
+              onDeleteForIds={(itemIds) => void handleDeleteByIds(itemIds)}
+              isOpenViewerDisabledForItem={(itemId) => resolveContextTargetIds(itemId).length > 1}
               onOpenMoveDialog={openSingleMoveDialog}
               onExportItem={(itemId) => void handleExportItem(itemId)}
               onDeleteItem={(itemId) => void handleDeleteItem(itemId)}

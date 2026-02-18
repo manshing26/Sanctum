@@ -23,6 +23,14 @@ type GalleryListViewProps = {
   onEmptyBackgroundClick?: () => void;
   onOpenItem: (itemId: string) => void;
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
+  onContextMenuOpen?: (itemId: string) => void;
+  contextTargetIdsForItem?: (itemId: string) => string[];
+  onOpenViewerForIds?: (itemIds: string[]) => void;
+  onToggleFavoriteForIds?: (itemIds: string[]) => void;
+  onOpenMoveDialogForIds?: (itemIds: string[]) => void;
+  onExportForIds?: (itemIds: string[]) => void;
+  onDeleteForIds?: (itemIds: string[]) => void;
+  isOpenViewerDisabledForItem?: (itemId: string) => boolean;
   onOpenMoveDialog: (itemId: string) => void;
   onExportItem?: (itemId: string) => void;
   onDeleteItem?: (itemId: string) => void;
@@ -55,18 +63,48 @@ const ListRow: React.FC<{
   onToggleSelect: (itemId: string) => void;
   onOpen: (itemId: string) => void;
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
+  onContextMenuOpen?: (itemId: string) => void;
+  contextTargetIdsForItem?: (itemId: string) => string[];
+  onOpenViewerForIds?: (itemIds: string[]) => void;
+  onToggleFavoriteForIds?: (itemIds: string[]) => void;
+  onOpenMoveDialogForIds?: (itemIds: string[]) => void;
+  onExportForIds?: (itemIds: string[]) => void;
+  onDeleteForIds?: (itemIds: string[]) => void;
+  isOpenViewerDisabledForItem?: (itemId: string) => boolean;
   onOpenMoveDialog: (itemId: string) => void;
   onExport?: (itemId: string) => void;
   onDelete?: (itemId: string) => void;
   isMultiSelect: boolean;
-}> = ({ item, thumbnailUrl, isSelected, onToggleSelect, onOpen, onToggleFavorite, onOpenMoveDialog, onExport, onDelete, isMultiSelect }) => {
+}> = ({
+  item,
+  thumbnailUrl,
+  isSelected,
+  onToggleSelect,
+  onOpen,
+  onToggleFavorite,
+  onContextMenuOpen,
+  contextTargetIdsForItem,
+  onOpenViewerForIds,
+  onToggleFavoriteForIds,
+  onOpenMoveDialogForIds,
+  onExportForIds,
+  onDeleteForIds,
+  isOpenViewerDisabledForItem,
+  onOpenMoveDialog,
+  onExport,
+  onDelete,
+  isMultiSelect,
+}) => {
   const [imageLoaded, setImageLoaded] = useState(false);
+  const contextTargetIds = contextTargetIdsForItem?.(item.id) ?? [item.id];
+  const openViewerDisabled = isOpenViewerDisabledForItem?.(item.id) ?? contextTargetIds.length > 1;
 
   const rowContent = (
     <div
       data-gallery-item-id={item.id}
       role="button"
       tabIndex={0}
+      onContextMenu={() => onContextMenuOpen?.(item.id)}
       onClick={() => onToggleSelect(item.id)}
       onDoubleClick={() => onOpen(item.id)}
       onKeyDown={(e) => {
@@ -187,31 +225,83 @@ const ListRow: React.FC<{
     <ContextMenu>
       <ContextMenuTrigger asChild>{rowContent}</ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onClick={() => onOpen(item.id)}>
+        <ContextMenuItem
+          disabled={openViewerDisabled}
+          onClick={() => {
+            if (openViewerDisabled) {
+              return;
+            }
+            if (onOpenViewerForIds) {
+              onOpenViewerForIds(contextTargetIds);
+              return;
+            }
+            onOpen(item.id);
+          }}
+        >
           <Eye className="mr-2 h-4 w-4" />
           Open in Viewer
         </ContextMenuItem>
-        <ContextMenuItem onClick={() => onToggleFavorite(item.id, !item.isFavorite)}>
+        <ContextMenuItem
+          onClick={() => {
+            if (onToggleFavoriteForIds) {
+              onToggleFavoriteForIds(contextTargetIds);
+              return;
+            }
+            onToggleFavorite(item.id, !item.isFavorite);
+          }}
+        >
           <Heart className={cn('mr-2 h-4 w-4', item.isFavorite && 'fill-accent text-accent')} />
-          {item.isFavorite ? 'Remove Favorite' : 'Add to Favorites'}
+          {contextTargetIds.length > 1
+            ? 'Toggle Favorites'
+            : item.isFavorite
+              ? 'Remove Favorite'
+              : 'Add to Favorites'}
         </ContextMenuItem>
-        <ContextMenuItem onClick={() => onOpenMoveDialog(item.id)}>
+        <ContextMenuItem
+          onClick={() => {
+            if (onOpenMoveDialogForIds) {
+              onOpenMoveDialogForIds(contextTargetIds);
+              return;
+            }
+            onOpenMoveDialog(item.id);
+          }}
+        >
           <FolderOpen className="mr-2 h-4 w-4" />
-          Move to Folder...
+          {contextTargetIds.length > 1 ? 'Move Selected...' : 'Move to Folder...'}
         </ContextMenuItem>
-        {onExport && (
-          <ContextMenuItem onClick={() => onExport(item.id)}>
+        {(onExport || onExportForIds) && (
+          <ContextMenuItem
+            onClick={() => {
+              if (onExportForIds) {
+                onExportForIds(contextTargetIds);
+                return;
+              }
+              if (!onExport) {
+                return;
+              }
+              onExport(item.id);
+            }}
+          >
             <Download className="mr-2 h-4 w-4" />
-            Export
+            {contextTargetIds.length > 1 ? 'Export Selected' : 'Export'}
           </ContextMenuItem>
         )}
-        {onDelete && (
+        {(onDelete || onDeleteForIds) && (
           <ContextMenuItem
-            onClick={() => onDelete(item.id)}
+            onClick={() => {
+              if (onDeleteForIds) {
+                onDeleteForIds(contextTargetIds);
+                return;
+              }
+              if (!onDelete) {
+                return;
+              }
+              onDelete(item.id);
+            }}
             className="text-danger focus:text-danger"
           >
             <Trash2 className="mr-2 h-4 w-4 text-danger" />
-            Delete
+            {contextTargetIds.length > 1 ? 'Delete Selected' : 'Delete'}
           </ContextMenuItem>
         )}
       </ContextMenuContent>
@@ -230,6 +320,14 @@ export const GalleryListView = ({
   onEmptyBackgroundClick,
   onOpenItem,
   onToggleFavorite,
+  onContextMenuOpen,
+  contextTargetIdsForItem,
+  onOpenViewerForIds,
+  onToggleFavoriteForIds,
+  onOpenMoveDialogForIds,
+  onExportForIds,
+  onDeleteForIds,
+  isOpenViewerDisabledForItem,
   onOpenMoveDialog,
   onExportItem,
   onDeleteItem,
@@ -284,6 +382,14 @@ export const GalleryListView = ({
           onToggleSelect={onToggleSelect}
           onOpen={onOpenItem}
           onToggleFavorite={onToggleFavorite}
+          onContextMenuOpen={onContextMenuOpen}
+          contextTargetIdsForItem={contextTargetIdsForItem}
+          onOpenViewerForIds={onOpenViewerForIds}
+          onToggleFavoriteForIds={onToggleFavoriteForIds}
+          onOpenMoveDialogForIds={onOpenMoveDialogForIds}
+          onExportForIds={onExportForIds}
+          onDeleteForIds={onDeleteForIds}
+          isOpenViewerDisabledForItem={isOpenViewerDisabledForItem}
           onOpenMoveDialog={onOpenMoveDialog}
           onExport={onExportItem}
           onDelete={onDeleteItem}
