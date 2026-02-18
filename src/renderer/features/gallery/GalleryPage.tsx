@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Upload, PanelRight } from 'lucide-react';
 import { toast } from 'sonner';
-import type { CreateFolderInput, VaultListSort } from '../../../shared/ipc';
+import type { CreateFolderInput, FolderNode, VaultListSort } from '../../../shared/ipc';
 import { Button } from '../../components/ui/Button';
 import { Progress } from '../../components/ui/Progress';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../../components/ui/Tooltip';
@@ -11,21 +11,32 @@ import { GalleryListView } from './components/GalleryListView';
 import { GalleryToolbar } from './components/GalleryToolbar';
 import { ItemDetailsSidebar, ItemDetailsSheet } from './components/ItemDetailsPanel';
 import { TagFilterBar } from './components/TagFilterBar';
+import { MoveToFolderDialog } from './components/MoveToFolderDialog';
 import { useGalleryState } from './state/useGalleryState';
 import { MediaViewerOverlay } from '../viewer/MediaViewerOverlay';
 import { cn } from '../../lib/utils';
 
 type GalleryPageProps = {
-  onLockVault: () => Promise<void>;
   onMessage: (message: string) => void;
 };
 
-export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React.JSX.Element => {
+const findFolderNameById = (nodes: FolderNode[], folderId: number): string | null => {
+  const stack = [...nodes];
+  while (stack.length > 0) {
+    const node = stack.pop() as FolderNode;
+    if (node.id === folderId) {
+      return node.name;
+    }
+    stack.push(...node.children);
+  }
+  return null;
+};
+
+export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element => {
   const state = useGalleryState();
   const {
     allItems,
     filteredItems,
-    totalItems,
     hasMore,
     isLoading,
     thumbnails,
@@ -78,6 +89,10 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
     failed: number;
     currentFile?: string;
   } | null>(null);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [moveDialogItemIds, setMoveDialogItemIds] = useState<string[]>([]);
+  const [moveDialogSource, setMoveDialogSource] = useState<'single' | 'bulk'>('single');
+  const [isMoveBusy, setIsMoveBusy] = useState(false);
 
   useEffect(() => {
     void loadFirstPage().then((result) => {
@@ -130,7 +145,12 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
 
   // ── Handlers ─────────────────────────────────────────────────────
   const handleSortChange = async (nextSort: VaultListSort): Promise<void> => {
+    const wasMultiSelect = isMultiSelect;
     const result = await loadFirstPage(nextSort);
+    if (!wasMultiSelect) {
+      // Guard against accidental click-through toggling multi-select during sort changes.
+      setIsMultiSelect(false);
+    }
     if (!result.ok) toast.error(result.error);
   };
 
@@ -227,16 +247,6 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
     const refreshed = await refresh();
     if (!refreshed.ok) toast.error(refreshed.error);
     else toast.success('Tag deleted.');
-  };
-
-  const handleAssignFolder = async (itemId: string, folderId: number | null): Promise<void> => {
-    const result = await window.electronAPI.assignItemFolder({ itemId, folderId });
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    const refreshed = await refresh();
-    if (!refreshed.ok) toast.error(refreshed.error);
   };
 
   const handleDeleteItem = async (itemId: string): Promise<void> => {
@@ -346,6 +356,68 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
     if (!refreshed.ok) toast.error(refreshed.error);
   };
 
+  const openSingleMoveDialog = (itemId: string): void => {
+    setMoveDialogSource('single');
+    setMoveDialogItemIds([itemId]);
+    setMoveDialogOpen(true);
+  };
+
+  const openBulkMoveDialog = (): void => {
+    if (selectedItemIds.length === 0) {
+      toast.warning('Select items to move.');
+      return;
+    }
+    setMoveDialogSource('bulk');
+    setMoveDialogItemIds(selectedItemIds);
+    setMoveDialogOpen(true);
+  };
+
+  const handleConfirmMoveDialog = async (folderId: number | null, itemIds: string[]): Promise<void> => {
+    if (itemIds.length === 0) {
+      return;
+    }
+
+    setIsMoveBusy(true);
+    try {
+      if (moveDialogSource === 'bulk') {
+        const result = await window.electronAPI.assignItemsFolder({ itemIds, folderId });
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+      } else {
+        const result = await window.electronAPI.assignItemFolder({ itemId: itemIds[0], folderId });
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+      }
+
+      if (folderId !== null) {
+        setSelectedFolderId(folderId);
+      }
+
+      const refreshed = await refresh();
+      if (!refreshed.ok) {
+        toast.error(refreshed.error);
+        return;
+      }
+
+      const destinationLabel =
+        folderId === null ? 'Unfiled' : findFolderNameById(folders, folderId) ?? 'selected folder';
+
+      if (moveDialogSource === 'bulk') {
+        toast.success(`Moved ${itemIds.length} item(s) to ${destinationLabel}.`);
+      } else {
+        toast.success(`Moved to ${destinationLabel}.`);
+      }
+      setMoveDialogOpen(false);
+      setMoveDialogItemIds([]);
+    } finally {
+      setIsMoveBusy(false);
+    }
+  };
+
   const handleToggleTag = async (itemId: string, tagId: number, assigned: boolean): Promise<void> => {
     const response = assigned
       ? await window.electronAPI.unassignItemTag({ itemId, tagId })
@@ -371,8 +443,6 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
     );
   };
 
-  const filteredCount = useMemo(() => filteredItems.length, [filteredItems.length]);
-
   const handleOpenViewer = (itemId: string): void => {
     setSelectedItems([itemId]);
     setViewerItemId(itemId);
@@ -380,10 +450,8 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
 
   const detailsPanelProps = {
     item: selectedItem,
-    folders,
     tags,
     securitySettings,
-    onAssignFolder: (itemId: string, folderId: number | null) => void handleAssignFolder(itemId, folderId),
     onToggleTag: (itemId: string, tagId: number, assigned: boolean) => void handleToggleTag(itemId, tagId, assigned),
     onOpenItem: handleOpenViewer,
     onDeleteItem: (itemId: string) => void handleDeleteItem(itemId),
@@ -472,7 +540,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
         </div>
       )}
 
-      {/* Toolbar area */}
+      {/* Search section */}
       <div className="space-y-2 border-b border-border px-4 py-3">
         <GalleryToolbar
           searchTerm={searchTerm}
@@ -488,11 +556,9 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
           onExportSelected={() => void handleExportSelected()}
           onDeleteSelected={() => void handleDeleteSelected()}
           onToggleFavoriteSelected={() => void handleToggleFavoriteSelected()}
+          onOpenBulkMoveDialog={openBulkMoveDialog}
           onRefresh={() => void handleRefresh()}
-          onLock={() => void onLockVault()}
           isBusy={isLoading}
-          totalItems={totalItems}
-          filteredCount={filteredCount}
           showFavoritesOnly={showFavoritesOnly}
           onToggleFavoritesOnly={() => setShowFavoritesOnly((prev) => !prev)}
           selectedCount={selectedItemIds.length}
@@ -506,9 +572,10 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
           onViewModeChange={setViewMode}
           isMultiSelect={isMultiSelect}
           onToggleMultiSelect={handleToggleMultiSelect}
+          showSearchRow
+          showActionRow={false}
         />
 
-        {/* Tag filter bar */}
         <TagFilterBar
           tags={tags}
           selectedTagIds={selectedTagIds}
@@ -517,6 +584,43 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
           onNewTagNameChange={setNewTagName}
           onCreateTag={(color) => void handleCreateTag(color)}
           onDeleteTag={(tagId) => void handleDeleteTag(tagId)}
+        />
+      </div>
+
+      {/* Functional section */}
+      <div className="border-b border-border px-4 py-2">
+        <GalleryToolbar
+          searchTerm={searchTerm}
+          onSearchTermChange={setSearchTerm}
+          sort={sort}
+          onSortChange={(value) => void handleSortChange(value)}
+          folders={folders}
+          importFolderId={importFolderId}
+          onImportFolderChange={setImportFolderId}
+          deleteOriginalsOverride={deleteOriginalsOverride}
+          onDeleteOriginalsOverrideChange={setDeleteOriginalsOverride}
+          onImport={() => void handleImport()}
+          onExportSelected={() => void handleExportSelected()}
+          onDeleteSelected={() => void handleDeleteSelected()}
+          onToggleFavoriteSelected={() => void handleToggleFavoriteSelected()}
+          onOpenBulkMoveDialog={openBulkMoveDialog}
+          onRefresh={() => void handleRefresh()}
+          isBusy={isLoading}
+          showFavoritesOnly={showFavoritesOnly}
+          onToggleFavoritesOnly={() => setShowFavoritesOnly((prev) => !prev)}
+          selectedCount={selectedItemIds.length}
+          allSelectedFavorite={
+            selectedItemIds.length > 0 &&
+            filteredItems
+              .filter((item) => selectedItemIds.includes(item.id))
+              .every((item) => item.isFavorite)
+          }
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          isMultiSelect={isMultiSelect}
+          onToggleMultiSelect={handleToggleMultiSelect}
+          showSearchRow={false}
+          showActionRow
         />
       </div>
 
@@ -552,6 +656,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
               onToggleSelect={handleItemClick}
               onOpenItem={handleOpenViewer}
               onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
+              onOpenMoveDialog={openSingleMoveDialog}
               onExportItem={(itemId) => void handleExportItem(itemId)}
               onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
               hasMore={hasMore}
@@ -567,6 +672,7 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
               onToggleSelect={handleItemClick}
               onOpenItem={handleOpenViewer}
               onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
+              onOpenMoveDialog={openSingleMoveDialog}
               onExportItem={(itemId) => void handleExportItem(itemId)}
               onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
               hasMore={hasMore}
@@ -588,6 +694,16 @@ export const GalleryPage = ({ onLockVault, onMessage }: GalleryPageProps): React
         open={showDetailsSheet}
         onOpenChange={setShowDetailsSheet}
         {...detailsPanelProps}
+      />
+
+      <MoveToFolderDialog
+        open={moveDialogOpen}
+        onOpenChange={setMoveDialogOpen}
+        folders={folders}
+        itemIds={moveDialogItemIds}
+        onConfirm={handleConfirmMoveDialog}
+        title={moveDialogSource === 'bulk' ? 'Move selected items' : 'Move item'}
+        isBusy={isMoveBusy}
       />
 
       {/* Floating detail toggle button (visible below 2xl) */}

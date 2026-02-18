@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Heart, Image, Film, Play, Eye, Star } from 'lucide-react';
+import { Heart, Image, Film, Play, Eye, Star, Download, Trash2, FolderOpen } from 'lucide-react';
 import type { VaultItemSummary } from '../../../../shared/ipc';
 import { Badge } from '../../../components/ui/Badge';
 import { Skeleton } from '../../../components/ui/Skeleton';
@@ -8,7 +8,6 @@ import {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuSeparator,
 } from '../../../components/ui/ContextMenu';
 import { cn } from '../../../lib/utils';
 
@@ -19,6 +18,7 @@ type GalleryCardProps = {
   onToggleSelect: (itemId: string) => void;
   onOpen: (itemId: string) => void;
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
+  onOpenMoveDialog?: (itemId: string) => void;
   onExport?: (itemId: string) => void;
   onDelete?: (itemId: string) => void;
   isMultiSelect: boolean;
@@ -47,6 +47,7 @@ export const GalleryCard = ({
   onToggleSelect,
   onOpen,
   onToggleFavorite,
+  onOpenMoveDialog,
   onExport,
   onDelete,
   isMultiSelect,
@@ -57,8 +58,9 @@ export const GalleryCard = ({
   const mediaType = isVideo(item.mimeType) ? 'video' : isGif(item.mimeType) ? 'gif' : 'image';
 
   const cardContent = (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={(e) => {
         if (e.metaKey || e.ctrlKey) {
           onToggleSelect(item.id);
@@ -67,6 +69,12 @@ export const GalleryCard = ({
         }
       }}
       onDoubleClick={() => onOpen(item.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggleSelect(item.id);
+        }
+      }}
       className={cn(
         'group relative w-full overflow-hidden rounded-lg border bg-surface text-left transition-all duration-200',
         isSelected
@@ -192,7 +200,7 @@ export const GalleryCard = ({
           )}
         </div>
       </div>
-    </button>
+    </div>
   );
 
   return (
@@ -209,22 +217,26 @@ export const GalleryCard = ({
           <Heart className={cn('mr-2 h-4 w-4', item.isFavorite && 'fill-accent text-accent')} />
           {item.isFavorite ? 'Remove Favorite' : 'Add to Favorites'}
         </ContextMenuItem>
-        <ContextMenuSeparator />
+        {onOpenMoveDialog && (
+          <ContextMenuItem onClick={() => onOpenMoveDialog(item.id)}>
+            <FolderOpen className="mr-2 h-4 w-4" />
+            Move to Folder...
+          </ContextMenuItem>
+        )}
         {onExport && (
           <ContextMenuItem onClick={() => onExport(item.id)}>
+            <Download className="mr-2 h-4 w-4" />
             Export
           </ContextMenuItem>
         )}
         {onDelete && (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              onClick={() => onDelete(item.id)}
-              className="text-danger focus:text-danger"
-            >
-              Delete
-            </ContextMenuItem>
-          </>
+          <ContextMenuItem
+            onClick={() => onDelete(item.id)}
+            className="text-danger focus:text-danger"
+          >
+            <Trash2 className="mr-2 h-4 w-4 text-danger" />
+            Delete
+          </ContextMenuItem>
         )}
       </ContextMenuContent>
     </ContextMenu>

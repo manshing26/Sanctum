@@ -68,9 +68,16 @@ const FolderTreeNode: React.FC<{
     <li>
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <button
-            type="button"
+          <div
+            role="button"
+            tabIndex={0}
             onClick={() => onSelectFolder(folder.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelectFolder(folder.id);
+              }
+            }}
             className={cn(
               'flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-sm transition-colors',
               isActive
@@ -99,7 +106,7 @@ const FolderTreeNode: React.FC<{
             )}
             <Folder className={cn('h-4 w-4 shrink-0', isActive ? 'text-accent' : 'text-text-muted')} />
             <span className="truncate">{folder.name}</span>
-          </button>
+          </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem

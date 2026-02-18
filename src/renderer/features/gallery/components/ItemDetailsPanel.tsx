@@ -7,36 +7,20 @@ import {
   Check,
   X,
   Hash,
-  FolderOpen,
   FileType,
   HardDrive,
   Maximize2,
   Clock,
-  Image,
-  Film,
   Info,
 } from 'lucide-react';
-import type { FolderNode, SecuritySettings, TagSummary, VaultItemSummary } from '../../../../shared/ipc';
+import type { SecuritySettings, TagSummary, VaultItemSummary } from '../../../../shared/ipc';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
-import { Badge } from '../../../components/ui/Badge';
 import { Separator } from '../../../components/ui/Separator';
 import { ScrollArea } from '../../../components/ui/ScrollArea';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../../../components/ui/Sheet';
+import { Sheet, SheetContent, SheetTitle } from '../../../components/ui/Sheet';
 import { StarRating } from '../../../components/ui/StarRating';
 import { cn } from '../../../lib/utils';
-
-const flattenFolders = (folders: FolderNode[], depth = 0): Array<{ id: number; label: string }> => {
-  const options: Array<{ id: number; label: string }> = [];
-  for (const folder of folders) {
-    options.push({
-      id: folder.id,
-      label: `${'  '.repeat(depth)}${folder.name}`,
-    });
-    options.push(...flattenFolders(folder.children, depth + 1));
-  }
-  return options;
-};
 
 const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
@@ -47,10 +31,8 @@ const formatFileSize = (bytes: number): string => {
 
 type ItemDetailsPanelProps = {
   item: VaultItemSummary | null;
-  folders: FolderNode[];
   tags: TagSummary[];
   securitySettings: SecuritySettings;
-  onAssignFolder: (itemId: string, folderId: number | null) => void;
   onToggleTag: (itemId: string, tagId: number, assigned: boolean) => void;
   onUpdateSecureDeleteDefault: (enabled: boolean) => void;
   onOpenItem: (itemId: string) => void;
@@ -66,9 +48,7 @@ const DetailsContent: React.FC<
   Omit<ItemDetailsPanelProps, 'selectedCount'> & { selectedCount: number }
 > = ({
   item,
-  folders,
   tags,
-  onAssignFolder,
   onToggleTag,
   onOpenItem,
   onDeleteItem,
@@ -77,7 +57,6 @@ const DetailsContent: React.FC<
   onSetRating,
   selectedCount,
 }) => {
-  const folderOptions = flattenFolders(folders);
   const [isRenaming, setIsRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
 
@@ -104,8 +83,6 @@ const DetailsContent: React.FC<
       </div>
     );
   }
-
-  const isVideo = item.mimeType.startsWith('video/');
 
   return (
     <div className="space-y-4">
@@ -154,11 +131,12 @@ const DetailsContent: React.FC<
             </Button>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <p className="flex-1 truncate text-sm font-medium text-text-primary">{item.originalName}</p>
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_1.75rem] items-center gap-2">
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">{item.originalName}</p>
             <Button
               variant="ghost"
               size="icon-sm"
+              className="shrink-0"
               onClick={() => setIsRenaming(true)}
               aria-label="Rename"
             >
@@ -169,14 +147,15 @@ const DetailsContent: React.FC<
       </div>
 
       {/* Action buttons */}
-      <div className="flex gap-2">
-        <Button size="sm" onClick={() => onOpenItem(item.id)} className="flex-1 gap-1.5">
+      <div className="grid grid-cols-[minmax(0,1fr)_2.25rem_2.25rem] items-center gap-2">
+        <Button size="sm" onClick={() => onOpenItem(item.id)} className="min-w-0 flex-1 gap-1.5">
           <Eye className="h-3.5 w-3.5" />
           Open
         </Button>
         <Button
           variant={item.isFavorite ? 'default' : 'secondary'}
           size="icon"
+          className="shrink-0"
           onClick={() => onToggleFavorite(item.id, !item.isFavorite)}
           aria-label={item.isFavorite ? 'Unfavorite' : 'Favorite'}
         >
@@ -185,6 +164,7 @@ const DetailsContent: React.FC<
         <Button
           variant="danger"
           size="icon"
+          className="shrink-0"
           onClick={() => onDeleteItem(item.id)}
           aria-label="Delete"
         >
@@ -206,11 +186,6 @@ const DetailsContent: React.FC<
           {item.durationSeconds !== undefined && item.durationSeconds > 0 && (
             <MetadataRow icon={Clock} label="Duration" value={`${item.durationSeconds.toFixed(1)}s`} />
           )}
-          <MetadataRow
-            icon={FolderOpen}
-            label="Folder"
-            value={item.folderPath ?? 'Unfiled'}
-          />
         </div>
       </div>
 
@@ -223,27 +198,6 @@ const DetailsContent: React.FC<
           value={item.rating}
           onChange={(rating) => onSetRating(item.id, rating)}
         />
-      </div>
-
-      <Separator />
-
-      {/* Folder assignment */}
-      <div className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Folder</h3>
-        <select
-          value={item.folderId ?? 'unfiled'}
-          onChange={(e) =>
-            onAssignFolder(item.id, e.target.value === 'unfiled' ? null : Number(e.target.value))
-          }
-          className="h-8 w-full rounded-md border border-border bg-bg px-2 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50"
-        >
-          <option value="unfiled">Unfiled</option>
-          {folderOptions.map((folder) => (
-            <option key={folder.id} value={folder.id}>
-              {folder.label}
-            </option>
-          ))}
-        </select>
       </div>
 
       <Separator />

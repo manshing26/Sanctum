@@ -6,11 +6,10 @@ import {
   Download,
   Trash2,
   RefreshCw,
-  Lock,
+  FolderOpen,
   Heart,
   Star,
   ArrowUpDown,
-  ChevronDown,
   LayoutGrid,
   List,
   CheckSquare,
@@ -73,11 +72,9 @@ type GalleryToolbarProps = {
   onExportSelected: () => void;
   onDeleteSelected: () => void;
   onToggleFavoriteSelected: () => void;
+  onOpenBulkMoveDialog: () => void;
   onRefresh: () => void;
-  onLock: () => void;
   isBusy: boolean;
-  totalItems: number;
-  filteredCount: number;
   showFavoritesOnly: boolean;
   onToggleFavoritesOnly: () => void;
   selectedCount: number;
@@ -86,6 +83,8 @@ type GalleryToolbarProps = {
   onViewModeChange: (mode: 'grid' | 'list') => void;
   isMultiSelect: boolean;
   onToggleMultiSelect: () => void;
+  showSearchRow?: boolean;
+  showActionRow?: boolean;
 };
 
 export const GalleryToolbar = ({
@@ -102,11 +101,9 @@ export const GalleryToolbar = ({
   onExportSelected,
   onDeleteSelected,
   onToggleFavoriteSelected,
+  onOpenBulkMoveDialog,
   onRefresh,
-  onLock,
   isBusy,
-  totalItems,
-  filteredCount,
   showFavoritesOnly,
   onToggleFavoritesOnly,
   selectedCount,
@@ -115,44 +112,37 @@ export const GalleryToolbar = ({
   onViewModeChange,
   isMultiSelect,
   onToggleMultiSelect,
+  showSearchRow = true,
+  showActionRow = true,
 }: GalleryToolbarProps): React.JSX.Element => {
   const folderOptions = flattenFolderOptions(folders);
-  const currentSort = SORT_OPTIONS.find((o) => o.value === sort);
-
   return (
-    <div className="space-y-2">
-      {/* Row 1: Search bar (full width) */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
-        <input
-          type="text"
-          placeholder="Search files, tags, folders..."
-          value={searchTerm}
-          onChange={(e) => onSearchTermChange(e.target.value)}
-          className="h-9 w-full rounded-md border border-border bg-bg pl-9 pr-8 text-sm text-text-primary placeholder:text-text-muted/60 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50"
-        />
-        {searchTerm && (
-          <button
-            type="button"
-            onClick={() => onSearchTermChange('')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-text-muted hover:text-text-primary"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
-
-      {/* Row 2: Action buttons */}
-      <div className="flex items-center gap-1.5">
-        {/* Item count */}
-        <span className="mr-auto text-xs text-text-muted">
-          {filteredCount === totalItems
-            ? `${totalItems} items`
-            : `${filteredCount} of ${totalItems}`}
-        </span>
+    <div className={cn(showSearchRow && showActionRow && 'space-y-2')}>
+      {/* Row 1: Search + view/sort/favorites */}
+      {showSearchRow && (
+      <div className="flex items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+          <input
+            type="text"
+            placeholder="Search files, tags, folders..."
+            value={searchTerm}
+            onChange={(e) => onSearchTermChange(e.target.value)}
+            className="h-9 w-full rounded-md border border-border bg-bg pl-9 pr-8 text-sm text-text-primary placeholder:text-text-muted/60 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50"
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => onSearchTermChange('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-text-muted hover:text-text-primary"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
 
         {/* View mode toggle */}
-        <div className="flex rounded-md border border-border">
+        <div className="flex shrink-0 rounded-md border border-border">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -183,25 +173,10 @@ export const GalleryToolbar = ({
           </Tooltip>
         </div>
 
-        {/* Multi-select toggle */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant={isMultiSelect ? 'default' : 'ghost'}
-              size="icon-sm"
-              onClick={onToggleMultiSelect}
-              aria-label={isMultiSelect ? 'Exit multi-select' : 'Multi-select'}
-            >
-              <CheckSquare className="h-3.5 w-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{isMultiSelect ? 'Exit multi-select' : 'Multi-select'}</TooltipContent>
-        </Tooltip>
-
         {/* Sort dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" aria-label="Sort">
+            <Button variant="ghost" size="icon-sm" aria-label="Sort" className="shrink-0">
               <ArrowUpDown className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -212,6 +187,7 @@ export const GalleryToolbar = ({
               <DropdownMenuCheckboxItem
                 key={option.value}
                 checked={sort === option.value}
+                onSelect={(event) => event.stopPropagation()}
                 onCheckedChange={() => onSortChange(option.value)}
               >
                 {option.label}
@@ -228,145 +204,176 @@ export const GalleryToolbar = ({
               size="icon-sm"
               onClick={onToggleFavoritesOnly}
               aria-label="Favorites only"
+              className="shrink-0"
             >
               <Star className={cn('h-4 w-4', showFavoritesOnly && 'fill-current')} />
             </Button>
           </TooltipTrigger>
           <TooltipContent>{showFavoritesOnly ? 'Show all' : 'Favorites only'}</TooltipContent>
         </Tooltip>
-
-        <Separator orientation="vertical" className="mx-0.5 h-5" />
-
-        {/* Import */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="sm" disabled={isBusy} className="h-7 gap-1 px-2.5 text-xs">
-              <Upload className="h-3.5 w-3.5" />
-              Import
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>Import Settings</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onImport}>
-              <Upload className="mr-2 h-4 w-4" />
-              Select files...
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-[11px]">Target folder</DropdownMenuLabel>
-            <DropdownMenuCheckboxItem
-              checked={importFolderId === null}
-              onCheckedChange={() => onImportFolderChange(null)}
-            >
-              Unfiled
-            </DropdownMenuCheckboxItem>
-            {folderOptions.map((folder) => (
-              <DropdownMenuCheckboxItem
-                key={folder.id}
-                checked={importFolderId === folder.id}
-                onCheckedChange={() => onImportFolderChange(folder.id)}
-              >
-                {folder.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-[11px]">Secure delete</DropdownMenuLabel>
-            <DropdownMenuCheckboxItem
-              checked={deleteOriginalsOverride === 'default'}
-              onCheckedChange={() => onDeleteOriginalsOverrideChange('default')}
-            >
-              Use default
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={deleteOriginalsOverride === 'true'}
-              onCheckedChange={() => onDeleteOriginalsOverrideChange('true')}
-            >
-              Force on
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={deleteOriginalsOverride === 'false'}
-              onCheckedChange={() => onDeleteOriginalsOverrideChange('false')}
-            >
-              Force off
-            </DropdownMenuCheckboxItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {/* Refresh */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon-sm" onClick={onRefresh} aria-label="Refresh">
-              <RefreshCw className={cn('h-3.5 w-3.5', isBusy && 'animate-spin')} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Refresh</TooltipContent>
-        </Tooltip>
-
-        {/* Lock */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon-sm" onClick={onLock} aria-label="Lock vault">
-              <Lock className="h-3.5 w-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Lock Vault</TooltipContent>
-        </Tooltip>
       </div>
+      )}
 
-      {/* Row 3: Selection actions (only in multi-select mode with items selected) */}
-      {isMultiSelect && selectedCount > 0 && (
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="text-[11px]">
-            {selectedCount} selected
-          </Badge>
+      {/* Row 2: Action buttons */}
+      {showActionRow && (
+      <div className="flex items-center gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {/* Multi-select toggle */}
+          <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={isMultiSelect ? 'default' : 'ghost'}
+              size="icon-sm"
+              onClick={onToggleMultiSelect}
+              aria-label={isMultiSelect ? 'Exit Bulk Edit' : 'Bulk Edit'}
+              className="shrink-0"
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{isMultiSelect ? 'Exit Bulk Edit' : 'Bulk Edit'}</TooltipContent>
+        </Tooltip>
 
-          <Separator orientation="vertical" className="h-4" />
+          {isMultiSelect && selectedCount > 0 && (
+            <>
+              <Separator orientation="vertical" className="mx-0.5 h-5" />
+
+              <Badge variant="secondary" className="text-[11px]">
+                {selectedCount} selected
+              </Badge>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={isBusy}
+                    aria-label="Move selected"
+                    className="shrink-0"
+                    onClick={onOpenBulkMoveDialog}
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Move selected</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={onToggleFavoriteSelected}
+                    disabled={isBusy}
+                    aria-label={allSelectedFavorite ? 'Unfavorite selected' : 'Favorite selected'}
+                    className="shrink-0"
+                  >
+                    <Heart className={cn('h-3.5 w-3.5', allSelectedFavorite && 'fill-accent text-accent')} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{allSelectedFavorite ? 'Unfavorite' : 'Favorite'}</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={onExportSelected}
+                    disabled={isBusy}
+                    aria-label="Export selected"
+                    className="shrink-0"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Export selected</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="danger"
+                    size="icon-sm"
+                    onClick={onDeleteSelected}
+                    disabled={isBusy}
+                    aria-label="Delete selected"
+                    className="shrink-0"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Delete selected</TooltipContent>
+              </Tooltip>
+            </>
+          )}
+        </div>
+
+        <div className="ml-auto flex items-center gap-1.5">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" disabled={isBusy} className="h-7 shrink-0 gap-1 px-2.5 text-xs">
+                <Upload className="h-3.5 w-3.5" />
+                Import
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Import Settings</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onImport}>
+                <Upload className="mr-2 h-4 w-4" />
+                Select files...
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[11px]">Target folder</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                checked={importFolderId === null}
+                onCheckedChange={() => onImportFolderChange(null)}
+              >
+                Unfiled
+              </DropdownMenuCheckboxItem>
+              {folderOptions.map((folder) => (
+                <DropdownMenuCheckboxItem
+                  key={folder.id}
+                  checked={importFolderId === folder.id}
+                  onCheckedChange={() => onImportFolderChange(folder.id)}
+                >
+                  {folder.label}
+                </DropdownMenuCheckboxItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[11px]">Secure delete</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem
+                checked={deleteOriginalsOverride === 'default'}
+                onCheckedChange={() => onDeleteOriginalsOverrideChange('default')}
+              >
+                Use default
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={deleteOriginalsOverride === 'true'}
+                onCheckedChange={() => onDeleteOriginalsOverrideChange('true')}
+              >
+                Force on
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={deleteOriginalsOverride === 'false'}
+                onCheckedChange={() => onDeleteOriginalsOverrideChange('false')}
+              >
+                Force off
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={onToggleFavoriteSelected}
-                disabled={isBusy}
-                aria-label={allSelectedFavorite ? 'Unfavorite selected' : 'Favorite selected'}
-              >
-                <Heart className={cn('h-3.5 w-3.5', allSelectedFavorite && 'fill-accent text-accent')} />
+              <Button variant="ghost" size="icon-sm" onClick={onRefresh} aria-label="Refresh" className="shrink-0">
+                <RefreshCw className={cn('h-3.5 w-3.5', isBusy && 'animate-spin')} />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{allSelectedFavorite ? 'Unfavorite' : 'Favorite'}</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={onExportSelected}
-                disabled={isBusy}
-                aria-label="Export selected"
-              >
-                <Download className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Export selected</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="danger"
-                size="icon-sm"
-                onClick={onDeleteSelected}
-                disabled={isBusy}
-                aria-label="Delete selected"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Delete selected</TooltipContent>
+            <TooltipContent>Refresh</TooltipContent>
           </Tooltip>
         </div>
+      </div>
       )}
     </div>
   );

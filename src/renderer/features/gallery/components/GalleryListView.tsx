@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Heart, Image, Film, Eye, Star, ImageOff } from 'lucide-react';
+import { Heart, Image, Film, Eye, Star, ImageOff, Download, Trash2, FolderOpen } from 'lucide-react';
 import type { VaultItemSummary } from '../../../../shared/ipc';
 import { Button } from '../../../components/ui/Button';
 import { Spinner } from '../../../components/ui/Spinner';
@@ -9,7 +9,6 @@ import {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuSeparator,
 } from '../../../components/ui/ContextMenu';
 import { cn } from '../../../lib/utils';
 
@@ -20,6 +19,7 @@ type GalleryListViewProps = {
   onToggleSelect: (itemId: string) => void;
   onOpenItem: (itemId: string) => void;
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
+  onOpenMoveDialog: (itemId: string) => void;
   onExportItem?: (itemId: string) => void;
   onDeleteItem?: (itemId: string) => void;
   hasMore: boolean;
@@ -51,17 +51,25 @@ const ListRow: React.FC<{
   onToggleSelect: (itemId: string) => void;
   onOpen: (itemId: string) => void;
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
+  onOpenMoveDialog: (itemId: string) => void;
   onExport?: (itemId: string) => void;
   onDelete?: (itemId: string) => void;
   isMultiSelect: boolean;
-}> = ({ item, thumbnailUrl, isSelected, onToggleSelect, onOpen, onToggleFavorite, onExport, onDelete, isMultiSelect }) => {
+}> = ({ item, thumbnailUrl, isSelected, onToggleSelect, onOpen, onToggleFavorite, onOpenMoveDialog, onExport, onDelete, isMultiSelect }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
 
   const rowContent = (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onToggleSelect(item.id)}
       onDoubleClick={() => onOpen(item.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggleSelect(item.id);
+        }
+      }}
       className={cn(
         'group flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors',
         isSelected
@@ -167,7 +175,7 @@ const ListRow: React.FC<{
       >
         <Heart className={cn('h-3.5 w-3.5', item.isFavorite && 'fill-accent')} />
       </button>
-    </button>
+    </div>
   );
 
   return (
@@ -182,20 +190,24 @@ const ListRow: React.FC<{
           <Heart className={cn('mr-2 h-4 w-4', item.isFavorite && 'fill-accent text-accent')} />
           {item.isFavorite ? 'Remove Favorite' : 'Add to Favorites'}
         </ContextMenuItem>
-        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => onOpenMoveDialog(item.id)}>
+          <FolderOpen className="mr-2 h-4 w-4" />
+          Move to Folder...
+        </ContextMenuItem>
         {onExport && (
-          <ContextMenuItem onClick={() => onExport(item.id)}>Export</ContextMenuItem>
+          <ContextMenuItem onClick={() => onExport(item.id)}>
+            <Download className="mr-2 h-4 w-4" />
+            Export
+          </ContextMenuItem>
         )}
         {onDelete && (
-          <>
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              onClick={() => onDelete(item.id)}
-              className="text-danger focus:text-danger"
-            >
-              Delete
-            </ContextMenuItem>
-          </>
+          <ContextMenuItem
+            onClick={() => onDelete(item.id)}
+            className="text-danger focus:text-danger"
+          >
+            <Trash2 className="mr-2 h-4 w-4 text-danger" />
+            Delete
+          </ContextMenuItem>
         )}
       </ContextMenuContent>
     </ContextMenu>
@@ -210,6 +222,7 @@ export const GalleryListView = ({
   onToggleSelect,
   onOpenItem,
   onToggleFavorite,
+  onOpenMoveDialog,
   onExportItem,
   onDeleteItem,
   hasMore,
@@ -250,6 +263,7 @@ export const GalleryListView = ({
           onToggleSelect={onToggleSelect}
           onOpen={onOpenItem}
           onToggleFavorite={onToggleFavorite}
+          onOpenMoveDialog={onOpenMoveDialog}
           onExport={onExportItem}
           onDelete={onDeleteItem}
           isMultiSelect={isMultiSelect}

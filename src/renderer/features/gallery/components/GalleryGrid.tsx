@@ -1,5 +1,5 @@
 import React from 'react';
-import { ImageOff, Loader2 } from 'lucide-react';
+import { ImageOff } from 'lucide-react';
 import type { VaultItemSummary } from '../../../../shared/ipc';
 import { GalleryCard } from './GalleryCard';
 import { Button } from '../../../components/ui/Button';
@@ -12,6 +12,7 @@ type GalleryGridProps = {
   onToggleSelect: (itemId: string) => void;
   onOpenItem: (itemId: string) => void;
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
+  onOpenMoveDialog?: (itemId: string) => void;
   onExportItem?: (itemId: string) => void;
   onDeleteItem?: (itemId: string) => void;
   hasMore: boolean;
@@ -27,6 +28,7 @@ export const GalleryGrid = ({
   onToggleSelect,
   onOpenItem,
   onToggleFavorite,
+  onOpenMoveDialog,
   onExportItem,
   onDeleteItem,
   hasMore,
@@ -55,6 +57,7 @@ export const GalleryGrid = ({
             onToggleSelect={onToggleSelect}
             onOpen={onOpenItem}
             onToggleFavorite={onToggleFavorite}
+            onOpenMoveDialog={onOpenMoveDialog}
             onExport={onExportItem}
             onDelete={onDeleteItem}
             isMultiSelect={isMultiSelect}

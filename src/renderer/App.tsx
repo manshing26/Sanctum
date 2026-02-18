@@ -31,9 +31,10 @@ const getPasswordChecks = (password: string): PasswordCheck[] => [
 const TopBar: React.FC<{
   onOpenSettings: () => void;
   onOpenBrowser: () => void;
+  onLockVault: () => void;
   isUnlocked: boolean;
-}> = ({ onOpenSettings, onOpenBrowser, isUnlocked }) => (
-  <header className="flex items-center justify-between border-b border-border px-6 py-3">
+}> = ({ onOpenSettings, onOpenBrowser, onLockVault, isUnlocked }) => (
+  <header className="grid grid-cols-[1fr_auto_1fr] items-center border-b border-border px-6 py-3">
     <div className="flex items-center gap-3">
       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/15">
         <Shield className="h-4 w-4 text-accent" />
@@ -43,7 +44,23 @@ const TopBar: React.FC<{
         <p className="text-xs text-text-muted">Encrypted media vault</p>
       </div>
     </div>
-    <div className="flex items-center gap-2">
+
+    <div className="justify-self-center">
+      {isUnlocked && (
+        <Button
+          variant="danger-solid"
+          size="sm"
+          onClick={onLockVault}
+          className="gap-1.5 px-4 font-semibold shadow-soft"
+          aria-label="Lock vault"
+        >
+          <Lock className="h-3.5 w-3.5" />
+          Lock Vault
+        </Button>
+      )}
+    </div>
+
+    <div className="flex items-center justify-self-end gap-2">
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
@@ -343,7 +360,12 @@ export const App: React.FC = () => {
 
   return (
     <div className="flex h-screen flex-col bg-bg text-text-primary">
-      <TopBar onOpenSettings={openSettings} onOpenBrowser={openBrowser} isUnlocked={isUnlocked} />
+      <TopBar
+        onOpenSettings={openSettings}
+        onOpenBrowser={openBrowser}
+        onLockVault={() => void handleLock()}
+        isUnlocked={isUnlocked}
+      />
 
       {mode === 'loading' && <LoadingScreen />}
 
@@ -353,7 +375,6 @@ export const App: React.FC = () => {
 
       {isUnlocked && !showSettings && (
         <GalleryPage
-          onLockVault={handleLock}
           onMessage={(msg) => toast.info(msg)}
         />
       )}
