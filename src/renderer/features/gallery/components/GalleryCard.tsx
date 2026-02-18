@@ -59,6 +59,7 @@ export const GalleryCard = ({
 
   const cardContent = (
     <div
+      data-gallery-item-id={item.id}
       role="button"
       tabIndex={0}
       onClick={(e) => {

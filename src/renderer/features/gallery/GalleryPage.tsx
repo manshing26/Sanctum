@@ -234,6 +234,14 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     }
   };
 
+  const handleEmptyBackgroundClick = (): void => {
+    if (selectedItemIds.length === 0) {
+      return;
+    }
+    clearSelection();
+    setIsMultiSelect(false);
+  };
+
   // ── Handlers ─────────────────────────────────────────────────────
   const handleSortChange = async (nextSort: VaultListSort): Promise<void> => {
     const wasMultiSelect = isMultiSelect;
@@ -709,6 +717,9 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
               thumbnails={thumbnails}
               selectedItemIds={selectedItemIds}
               onToggleSelect={handleItemClick}
+              onSetSelectedItems={setSelectedItems}
+              onBeginMarqueeSelection={() => setIsMultiSelect(true)}
+              onEmptyBackgroundClick={handleEmptyBackgroundClick}
               onOpenItem={handleOpenViewer}
               onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
               onOpenMoveDialog={openSingleMoveDialog}
@@ -725,6 +736,9 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
               thumbnails={thumbnails}
               selectedItemIds={selectedItemIds}
               onToggleSelect={handleItemClick}
+              onSetSelectedItems={setSelectedItems}
+              onBeginMarqueeSelection={() => setIsMultiSelect(true)}
+              onEmptyBackgroundClick={handleEmptyBackgroundClick}
               onOpenItem={handleOpenViewer}
               onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
               onOpenMoveDialog={openSingleMoveDialog}

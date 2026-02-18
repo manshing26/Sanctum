@@ -4,6 +4,7 @@ import type { VaultItemSummary } from '../../../../shared/ipc';
 import { Button } from '../../../components/ui/Button';
 import { Spinner } from '../../../components/ui/Spinner';
 import { Skeleton } from '../../../components/ui/Skeleton';
+import { useMarqueeSelection } from '../hooks/useMarqueeSelection';
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -17,6 +18,9 @@ type GalleryListViewProps = {
   thumbnails: Record<string, string>;
   selectedItemIds: string[];
   onToggleSelect: (itemId: string) => void;
+  onSetSelectedItems: (itemIds: string[]) => void;
+  onBeginMarqueeSelection?: () => void;
+  onEmptyBackgroundClick?: () => void;
   onOpenItem: (itemId: string) => void;
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
   onOpenMoveDialog: (itemId: string) => void;
@@ -60,6 +64,7 @@ const ListRow: React.FC<{
 
   const rowContent = (
     <div
+      data-gallery-item-id={item.id}
       role="button"
       tabIndex={0}
       onClick={() => onToggleSelect(item.id)}
@@ -220,6 +225,9 @@ export const GalleryListView = ({
   thumbnails,
   selectedItemIds,
   onToggleSelect,
+  onSetSelectedItems,
+  onBeginMarqueeSelection,
+  onEmptyBackgroundClick,
   onOpenItem,
   onToggleFavorite,
   onOpenMoveDialog,
@@ -230,6 +238,15 @@ export const GalleryListView = ({
   onLoadMore,
   isMultiSelect,
 }: GalleryListViewProps): React.JSX.Element => {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const { isSelecting, overlayStyle, onMouseDown } = useMarqueeSelection({
+    containerRef,
+    selectedItemIds,
+    onSetSelectedItems,
+    onBeginSelection: onBeginMarqueeSelection,
+    onEmptyBackgroundClick,
+  });
+
   if (items.length === 0 && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-16">
@@ -240,7 +257,11 @@ export const GalleryListView = ({
   }
 
   return (
-    <div className="space-y-1">
+    <div
+      ref={containerRef}
+      onMouseDown={onMouseDown}
+      className="relative min-h-full select-none space-y-1"
+    >
       {/* Header row */}
       <div className="flex items-center gap-3 px-2 py-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
         {isMultiSelect && <span className="w-4 shrink-0" />}
@@ -289,6 +310,12 @@ export const GalleryListView = ({
             )}
           </Button>
         </div>
+      )}
+      {isSelecting && overlayStyle && (
+        <div
+          className="pointer-events-none absolute z-20 rounded-md border border-accent/80 bg-accent/20"
+          style={overlayStyle}
+        />
       )}
     </div>
   );

@@ -4,12 +4,16 @@ import type { VaultItemSummary } from '../../../../shared/ipc';
 import { GalleryCard } from './GalleryCard';
 import { Button } from '../../../components/ui/Button';
 import { Spinner } from '../../../components/ui/Spinner';
+import { useMarqueeSelection } from '../hooks/useMarqueeSelection';
 
 type GalleryGridProps = {
   items: VaultItemSummary[];
   thumbnails: Record<string, string>;
   selectedItemIds: string[];
   onToggleSelect: (itemId: string) => void;
+  onSetSelectedItems: (itemIds: string[]) => void;
+  onBeginMarqueeSelection?: () => void;
+  onEmptyBackgroundClick?: () => void;
   onOpenItem: (itemId: string) => void;
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
   onOpenMoveDialog?: (itemId: string) => void;
@@ -26,6 +30,9 @@ export const GalleryGrid = ({
   thumbnails,
   selectedItemIds,
   onToggleSelect,
+  onSetSelectedItems,
+  onBeginMarqueeSelection,
+  onEmptyBackgroundClick,
   onOpenItem,
   onToggleFavorite,
   onOpenMoveDialog,
@@ -36,6 +43,15 @@ export const GalleryGrid = ({
   onLoadMore,
   isMultiSelect,
 }: GalleryGridProps): React.JSX.Element => {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const { isSelecting, overlayStyle, onMouseDown } = useMarqueeSelection({
+    containerRef,
+    selectedItemIds,
+    onSetSelectedItems,
+    onBeginSelection: onBeginMarqueeSelection,
+    onEmptyBackgroundClick,
+  });
+
   if (items.length === 0 && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-16">
@@ -46,23 +62,35 @@ export const GalleryGrid = ({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-        {items.map((item) => (
-          <GalleryCard
-            key={item.id}
-            item={item}
-            thumbnailUrl={thumbnails[item.id]}
-            isSelected={selectedItemIds.includes(item.id)}
-            onToggleSelect={onToggleSelect}
-            onOpen={onOpenItem}
-            onToggleFavorite={onToggleFavorite}
-            onOpenMoveDialog={onOpenMoveDialog}
-            onExport={onExportItem}
-            onDelete={onDeleteItem}
-            isMultiSelect={isMultiSelect}
+    <div
+      ref={containerRef}
+      onMouseDown={onMouseDown}
+      className="relative min-h-full select-none space-y-4"
+    >
+      <div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          {items.map((item) => (
+            <GalleryCard
+              key={item.id}
+              item={item}
+              thumbnailUrl={thumbnails[item.id]}
+              isSelected={selectedItemIds.includes(item.id)}
+              onToggleSelect={onToggleSelect}
+              onOpen={onOpenItem}
+              onToggleFavorite={onToggleFavorite}
+              onOpenMoveDialog={onOpenMoveDialog}
+              onExport={onExportItem}
+              onDelete={onDeleteItem}
+              isMultiSelect={isMultiSelect}
+            />
+          ))}
+        </div>
+        {isSelecting && overlayStyle && (
+          <div
+            className="pointer-events-none absolute z-20 rounded-md border border-accent/80 bg-accent/20"
+            style={overlayStyle}
           />
-        ))}
+        )}
       </div>
 
       {hasMore && (
