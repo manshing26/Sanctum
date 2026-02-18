@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import {
   type AssignItemFolderInput,
   type AssignItemsFolderInput,
@@ -31,6 +31,7 @@ import {
 } from '../shared/ipc';
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
   openSettings: () => ipcRenderer.invoke(IPC_CHANNELS.openSettings),
   closeSettings: () => ipcRenderer.invoke(IPC_CHANNELS.closeSettings),
   openBrowserWindow: () => ipcRenderer.invoke(IPC_CHANNELS.openBrowserWindow),

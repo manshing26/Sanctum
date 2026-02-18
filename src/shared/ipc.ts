@@ -322,6 +322,7 @@ export type LoadExtensionResult = {
 };
 
 export type ElectronAPI = {
+  getPathForFile: (file: File) => string;
   openSettings: () => Promise<void>;
   closeSettings: () => Promise<void>;
   openBrowserWindow: () => Promise<void>;

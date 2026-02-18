@@ -20,6 +20,74 @@ type GalleryPageProps = {
   onMessage: (message: string) => void;
 };
 
+const parseFileUrlToPath = (value: string): string | null => {
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== 'file:') {
+      return null;
+    }
+
+    let pathname = decodeURIComponent(url.pathname);
+    // Normalize Windows file URLs such as /C:/path...
+    if (/^\/[A-Za-z]:/.test(pathname)) {
+      pathname = pathname.slice(1);
+    }
+    return pathname;
+  } catch {
+    return null;
+  }
+};
+
+const extractDroppedFilePaths = (dataTransfer: DataTransfer): string[] => {
+  const paths = new Set<string>();
+
+  for (const file of Array.from(dataTransfer.files)) {
+    const maybePath = window.electronAPI.getPathForFile(file) || (file as { path?: string }).path;
+    if (maybePath) {
+      paths.add(maybePath);
+    }
+  }
+
+  for (const item of Array.from(dataTransfer.items)) {
+    const maybeFile = item.getAsFile();
+    const maybePath = maybeFile
+      ? window.electronAPI.getPathForFile(maybeFile) || (maybeFile as { path?: string }).path
+      : undefined;
+    if (maybePath) {
+      paths.add(maybePath);
+    }
+  }
+
+  const uriList = dataTransfer.getData('text/uri-list');
+  if (uriList) {
+    for (const line of uriList.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
+      const parsed = parseFileUrlToPath(trimmed);
+      if (parsed) {
+        paths.add(parsed);
+      }
+    }
+  }
+
+  const plainText = dataTransfer.getData('text/plain');
+  if (plainText) {
+    for (const token of plainText.split(/\s+/)) {
+      if (!token.startsWith('file://')) {
+        continue;
+      }
+      const parsed = parseFileUrlToPath(token);
+      if (parsed) {
+        paths.add(parsed);
+      }
+    }
+  }
+
+  return [...paths];
+};
+
 const findFolderNameById = (nodes: FolderNode[], folderId: number): string | null => {
   const stack = [...nodes];
   while (stack.length > 0) {
@@ -486,10 +554,11 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
       onDrop={(e) => {
         e.preventDefault();
         setIsDragOver(false);
-        const files = Array.from(e.dataTransfer.files)
-          .map((file) => (file as { path?: string }).path)
-          .filter((path): path is string => Boolean(path));
-        if (files.length === 0) return;
+        const files = extractDroppedFilePaths(e.dataTransfer);
+        if (files.length === 0) {
+          toast.error('No local file paths detected from drop. Please use Import button for this source.');
+          return;
+        }
         void runImport(files);
       }}
     >
