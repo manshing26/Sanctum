@@ -109,20 +109,6 @@ const TopBar: React.FC<{
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant={activeTab === 'browser-window' ? 'default' : 'ghost'}
-            size="icon"
-            onClick={() => onSelectTab('browser-window')}
-            disabled={!isUnlocked}
-            aria-label="Open browser window tab"
-          >
-            <ExternalLink className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Browser (New Window)</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
             variant={activeTab === 'placeholder' ? 'default' : 'ghost'}
             size="icon"
             onClick={() => onSelectTab('placeholder')}

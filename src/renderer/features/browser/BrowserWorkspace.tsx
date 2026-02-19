@@ -13,8 +13,6 @@ import {
   Loader2,
   ChevronDown,
   ChevronRight,
-  PanelLeftClose,
-  PanelLeftOpen,
   ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -268,7 +266,7 @@ export const BrowserWorkspace = ({
   const [legacyShowBookmarks, setLegacyShowBookmarks] = useState(false);
   const [legacyShowExtensions] = useState(false);
   const [libraryTab, setLibraryTab] = useState<'bookmarks' | 'extensions'>('bookmarks');
-  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  const [leftPanelOpen, setLeftPanelOpen] = useState(false);
   const [bookmarks, setBookmarks] = useState<BookmarkSummary[]>([]);
   const [showBookmarkForm, setShowBookmarkForm] = useState(false);
   const [bookmarkTitle, setBookmarkTitle] = useState('');
@@ -782,19 +780,23 @@ export const BrowserWorkspace = ({
                   value={addressInput}
                   onChange={(e) => setAddressInput(e.target.value)}
                   placeholder="Enter URL or search"
-                  className="h-8 w-full rounded-full border border-border bg-bg pl-8 pr-3 text-sm text-text-primary placeholder:text-text-muted/60 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50"
+                  className="h-8 w-full rounded-full border border-border bg-bg pl-8 pr-9 text-sm text-text-primary placeholder:text-text-muted/60 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50"
                 />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveCurrentAsBookmark()}
+                      className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-text-muted transition-colors hover:bg-surface-hover hover:text-text-primary"
+                      aria-label="Bookmark page"
+                    >
+                      <Star className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>Bookmark page</TooltipContent>
+                </Tooltip>
               </div>
             </form>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon-sm" onClick={() => void handleSaveCurrentAsBookmark()}>
-                  <Star className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Bookmark page</TooltipContent>
-            </Tooltip>
 
             <Tooltip>
               <TooltipTrigger asChild>
@@ -880,79 +882,60 @@ export const BrowserWorkspace = ({
 
         <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           {showPersistentLeftPanel && (
-            leftPanelCollapsed ? (
-              <aside className="flex w-12 shrink-0 flex-col items-center gap-2 border-r border-border bg-surface py-3">
+            <aside className="flex w-12 shrink-0 flex-col items-center gap-2 border-r border-border bg-surface py-3">
+              <Button
+                variant={libraryTab === 'bookmarks' ? 'default' : 'ghost'}
+                size="icon-sm"
+                onClick={() => {
+                  if (libraryTab === 'bookmarks') {
+                    setLeftPanelOpen((prev) => !prev);
+                  } else {
+                    setLibraryTab('bookmarks');
+                    setLeftPanelOpen(true);
+                  }
+                }}
+                aria-label="Open bookmarks panel"
+              >
+                <Bookmark className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant={libraryTab === 'extensions' ? 'default' : 'ghost'}
+                size="icon-sm"
+                onClick={() => {
+                  if (libraryTab === 'extensions') {
+                    setLeftPanelOpen((prev) => !prev);
+                  } else {
+                    setLibraryTab('extensions');
+                    void refreshExtensions();
+                    setLeftPanelOpen(true);
+                  }
+                }}
+                aria-label="Open extensions panel"
+              >
+                <Puzzle className="h-3.5 w-3.5" />
+              </Button>
+            </aside>
+          )}
+
+          {showPersistentLeftPanel && leftPanelOpen && (
+            <aside className="flex w-[280px] min-w-[240px] shrink-0 flex-col border-r border-border bg-surface p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                  {libraryTab === 'bookmarks' ? 'Bookmarks' : 'Extensions'}
+                </h2>
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  onClick={() => setLeftPanelCollapsed(false)}
-                  aria-label="Expand library panel"
+                  onClick={() => setLeftPanelOpen(false)}
+                  aria-label="Hide library panel"
                 >
-                  <PanelLeftOpen className="h-3.5 w-3.5" />
+                  <X className="h-3.5 w-3.5" />
                 </Button>
-                <Button
-                  variant={libraryTab === 'bookmarks' ? 'default' : 'ghost'}
-                  size="icon-sm"
-                  onClick={() => {
-                    setLibraryTab('bookmarks');
-                    setLeftPanelCollapsed(false);
-                  }}
-                  aria-label="Open bookmarks panel"
-                >
-                  <Bookmark className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant={libraryTab === 'extensions' ? 'default' : 'ghost'}
-                  size="icon-sm"
-                  onClick={() => {
-                    setLibraryTab('extensions');
-                    void refreshExtensions();
-                    setLeftPanelCollapsed(false);
-                  }}
-                  aria-label="Open extensions panel"
-                >
-                  <Puzzle className="h-3.5 w-3.5" />
-                </Button>
-              </aside>
-            ) : (
-              <aside className="flex w-[280px] min-w-[240px] shrink-0 flex-col border-r border-border bg-surface p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Library</h2>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant={libraryTab === 'bookmarks' ? 'default' : 'ghost'}
-                      size="icon-sm"
-                      onClick={() => setLibraryTab('bookmarks')}
-                      aria-label="Bookmarks panel"
-                    >
-                      <Bookmark className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant={libraryTab === 'extensions' ? 'default' : 'ghost'}
-                      size="icon-sm"
-                      onClick={() => {
-                        setLibraryTab('extensions');
-                        void refreshExtensions();
-                      }}
-                      aria-label="Extensions panel"
-                    >
-                      <Puzzle className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setLeftPanelCollapsed(true)}
-                      aria-label="Collapse library panel"
-                    >
-                      <PanelLeftClose className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex min-h-0 flex-1 flex-col">
-                  {libraryTab === 'bookmarks' ? bookmarksContent : extensionsContent}
-                </div>
-              </aside>
-            )
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col">
+                {libraryTab === 'bookmarks' ? bookmarksContent : extensionsContent}
+              </div>
+            </aside>
           )}
 
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
