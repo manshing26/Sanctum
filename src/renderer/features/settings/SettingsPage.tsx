@@ -3,7 +3,6 @@ import {
   Shield,
   HardDrive,
   Info,
-  ArrowLeft,
   Trash2,
   AlertTriangle,
   Palette,
@@ -31,10 +30,6 @@ import { cn } from '../../lib/utils';
 import type { SecuritySettings, AppearanceSettings, BrowserSettings } from '../../../shared/ipc';
 
 type SettingsCategory = 'security' | 'appearance' | 'browser' | 'storage' | 'about';
-
-type SettingsPageProps = {
-  onBack: () => void;
-};
 
 const NAV_ITEMS: { id: SettingsCategory; label: string; icon: React.FC<{ className?: string }> }[] = [
   { id: 'security', label: 'Security', icon: Shield },
@@ -468,19 +463,11 @@ const AboutSection: React.FC = () => {
 };
 
 // ── Settings Page ────────────────────────────────────────────────────
-export const SettingsPage: React.FC<SettingsPageProps> = ({ onBack }) => {
+export const SettingsPage: React.FC = () => {
   const [category, setCategory] = useState<SettingsCategory>('security');
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center gap-3 border-b border-border px-4 py-3">
-        <Button variant="ghost" size="icon-sm" onClick={onBack} aria-label="Back">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h1 className="text-sm font-semibold text-text-primary">Settings</h1>
-      </div>
-
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar navigation */}
         <nav className="w-48 shrink-0 border-r border-border p-2">

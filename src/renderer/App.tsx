@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Lock, Globe, Settings, Shield, AlertTriangle, Loader2 } from 'lucide-react';
+import { Lock, Globe, Settings, Shield, AlertTriangle, Loader2, Images, FlaskConical, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AuthScreenMode, SessionState } from '../shared/ipc';
 import { Button } from './components/ui/Button';
@@ -11,6 +11,7 @@ import { Spinner } from './components/ui/Spinner';
 import { Tooltip, TooltipTrigger, TooltipContent } from './components/ui/Tooltip';
 import { GalleryPage } from './features/gallery/GalleryPage';
 import { SettingsPage } from './features/settings/SettingsPage';
+import { BrowserWorkspace } from './features/browser/BrowserWorkspace';
 
 const PASSWORD_MIN_LENGTH = 12;
 
@@ -28,12 +29,14 @@ const getPasswordChecks = (password: string): PasswordCheck[] => [
 ];
 
 // ── Top Bar ──────────────────────────────────────────────────────────
+type AppTab = 'gallery' | 'browser' | 'settings' | 'browser-window' | 'placeholder';
+
 const TopBar: React.FC<{
-  onOpenSettings: () => void;
-  onOpenBrowser: () => void;
+  activeTab: AppTab;
+  onSelectTab: (tab: AppTab) => void;
   onLockVault: () => void;
   isUnlocked: boolean;
-}> = ({ onOpenSettings, onOpenBrowser, onLockVault, isUnlocked }) => (
+}> = ({ activeTab, onSelectTab, onLockVault, isUnlocked }) => (
   <header className="grid grid-cols-[1fr_auto_1fr] items-center border-b border-border px-6 py-3">
     <div className="flex items-center gap-3">
       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/15">
@@ -64,29 +67,72 @@ const TopBar: React.FC<{
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant="ghost"
+            variant={activeTab === 'gallery' ? 'default' : 'ghost'}
             size="icon"
-            onClick={onOpenBrowser}
+            onClick={() => onSelectTab('gallery')}
             disabled={!isUnlocked}
-            aria-label="Open browser"
+            aria-label="Open gallery tab"
           >
-            <Globe className="h-4 w-4" />
+            <Images className="h-4 w-4" />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Browse Web</TooltipContent>
+        <TooltipContent>Gallery</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant="ghost"
+            variant={activeTab === 'browser' ? 'default' : 'ghost'}
             size="icon"
-            onClick={onOpenSettings}
-            aria-label="Open settings"
+            onClick={() => onSelectTab('browser')}
+            disabled={!isUnlocked}
+            aria-label="Open browser tab"
+          >
+            <Globe className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Browser (same window)</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={activeTab === 'settings' ? 'default' : 'ghost'}
+            size="icon"
+            onClick={() => onSelectTab('settings')}
+            disabled={!isUnlocked}
+            aria-label="Open settings tab"
           >
             <Settings className="h-4 w-4" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>Settings</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={activeTab === 'browser-window' ? 'default' : 'ghost'}
+            size="icon"
+            onClick={() => onSelectTab('browser-window')}
+            disabled={!isUnlocked}
+            aria-label="Open browser window tab"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Browser (New Window)</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant={activeTab === 'placeholder' ? 'default' : 'ghost'}
+            size="icon"
+            onClick={() => onSelectTab('placeholder')}
+            disabled={!isUnlocked}
+            aria-label="Open placeholder tab"
+          >
+            <FlaskConical className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Placeholder</TooltipContent>
       </Tooltip>
     </div>
   </header>
@@ -276,13 +322,48 @@ const LoadingScreen: React.FC = () => (
   </div>
 );
 
+const NewWindowBrowserTabPage: React.FC<{ onOpen: () => void }> = ({ onOpen }) => (
+  <div className="flex flex-1 items-center justify-center p-6">
+    <Card className="w-full max-w-2xl">
+      <CardHeader>
+        <CardTitle>Browser (New Window)</CardTitle>
+        <CardDescription>
+          Open the existing standalone browser window flow.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button onClick={onOpen} className="gap-2">
+          <ExternalLink className="h-4 w-4" />
+          Open Browser Window
+        </Button>
+      </CardContent>
+    </Card>
+  </div>
+);
+
+const GeneralPlaceholderPage: React.FC = () => (
+  <div className="flex flex-1 items-center justify-center p-6">
+    <Card className="w-full max-w-2xl">
+      <CardHeader>
+        <CardTitle>Placeholder Tab</CardTitle>
+        <CardDescription>
+          Reserved for future development.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-text-muted">General placeholder content.</p>
+      </CardContent>
+    </Card>
+  </div>
+);
+
 // ── Main App ─────────────────────────────────────────────────────────
 export const App: React.FC = () => {
   const [mode, setMode] = useState<AuthScreenMode>('loading');
   const [session, setSession] = useState<SessionState>({ status: 'locked', hasVault: false });
   const [isBusy, setIsBusy] = useState(false);
   const [authError, setAuthError] = useState('');
-  const [showSettings, setShowSettings] = useState(false);
+  const [activeTab, setActiveTab] = useState<AppTab>('gallery');
 
   const refreshSession = async (): Promise<SessionState> => {
     const state = await window.electronAPI.getSession();
@@ -297,11 +378,7 @@ export const App: React.FC = () => {
     void refreshSession();
   }, []);
 
-  const openSettings = (): void => {
-    setShowSettings(true);
-  };
-
-  const openBrowser = async (): Promise<void> => {
+  const openLegacyBrowser = async (): Promise<void> => {
     const result = await refreshSession();
     if (result.status !== 'unlocked') {
       toast.error('Unlock vault before opening browser.');
@@ -361,23 +438,23 @@ export const App: React.FC = () => {
   return (
     <div className="flex h-screen flex-col bg-bg text-text-primary">
       <TopBar
-        onOpenSettings={openSettings}
-        onOpenBrowser={openBrowser}
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
         onLockVault={() => void handleLock()}
         isUnlocked={isUnlocked}
       />
 
       {mode === 'loading' && <LoadingScreen />}
 
-      {isUnlocked && showSettings && (
-        <SettingsPage onBack={() => setShowSettings(false)} />
+      {isUnlocked && activeTab === 'gallery' && <GalleryPage onMessage={(msg) => toast.info(msg)} />}
+      {isUnlocked && activeTab === 'browser' && (
+        <BrowserWorkspace mode="same-window" showLeftPanel showCloseButton={false} />
       )}
-
-      {isUnlocked && !showSettings && (
-        <GalleryPage
-          onMessage={(msg) => toast.info(msg)}
-        />
+      {isUnlocked && activeTab === 'settings' && <SettingsPage />}
+      {isUnlocked && activeTab === 'browser-window' && (
+        <NewWindowBrowserTabPage onOpen={() => void openLegacyBrowser()} />
       )}
+      {isUnlocked && activeTab === 'placeholder' && <GeneralPlaceholderPage />}
 
       {!isUnlocked && mode === 'login' && (
         <UnlockScreen onUnlock={handleUnlock} isBusy={isBusy} error={authError} />

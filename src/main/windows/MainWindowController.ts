@@ -23,6 +23,7 @@ export class MainWindowController {
         contextIsolation: true,
         nodeIntegration: false,
         webSecurity: true,
+        webviewTag: true,
       },
     });
 
