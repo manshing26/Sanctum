@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, protocol, session } from 'electron';
+import type { BrowserSettings } from '../shared/ipc';
 import { DatabaseService } from './db/Database';
 import { registerAuthHandlers } from './ipc/registerAuthHandlers';
 import { registerBrowserHandlers } from './ipc/registerBrowserHandlers';
@@ -54,6 +55,11 @@ protocol.registerSchemesAsPrivileged([
     },
   },
 ]);
+
+type BrowserNetworkPolicy = {
+  strictCrossSiteCookieBlocking: boolean;
+  stripReferer: boolean;
+};
 
 export const bootstrapApp = (): void => {
   // Suppress noisy Chromium guest view logs such as ERR_ABORTED on rapid navigations.
@@ -116,6 +122,15 @@ export const bootstrapApp = (): void => {
   app.on('ready', () => {
     applyCspHeaders();
     const browserSession = session.fromPartition(BROWSER_PARTITION);
+    const browserNetworkPolicy: BrowserNetworkPolicy = {
+      strictCrossSiteCookieBlocking: false,
+      stripReferer: false,
+    };
+    const applyBrowserSettingsToPolicy = (settings: BrowserSettings): void => {
+      browserNetworkPolicy.strictCrossSiteCookieBlocking = Boolean(settings.blockThirdPartyCookies);
+      // Keep compatibility by default; only strict mode strips cross-site cookies.
+      browserNetworkPolicy.stripReferer = false;
+    };
     browserSession.setPermissionCheckHandler(() => false);
     browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
       callback(false);
@@ -123,10 +138,12 @@ export const bootstrapApp = (): void => {
     browserSession.webRequest.onBeforeSendHeaders((details, callback) => {
       const headers = details.requestHeaders;
       headers.DNT = '1';
-      delete headers.Referer;
+      if (browserNetworkPolicy.stripReferer) {
+        delete headers.Referer;
+      }
 
       try {
-        if (details.resourceType !== 'mainFrame') {
+        if (browserNetworkPolicy.strictCrossSiteCookieBlocking && details.resourceType !== 'mainFrame') {
           const initiator = (details as { initiator?: string }).initiator || details.referrer || '';
           const initiatorHost = initiator ? new URL(initiator).hostname : '';
           const targetHost = new URL(details.url).hostname;
@@ -144,7 +161,7 @@ export const bootstrapApp = (): void => {
     browserSession.webRequest.onHeadersReceived((details, callback) => {
       const responseHeaders = details.responseHeaders ?? {};
       try {
-        if (details.resourceType !== 'mainFrame') {
+        if (browserNetworkPolicy.strictCrossSiteCookieBlocking && details.resourceType !== 'mainFrame') {
           const initiator = (details as { initiator?: string }).initiator || details.referrer || '';
           const initiatorHost = initiator ? new URL(initiator).hostname : '';
           const targetHost = new URL(details.url).hostname;
@@ -166,6 +183,7 @@ export const bootstrapApp = (): void => {
     const cryptoService = new CryptoService();
     const authService = new AuthService(database.getDb(), cryptoService, sessionStore);
     const settingsService = new SettingsService(database.getDb());
+    applyBrowserSettingsToPolicy(settingsService.getBrowserSettings());
     const secureDeleteService = new SecureDeleteService();
     const metadataService = new MetadataService();
     const thumbnailService = new ThumbnailService();
@@ -235,6 +253,7 @@ export const bootstrapApp = (): void => {
     });
     registerSettingsHandlers({
       settingsService,
+      onBrowserSettingsUpdated: applyBrowserSettingsToPolicy,
     });
     registerFolderHandlers({
       folderService,

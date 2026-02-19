@@ -33,7 +33,7 @@ const BROWSER_KEYS = {
 const BROWSER_DEFAULTS: BrowserSettings = {
   clearOnExit: true,
   blockPopups: true,
-  blockThirdPartyCookies: true,
+  blockThirdPartyCookies: false,
   homepage: '',
 };
 

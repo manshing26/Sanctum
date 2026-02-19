@@ -314,8 +314,8 @@ const BrowserSection: React.FC = () => {
           <Separator />
 
           <SettingRow
-            label="Block third-party cookies"
-            description="Block cookies from domains other than the page you're visiting."
+            label="Block third-party cookies (may break some sites)"
+            description="Block cookies from domains other than the current page. Can cause login/challenge loops on anti-bot protected websites."
           >
             <Switch
               checked={settings.blockThirdPartyCookies}
