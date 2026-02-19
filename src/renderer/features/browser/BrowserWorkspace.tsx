@@ -166,20 +166,37 @@ const TabWebView = ({ tab, onAttach, onStateChange }: TabWebViewProps): React.JS
     const webview = webviewRef.current;
     if (!host || !webview) return;
 
+    const dispatchGuestResize = async (): Promise<void> => {
+      try {
+        await webview.executeJavaScript('window.dispatchEvent(new Event("resize"));');
+      } catch {
+        // Ignore guest resize sync failures.
+      }
+    };
+
     const syncSize = (): void => {
       webview.style.width = `${host.clientWidth}px`;
       webview.style.height = `${host.clientHeight}px`;
     };
 
-    syncSize();
-    const observer = new ResizeObserver(syncSize);
+    const syncAll = (): void => {
+      syncSize();
+      void dispatchGuestResize();
+    };
+
+    syncAll();
+    const observer = new ResizeObserver(syncAll);
     observer.observe(host);
-    return () => observer.disconnect();
+    window.addEventListener('resize', syncAll);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', syncAll);
+    };
   }, [tab.id]);
 
   return (
-    <div className="flex min-h-0 flex-1">
-      <div ref={hostRef} className="relative min-h-0 flex-1 overflow-hidden">
+    <div className="flex min-h-0 min-w-0 flex-1">
+      <div ref={hostRef} className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
         <webview
           ref={(element) => {
             const next = element as unknown as WebviewTag | null;
@@ -556,7 +573,7 @@ export const BrowserWorkspace = ({
 
   return (
     <TooltipProvider>
-      <div className={cn('flex min-h-0 flex-1 flex-col bg-bg text-text-primary', mode === 'legacy-window' && 'h-screen')}>
+      <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col bg-bg text-text-primary', mode === 'legacy-window' && 'h-screen')}>
         <header className="border-b border-border bg-surface px-3 py-2 space-y-1.5">
           <div className="flex items-center gap-1.5">
             <Tooltip>
@@ -673,7 +690,7 @@ export const BrowserWorkspace = ({
           </aside>
         )}
 
-        <main className="flex min-h-0 flex-1 overflow-hidden">
+        <main className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
           {showPersistentLeftPanel && (
             leftPanelCollapsed ? (
               <aside className="flex w-12 shrink-0 flex-col items-center gap-2 border-r border-border bg-surface py-3">
@@ -750,9 +767,9 @@ export const BrowserWorkspace = ({
             )
           )}
 
-          <div className="min-h-0 flex-1">
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
             {tabs.map((tab) => (
-              <div key={tab.id} className={cn(tab.id === activeTabId ? 'flex' : 'hidden', 'relative min-h-0 h-full flex-1')}>
+              <div key={tab.id} className={cn(tab.id === activeTabId ? 'flex' : 'hidden', 'relative min-h-0 min-w-0 h-full flex-1')}>
                 <TabWebView
                   tab={tab}
                   onAttach={(tabId, el) => { webviewRefs.current[tabId] = el; }}
