@@ -3,6 +3,7 @@ import {
   IPC_CHANNELS,
   type CreateBookmarkInput,
   type DeleteBookmarkInput,
+  type ExtensionStartupError,
   type ExtensionSummary,
 } from '../../shared/ipc';
 import { BookmarkService } from '../services/bookmark/BookmarkService';
@@ -19,6 +20,7 @@ type RegisterBrowserHandlersParams = {
   downloadService: DownloadService;
   settingsService: SettingsService;
   browserSession: Session;
+  getExtensionStartupErrors?: () => ExtensionStartupError[];
 };
 
 export const registerBrowserHandlers = ({
@@ -28,6 +30,7 @@ export const registerBrowserHandlers = ({
   downloadService,
   settingsService,
   browserSession,
+  getExtensionStartupErrors,
 }: RegisterBrowserHandlersParams): void => {
   ipcMain.handle(IPC_CHANNELS.openBrowserWindow, () => {
     browserWindowController.open(mainWindowController.getWindow());
@@ -105,6 +108,17 @@ export const registerBrowserHandlers = ({
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to list extensions.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.listExtensionStartupErrors, () => {
+    try {
+      return { ok: true as const, data: getExtensionStartupErrors?.() ?? [] };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to list extension startup errors.',
       };
     }
   });

@@ -1,5 +1,11 @@
-import { app, BrowserWindow, Menu, protocol, session } from 'electron';
-import type { BrowserSettings } from '../shared/ipc';
+import { app, BrowserWindow, Menu, powerMonitor, protocol, session } from 'electron';
+import type {
+  BrowserSettings,
+  ExtensionStartupError,
+  SecuritySettings,
+  SessionChangeReason,
+} from '../shared/ipc';
+import { IPC_CHANNELS } from '../shared/ipc';
 import { DatabaseService } from './db/Database';
 import { registerAuthHandlers } from './ipc/registerAuthHandlers';
 import { registerBrowserHandlers } from './ipc/registerBrowserHandlers';
@@ -119,17 +125,26 @@ export const bootstrapApp = (): void => {
     window.focus();
   });
 
-  app.on('ready', () => {
+  app.on('ready', async () => {
     applyCspHeaders();
     const browserSession = session.fromPartition(BROWSER_PARTITION);
+    const extensionStartupErrors: ExtensionStartupError[] = [];
     const browserNetworkPolicy: BrowserNetworkPolicy = {
       strictCrossSiteCookieBlocking: false,
       stripReferer: false,
+    };
+    let securitySettings: SecuritySettings = {
+      secureDeleteOnImport: false,
+      autoLockMinutes: 10,
+      lockOnMinimize: true,
     };
     const applyBrowserSettingsToPolicy = (settings: BrowserSettings): void => {
       browserNetworkPolicy.strictCrossSiteCookieBlocking = Boolean(settings.blockThirdPartyCookies);
       // Keep compatibility by default; only strict mode strips cross-site cookies.
       browserNetworkPolicy.stripReferer = false;
+    };
+    const applySecuritySettings = (settings: SecuritySettings): void => {
+      securitySettings = settings;
     };
     browserSession.setPermissionCheckHandler(() => false);
     browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
@@ -184,6 +199,7 @@ export const bootstrapApp = (): void => {
     const authService = new AuthService(database.getDb(), cryptoService, sessionStore);
     const settingsService = new SettingsService(database.getDb());
     applyBrowserSettingsToPolicy(settingsService.getBrowserSettings());
+    applySecuritySettings(settingsService.getSecuritySettings());
     const secureDeleteService = new SecureDeleteService();
     const metadataService = new MetadataService();
     const thumbnailService = new ThumbnailService();
@@ -215,12 +231,60 @@ export const bootstrapApp = (): void => {
 
     downloadService.start();
 
+    for (const extensionPath of settingsService.getExtensionPaths()) {
+      try {
+        await browserSession.loadExtension(extensionPath);
+      } catch (error) {
+        extensionStartupErrors.push({
+          path: extensionPath,
+          error: error instanceof Error ? error.message : 'Failed to load extension.',
+        });
+      }
+    }
+
     browserWindowController.setOnClosed(() => {
       void browserSession.clearStorageData({
         storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage', 'websql'],
       });
       void browserSession.clearCache();
     });
+
+    let isLocking = false;
+    const performGlobalLock = async (reason: SessionChangeReason): Promise<void> => {
+      if (isLocking || sessionStore.getState().status !== 'unlocked') {
+        return;
+      }
+
+      isLocking = true;
+      try {
+        authService.lockVault();
+        browserWindowController.close();
+        await mediaSessionService.clearAllSessions();
+
+        const mainWindow = mainWindowController.getWindow();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(IPC_CHANNELS.sessionChanged, {
+            state: authService.getSessionState(),
+            reason,
+          });
+        }
+      } finally {
+        isLocking = false;
+      }
+    };
+
+    const idleLockInterval = setInterval(() => {
+      if (sessionStore.getState().status !== 'unlocked') {
+        return;
+      }
+      if (securitySettings.autoLockMinutes <= 0) {
+        return;
+      }
+      const idleSeconds = powerMonitor.getSystemIdleTime();
+      if (idleSeconds >= securitySettings.autoLockMinutes * 60) {
+        void performGlobalLock('idle_timeout');
+      }
+    }, 15_000);
 
     void session.defaultSession.protocol.handle('privatevault-media', (request) => {
       const rangeHeader =
@@ -230,7 +294,16 @@ export const bootstrapApp = (): void => {
       return mediaSessionService.createProtocolResponse(request.url, rangeHeader);
     });
 
-    mainWindowController.create();
+    const mainWindow = mainWindowController.create();
+    mainWindow.on('minimize', () => {
+      if (!securitySettings.lockOnMinimize) {
+        return;
+      }
+      if (sessionStore.getState().status !== 'unlocked') {
+        return;
+      }
+      void performGlobalLock('window_minimize');
+    });
 
     registerIpcHandlers({
       mainWindowController,
@@ -243,16 +316,15 @@ export const bootstrapApp = (): void => {
       downloadService,
       settingsService,
       browserSession,
+      getExtensionStartupErrors: () => [...extensionStartupErrors],
     });
     registerAuthHandlers({
       authService,
-      onLock: async () => {
-        browserWindowController.close();
-        await mediaSessionService.clearAllSessions();
-      },
+      onLock: performGlobalLock,
     });
     registerSettingsHandlers({
       settingsService,
+      onSecuritySettingsUpdated: applySecuritySettings,
       onBrowserSettingsUpdated: applyBrowserSettingsToPolicy,
     });
     registerFolderHandlers({
@@ -304,6 +376,7 @@ export const bootstrapApp = (): void => {
     });
 
     app.once('before-quit', () => {
+      clearInterval(idleLockInterval);
       void mediaSessionService.stop();
       void browserSession.clearStorageData({
         storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage', 'websql'],

@@ -8,6 +8,8 @@ import { SessionStore } from '../../state/SessionStore';
 
 type AuthStateRow = {
   password_verifier: string;
+  failed_attempts: number | null;
+  lockout_until: string | null;
 };
 
 type VaultConfigRow = {
@@ -16,6 +18,9 @@ type VaultConfigRow = {
 };
 
 export class AuthService {
+  private static readonly MAX_FAILED_ATTEMPTS = 5;
+  private static readonly LOCKOUT_MINUTES = 15;
+
   constructor(
     private readonly db: SqliteDatabase,
     private readonly cryptoService: CryptoService,
@@ -64,15 +69,42 @@ export class AuthService {
 
   async unlockVault(password: string): Promise<void> {
     const authState = this.db
-      .prepare('SELECT password_verifier FROM auth_state WHERE id = 1')
+      .prepare('SELECT password_verifier, failed_attempts, lockout_until FROM auth_state WHERE id = 1')
       .get() as AuthStateRow | undefined;
 
     if (!authState) {
       throw new Error('Vault password has not been configured yet.');
     }
 
+    const lockoutUntilMs = this.parseLockoutTimestamp(authState.lockout_until);
+    if (lockoutUntilMs !== null && lockoutUntilMs > Date.now()) {
+      const remainingMinutes = Math.max(1, Math.ceil((lockoutUntilMs - Date.now()) / 60000));
+      throw new Error(`Too many failed attempts. Try again in ${remainingMinutes} minute(s).`);
+    }
+
     const isValid = await this.cryptoService.verifyPassword(password, authState.password_verifier);
     if (!isValid) {
+      const nextAttempts = (authState.failed_attempts ?? 0) + 1;
+      if (nextAttempts >= AuthService.MAX_FAILED_ATTEMPTS) {
+        this.db
+          .prepare(
+            `UPDATE auth_state
+             SET failed_attempts = 0,
+                 lockout_until = datetime('now', ?),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = 1`,
+          )
+          .run(`+${AuthService.LOCKOUT_MINUTES} minutes`);
+      } else {
+        this.db
+          .prepare(
+            `UPDATE auth_state
+             SET failed_attempts = ?,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = 1`,
+          )
+          .run(nextAttempts);
+      }
       throw new Error('Invalid password.');
     }
 
@@ -92,6 +124,15 @@ export class AuthService {
     );
 
     this.sessionStore.unlock(masterKey);
+    this.db
+      .prepare(
+        `UPDATE auth_state
+         SET failed_attempts = 0,
+             lockout_until = NULL,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = 1`,
+      )
+      .run();
   }
 
   lockVault(): void {
@@ -100,5 +141,12 @@ export class AuthService {
 
   getSessionState(): { status: 'locked' | 'unlocked'; hasVault: boolean } {
     return this.sessionStore.getState();
+  }
+
+  private parseLockoutTimestamp(raw: string | null): number | null {
+    if (!raw) return null;
+    const normalized = raw.includes('T') ? raw : `${raw.replace(' ', 'T')}Z`;
+    const parsed = Date.parse(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
   }
 }

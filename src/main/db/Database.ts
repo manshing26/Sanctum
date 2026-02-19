@@ -18,6 +18,8 @@ export class DatabaseService {
       CREATE TABLE IF NOT EXISTS auth_state (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         password_verifier TEXT NOT NULL,
+        failed_attempts INTEGER DEFAULT 0,
+        lockout_until DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -103,7 +105,23 @@ export class DatabaseService {
          ON CONFLICT(key) DO NOTHING`
       )
       .run('security.secure_delete_on_import', 'false');
+    this.db
+      .prepare(
+        `INSERT INTO settings (key, value, updated_at)
+         VALUES (?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(key) DO NOTHING`
+      )
+      .run('security.auto_lock_minutes', '10');
+    this.db
+      .prepare(
+        `INSERT INTO settings (key, value, updated_at)
+         VALUES (?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(key) DO NOTHING`
+      )
+      .run('security.lock_on_minimize', 'true');
 
+    this.ensureTableColumn('auth_state', 'failed_attempts', 'INTEGER DEFAULT 0');
+    this.ensureTableColumn('auth_state', 'lockout_until', 'DATETIME');
     this.ensureVaultItemsColumn('media_width', 'INTEGER');
     this.ensureVaultItemsColumn('media_height', 'INTEGER');
     this.ensureVaultItemsColumn('media_duration_seconds', 'REAL');

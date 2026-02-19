@@ -9,6 +9,8 @@ import type {
 } from '../../../shared/ipc';
 
 const SECURE_DELETE_KEY = 'security.secure_delete_on_import';
+const AUTO_LOCK_MINUTES_KEY = 'security.auto_lock_minutes';
+const LOCK_ON_MINIMIZE_KEY = 'security.lock_on_minimize';
 const EXTENSIONS_KEY = 'browser.extensions.paths';
 
 const APPEARANCE_KEYS = {
@@ -38,6 +40,11 @@ const BROWSER_DEFAULTS: BrowserSettings = {
 };
 
 const parseBoolean = (value: string | undefined): boolean => value === 'true';
+const parseNumber = (value: string | undefined, fallback: number): number => {
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
 
 export class SettingsService {
   constructor(private readonly db: SqliteDatabase) {}
@@ -65,13 +72,21 @@ export class SettingsService {
 
   getSecuritySettings(): SecuritySettings {
     return {
-      secureDeleteOnImport: parseBoolean(this.getSetting(SECURE_DELETE_KEY)),
+      secureDeleteOnImport: parseBoolean(this.getSetting(SECURE_DELETE_KEY) ?? 'false'),
+      autoLockMinutes: parseNumber(this.getSetting(AUTO_LOCK_MINUTES_KEY), 10),
+      lockOnMinimize: parseBoolean(this.getSetting(LOCK_ON_MINIMIZE_KEY) ?? 'true'),
     };
   }
 
   updateSecuritySettings(input: UpdateSecuritySettingsInput): SecuritySettings {
     if (typeof input.secureDeleteOnImport === 'boolean') {
       this.setSetting(SECURE_DELETE_KEY, String(input.secureDeleteOnImport));
+    }
+    if (typeof input.autoLockMinutes === 'number' && Number.isFinite(input.autoLockMinutes)) {
+      this.setSetting(AUTO_LOCK_MINUTES_KEY, String(Math.max(0, Math.floor(input.autoLockMinutes))));
+    }
+    if (typeof input.lockOnMinimize === 'boolean') {
+      this.setSetting(LOCK_ON_MINIMIZE_KEY, String(input.lockOnMinimize));
     }
     return this.getSecuritySettings();
   }

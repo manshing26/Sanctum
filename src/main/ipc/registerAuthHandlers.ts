@@ -1,10 +1,15 @@
 import { ipcMain } from 'electron';
-import { IPC_CHANNELS, type CreateVaultPasswordInput, type UnlockVaultInput } from '../../shared/ipc';
+import {
+  IPC_CHANNELS,
+  type CreateVaultPasswordInput,
+  type SessionChangeReason,
+  type UnlockVaultInput,
+} from '../../shared/ipc';
 import { AuthService } from '../services/auth/AuthService';
 
 type RegisterAuthHandlersParams = {
   authService: AuthService;
-  onLock?: () => Promise<void> | void;
+  onLock?: (reason: SessionChangeReason) => Promise<void> | void;
 };
 
 export const registerAuthHandlers = ({ authService, onLock }: RegisterAuthHandlersParams): void => {
@@ -34,9 +39,10 @@ export const registerAuthHandlers = ({ authService, onLock }: RegisterAuthHandle
 
   ipcMain.handle(IPC_CHANNELS.lockVault, async () => {
     try {
-      authService.lockVault();
       if (onLock) {
-        await onLock();
+        await onLock('manual');
+      } else {
+        authService.lockVault();
       }
       return { ok: true as const };
     } catch (error) {

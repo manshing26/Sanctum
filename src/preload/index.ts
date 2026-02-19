@@ -31,6 +31,7 @@ import {
   type UpdateBrowserSettingsInput,
   type UpdateTagColorInput,
   type SetRatingInput,
+  type SessionChangedPayload,
 } from '../shared/ipc';
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -87,6 +88,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSecuritySettings: () => ipcRenderer.invoke(IPC_CHANNELS.getSecuritySettings),
   updateSecuritySettings: (input: UpdateSecuritySettingsInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.updateSecuritySettings, input),
+  onSessionChanged: (handler: (payload: SessionChangedPayload) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: SessionChangedPayload) => {
+      handler(payload);
+    };
+    ipcRenderer.on(IPC_CHANNELS.sessionChanged, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.sessionChanged, listener);
+    };
+  },
   getAppearanceSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getAppearanceSettings),
   updateAppearanceSettings: (input: UpdateAppearanceSettingsInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.updateAppearanceSettings, input),
@@ -132,4 +142,8 @@ contextBridge.exposeInMainWorld('browserAPI', {
   cancelDownload: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.cancelDownload, id),
   listExtensions: () => ipcRenderer.invoke(IPC_CHANNELS.listExtensions),
   loadExtension: () => ipcRenderer.invoke(IPC_CHANNELS.loadExtension),
+  getBrowserSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getBrowserSettings),
+  updateBrowserSettings: (input: UpdateBrowserSettingsInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.updateBrowserSettings, input),
+  listExtensionStartupErrors: () => ipcRenderer.invoke(IPC_CHANNELS.listExtensionStartupErrors),
 });

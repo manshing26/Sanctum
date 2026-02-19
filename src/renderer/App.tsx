@@ -378,6 +378,21 @@ export const App: React.FC = () => {
     void refreshSession();
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = window.electronAPI.onSessionChanged(({ state, reason }) => {
+      setSession(state);
+      if (state.status !== 'unlocked') {
+        setMode(state.hasVault ? 'login' : 'create-account');
+      }
+      if (reason === 'idle_timeout') {
+        toast.warning('Vault locked due to inactivity.');
+      } else if (reason === 'window_minimize') {
+        toast.info('Vault locked on minimize.');
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   const openLegacyBrowser = async (): Promise<void> => {
     const result = await refreshSession();
     if (result.status !== 'unlocked') {

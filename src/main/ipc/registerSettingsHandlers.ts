@@ -2,6 +2,7 @@ import { ipcMain } from 'electron';
 import {
   IPC_CHANNELS,
   type BrowserSettings,
+  type SecuritySettings,
   type UpdateSecuritySettingsInput,
   type UpdateAppearanceSettingsInput,
   type UpdateBrowserSettingsInput,
@@ -10,11 +11,13 @@ import { SettingsService } from '../services/settings/SettingsService';
 
 type RegisterSettingsHandlersParams = {
   settingsService: SettingsService;
+  onSecuritySettingsUpdated?: (settings: SecuritySettings) => void;
   onBrowserSettingsUpdated?: (settings: BrowserSettings) => void;
 };
 
 export const registerSettingsHandlers = ({
   settingsService,
+  onSecuritySettingsUpdated,
   onBrowserSettingsUpdated,
 }: RegisterSettingsHandlersParams): void => {
   // ── Security ─────────────────────────────────────────────────────────
@@ -34,7 +37,9 @@ export const registerSettingsHandlers = ({
     IPC_CHANNELS.updateSecuritySettings,
     (_event, input: UpdateSecuritySettingsInput) => {
       try {
-        return { ok: true as const, data: settingsService.updateSecuritySettings(input) };
+        const next = settingsService.updateSecuritySettings(input);
+        onSecuritySettingsUpdated?.(next);
+        return { ok: true as const, data: next };
       } catch (error) {
         return {
           ok: false as const,

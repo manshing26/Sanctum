@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import {
   IPC_CHANNELS,
+  type UpdateBrowserSettingsInput,
   type CreateBookmarkInput,
   type DeleteBookmarkInput,
   type DownloadProgress,
@@ -25,4 +26,8 @@ contextBridge.exposeInMainWorld('browserAPI', {
   cancelDownload: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.cancelDownload, id),
   listExtensions: () => ipcRenderer.invoke(IPC_CHANNELS.listExtensions),
   loadExtension: () => ipcRenderer.invoke(IPC_CHANNELS.loadExtension),
+  getBrowserSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getBrowserSettings),
+  updateBrowserSettings: (input: UpdateBrowserSettingsInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.updateBrowserSettings, input),
+  listExtensionStartupErrors: () => ipcRenderer.invoke(IPC_CHANNELS.listExtensionStartupErrors),
 });

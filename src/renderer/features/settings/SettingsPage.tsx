@@ -85,7 +85,10 @@ const SecuritySection: React.FC = () => {
     });
   }, []);
 
-  const updateSetting = async (key: keyof SecuritySettings, value: boolean): Promise<void> => {
+  const updateSetting = async (
+    key: keyof SecuritySettings,
+    value: SecuritySettings[keyof SecuritySettings],
+  ): Promise<void> => {
     const result = await window.electronAPI.updateSecuritySettings({ [key]: value });
     if (!result.ok) {
       toast.error(result.error);
@@ -126,9 +129,20 @@ const SecuritySection: React.FC = () => {
             label="Auto-lock timeout"
             description="Automatically lock the vault after a period of inactivity."
           >
-            <div className="flex items-center gap-2 text-xs text-text-muted">
-              <Timer className="h-3.5 w-3.5" />
-              Coming soon
+            <div className="flex items-center gap-2">
+              <Timer className="h-3.5 w-3.5 text-text-muted" />
+              <SettingSelect
+                value={String(settings.autoLockMinutes)}
+                onChange={(value) => void updateSetting('autoLockMinutes', Number(value))}
+                options={[
+                  { value: '0', label: 'Off' },
+                  { value: '5', label: '5 min' },
+                  { value: '10', label: '10 min' },
+                  { value: '15', label: '15 min' },
+                  { value: '30', label: '30 min' },
+                  { value: '60', label: '60 min' },
+                ]}
+              />
             </div>
           </SettingRow>
 
@@ -138,9 +152,12 @@ const SecuritySection: React.FC = () => {
             label="Lock on minimize"
             description="Automatically lock the vault when the window is minimized."
           >
-            <div className="flex items-center gap-2 text-xs text-text-muted">
-              <Monitor className="h-3.5 w-3.5" />
-              Coming soon
+            <div className="flex items-center gap-2">
+              <Monitor className="h-3.5 w-3.5 text-text-muted" />
+              <Switch
+                checked={settings.lockOnMinimize}
+                onCheckedChange={(checked) => void updateSetting('lockOnMinimize', checked)}
+              />
             </div>
           </SettingRow>
         </CardContent>

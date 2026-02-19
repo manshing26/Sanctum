@@ -51,6 +51,8 @@ export const useGalleryState = () => {
   const [tags, setTags] = useState<TagSummary[]>([]);
   const [securitySettings, setSecuritySettings] = useState<SecuritySettings>({
     secureDeleteOnImport: false,
+    autoLockMinutes: 10,
+    lockOnMinimize: true,
   });
 
   const [searchTerm, setSearchTerm] = useState('');

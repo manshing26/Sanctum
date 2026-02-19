@@ -11,10 +11,12 @@ export const IPC_CHANNELS = {
   cancelDownload: 'browser:downloads:cancel',
   listExtensions: 'browser:extensions:list',
   loadExtension: 'browser:extensions:load',
+  listExtensionStartupErrors: 'browser:extensions:list-startup-errors',
   createVaultPassword: 'auth:create-vault-password',
   unlockVault: 'auth:unlock-vault',
   lockVault: 'auth:lock-vault',
   getSession: 'auth:get-session',
+  sessionChanged: 'auth:session-changed',
   importFiles: 'vault:import-files',
   listItems: 'vault:list-items',
   listItemsQuery: 'vault:list-items-query',
@@ -65,6 +67,13 @@ export type UnlockVaultInput = {
 export type SessionState = {
   status: 'locked' | 'unlocked';
   hasVault: boolean;
+};
+
+export type SessionChangeReason = 'manual' | 'idle_timeout' | 'window_minimize';
+
+export type SessionChangedPayload = {
+  state: SessionState;
+  reason: SessionChangeReason;
 };
 
 export type ImportRequest = {
@@ -147,6 +156,8 @@ export type CloseMediaSessionInput = {
 
 export type SecuritySettings = {
   secureDeleteOnImport: boolean;
+  autoLockMinutes: number;
+  lockOnMinimize: boolean;
 };
 
 export type UpdateSecuritySettingsInput = Partial<SecuritySettings>;
@@ -321,6 +332,11 @@ export type LoadExtensionResult = {
   summary: ExtensionSummary;
 };
 
+export type ExtensionStartupError = {
+  path: string;
+  error: string;
+};
+
 export type ElectronAPI = {
   getPathForFile: (file: File) => string;
   openSettings: () => Promise<void>;
@@ -369,6 +385,7 @@ export type ElectronAPI = {
   updateSecuritySettings: (
     input: UpdateSecuritySettingsInput,
   ) => Promise<OperationResult<SecuritySettings>>;
+  onSessionChanged: (handler: (payload: SessionChangedPayload) => void) => () => void;
   getAppearanceSettings: () => Promise<OperationResult<AppearanceSettings>>;
   updateAppearanceSettings: (
     input: UpdateAppearanceSettingsInput,
@@ -388,6 +405,9 @@ export type BrowserAPI = {
   cancelDownload: (id: string) => Promise<OperationResult>;
   listExtensions: () => Promise<OperationResult<ExtensionSummary[]>>;
   loadExtension: () => Promise<OperationResult<LoadExtensionResult>>;
+  getBrowserSettings: () => Promise<OperationResult<BrowserSettings>>;
+  updateBrowserSettings: (input: UpdateBrowserSettingsInput) => Promise<OperationResult<BrowserSettings>>;
+  listExtensionStartupErrors: () => Promise<OperationResult<ExtensionStartupError[]>>;
 };
 
 export type AuthScreenMode = 'login' | 'create-account' | 'loading';

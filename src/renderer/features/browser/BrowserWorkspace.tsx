@@ -18,7 +18,13 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import type { BookmarkSummary, DownloadProgress, ExtensionSummary } from '../../../shared/ipc';
+import type {
+  BookmarkSummary,
+  BrowserSettings,
+  DownloadProgress,
+  ExtensionStartupError,
+  ExtensionSummary,
+} from '../../../shared/ipc';
 import { DEFAULT_SEARCH_ENGINE, normalizeAddressInput } from '../../browser/utils/address';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
@@ -65,6 +71,12 @@ type TabWebViewProps = {
   tab: BrowserTab;
   onAttach: (tabId: string, el: WebviewTag | null) => void;
   onStateChange: (tabId: string, patch: Partial<BrowserTab>) => void;
+  onNavigateEvent?: (tabId: string, url: string) => void;
+};
+
+type NavigationSample = {
+  url: string;
+  at: number;
 };
 
 const getDomainLabel = (rawUrl: string): string => {
@@ -93,6 +105,32 @@ const createTab = (url = HOME_URL): BrowserTab => ({
   hasCrashed: false,
 });
 
+const CHALLENGE_HINT_PATTERNS = [
+  '__cf_chl_',
+  '/cdn-cgi/challenge-platform',
+  'captcha',
+  'challenge',
+  'cf_chl',
+];
+
+const CHALLENGE_WINDOW_MS = 12_000;
+const CHALLENGE_MIN_NAVS = 8;
+const CHALLENGE_COOLDOWN_MS = 60_000;
+const CHALLENGE_HISTORY_SIZE = 12;
+
+const isChallengeLikeUrl = (url: string): boolean => {
+  const normalized = url.toLowerCase();
+  return CHALLENGE_HINT_PATTERNS.some((pattern) => normalized.includes(pattern));
+};
+
+const getHost = (url: string): string => {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+};
+
 const syncNavState = (tabId: string, webview: WebviewTag, onStateChange: TabWebViewProps['onStateChange']): void => {
   onStateChange(tabId, {
     url: webview.getURL() || '',
@@ -104,7 +142,7 @@ const syncNavState = (tabId: string, webview: WebviewTag, onStateChange: TabWebV
   });
 };
 
-const TabWebView = ({ tab, onAttach, onStateChange }: TabWebViewProps): React.JSX.Element => {
+const TabWebView = ({ tab, onAttach, onStateChange, onNavigateEvent }: TabWebViewProps): React.JSX.Element => {
   const webviewRef = useRef<WebviewTag | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
 
@@ -118,7 +156,11 @@ const TabWebView = ({ tab, onAttach, onStateChange }: TabWebViewProps): React.JS
       syncNavState(tab.id, webview, onStateChange);
       void readGuestSize();
     };
-    const onNavigate = (): void => syncNavState(tab.id, webview, onStateChange);
+    const onNavigate = (): void => {
+      const nextUrl = webview.getURL() || tab.url;
+      syncNavState(tab.id, webview, onStateChange);
+      onNavigateEvent?.(tab.id, nextUrl);
+    };
     const onFailLoad = (event: Event): void => {
       const details = event as unknown as { errorCode?: number };
       if (details.errorCode === -3) return;
@@ -159,7 +201,7 @@ const TabWebView = ({ tab, onAttach, onStateChange }: TabWebViewProps): React.JS
       webview.removeEventListener('render-process-gone', onProcessGone);
       delete webview.dataset.listenersAttached;
     };
-  }, [onStateChange, tab.id]);
+  }, [onNavigateEvent, onStateChange, tab.id, tab.url]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -238,8 +280,12 @@ export const BrowserWorkspace = ({
   const [downloads, setDownloads] = useState<Record<string, DownloadEntry>>({});
   const [extensions, setExtensions] = useState<ExtensionSummary[]>([]);
   const [extensionError, setExtensionError] = useState('');
+  const [extensionStartupErrors, setExtensionStartupErrors] = useState<ExtensionStartupError[]>([]);
+  const [browserSettings, setBrowserSettings] = useState<BrowserSettings | null>(null);
   const webviewRefs = useRef<Record<string, WebviewTag | null>>({});
   const downloadCleanupTimers = useRef<Record<string, number>>({});
+  const navigationHistoryRef = useRef<Record<string, NavigationSample[]>>({});
+  const challengeWarningCooldownRef = useRef<Record<string, number>>({});
 
   const activeTab = useMemo(
     () => tabs.find((tab) => tab.id === activeTabId) ?? tabs[0],
@@ -254,6 +300,25 @@ export const BrowserWorkspace = ({
     void window.browserAPI.listBookmarks().then((result) => {
       if (result.ok) setBookmarks(result.data);
     });
+  }, []);
+
+  useEffect(() => {
+    void window.browserAPI.getBrowserSettings().then((result) => {
+      if (result.ok) {
+        setBrowserSettings(result.data);
+      }
+    });
+  }, []);
+
+  const refreshExtensionStartupErrors = async (): Promise<void> => {
+    const result = await window.browserAPI.listExtensionStartupErrors();
+    if (result.ok) {
+      setExtensionStartupErrors(result.data);
+    }
+  };
+
+  useEffect(() => {
+    void refreshExtensionStartupErrors();
   }, []);
 
   const refreshExtensions = async (): Promise<void> => {
@@ -365,6 +430,93 @@ export const BrowserWorkspace = ({
     }
   };
 
+  const updateStrictCookieBlocking = async (
+    strict: boolean,
+    options?: { reloadCurrentTab?: boolean; silent?: boolean },
+  ): Promise<void> => {
+    const result = await window.browserAPI.updateBrowserSettings({ blockThirdPartyCookies: strict });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+
+    setBrowserSettings(result.data);
+
+    if (!options?.silent) {
+      if (strict) {
+        toast.info('Strict cookie blocking enabled.');
+      } else {
+        toast.success('Compatibility mode enabled. Reloading tab.');
+      }
+    }
+
+    if (!strict && options?.reloadCurrentTab) {
+      const wv = activeTab ? webviewRefs.current[activeTab.id] : null;
+      if (wv) {
+        try {
+          wv.reload();
+        } catch {
+          // Ignore transient reload failures.
+        }
+      }
+    }
+  };
+
+  const handleTabNavigate = useCallback((tabId: string, url: string): void => {
+    const now = Date.now();
+    const previous = navigationHistoryRef.current[tabId] ?? [];
+    const samples = [...previous, { url, at: now }]
+      .filter((sample) => now - sample.at <= CHALLENGE_WINDOW_MS)
+      .slice(-CHALLENGE_HISTORY_SIZE);
+    navigationHistoryRef.current[tabId] = samples;
+
+    if (samples.length < CHALLENGE_MIN_NAVS) {
+      return;
+    }
+
+    const latestHost = getHost(url);
+    const sameHostSamples = latestHost
+      ? samples.filter((sample) => getHost(sample.url) === latestHost)
+      : [];
+    const uniqueSameHostUrls = new Set(sameHostSamples.map((sample) => sample.url)).size;
+    const looksLikeChallenge = samples.some((sample) => isChallengeLikeUrl(sample.url));
+    const looksLikeHighChurn = sameHostSamples.length >= CHALLENGE_MIN_NAVS && uniqueSameHostUrls >= 4;
+
+    if (!looksLikeChallenge && !looksLikeHighChurn) {
+      return;
+    }
+
+    if ((challengeWarningCooldownRef.current[tabId] ?? 0) > now) {
+      return;
+    }
+    challengeWarningCooldownRef.current[tabId] = now + CHALLENGE_COOLDOWN_MS;
+
+    if (!browserSettings?.blockThirdPartyCookies) {
+      toast.warning('Possible anti-bot challenge loop detected on this site.');
+      return;
+    }
+
+    toast.warning('Possible challenge loop detected. Try compatibility mode.', {
+      action: {
+        label: 'Enable Compatibility',
+        onClick: () => {
+          void updateStrictCookieBlocking(false, { reloadCurrentTab: true });
+        },
+      },
+    });
+
+    if (process.env.NODE_ENV !== 'production') {
+      const durationMs = samples[samples.length - 1].at - samples[0].at;
+      // eslint-disable-next-line no-console
+      console.warn('[BrowserChallengeLoop]', {
+        tabId,
+        host: latestHost,
+        samples: samples.length,
+        durationMs,
+      });
+    }
+  }, [browserSettings?.blockThirdPartyCookies]);
+
   const refreshBookmarks = async (): Promise<void> => {
     const result = await window.browserAPI.listBookmarks();
     if (result.ok) setBookmarks(result.data);
@@ -449,6 +601,7 @@ export const BrowserWorkspace = ({
     else {
       setExtensionError('');
       await refreshExtensions();
+      await refreshExtensionStartupErrors();
     }
   };
 
@@ -555,6 +708,19 @@ export const BrowserWorkspace = ({
         <span className="text-xs text-text-muted">Unpacked only</span>
       </div>
       {extensionError && <p className="mt-2 text-xs text-danger">{extensionError}</p>}
+      {extensionStartupErrors.length > 0 && (
+        <div className="mt-2 rounded-md border border-warning/40 bg-warning/10 p-2">
+          <p className="mb-1 text-xs font-medium text-warning">Startup load errors</p>
+          <div className="space-y-1">
+            {extensionStartupErrors.map((item) => (
+              <div key={`${item.path}:${item.error}`} className="text-[11px] text-text-muted">
+                <div className="truncate">{item.path}</div>
+                <div className="truncate text-danger">{item.error}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <ScrollArea className="mt-3 flex-1">
         <div className="space-y-1 pb-2">
           {extensions.length === 0 ? (
@@ -628,6 +794,28 @@ export const BrowserWorkspace = ({
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Bookmark page</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={browserSettings?.blockThirdPartyCookies ? 'secondary' : 'default'}
+                  size="sm"
+                  className="h-8 px-2 text-xs"
+                  onClick={() => {
+                    void updateStrictCookieBlocking(Boolean(!browserSettings?.blockThirdPartyCookies), {
+                      reloadCurrentTab: Boolean(browserSettings?.blockThirdPartyCookies),
+                    });
+                  }}
+                >
+                  {browserSettings?.blockThirdPartyCookies ? 'Strict' : 'Compat'}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {browserSettings?.blockThirdPartyCookies
+                  ? 'Strict cookie blocking is enabled'
+                  : 'Compatibility mode is enabled'}
+              </TooltipContent>
             </Tooltip>
 
             {canShowCloseButton && (
@@ -774,6 +962,7 @@ export const BrowserWorkspace = ({
                   tab={tab}
                   onAttach={(tabId, el) => { webviewRefs.current[tabId] = el; }}
                   onStateChange={applyTabPatch}
+                  onNavigateEvent={handleTabNavigate}
                 />
                 {tab.hasCrashed && (
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-bg/80">
