@@ -13,9 +13,11 @@ import {
   Loader2,
   ChevronDown,
   ChevronRight,
-  Trash2,
+  PanelLeftClose,
+  PanelLeftOpen,
   ExternalLink,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { BookmarkSummary, DownloadProgress, ExtensionSummary } from '../../../shared/ipc';
 import { DEFAULT_SEARCH_ENGINE, normalizeAddressInput } from '../../browser/utils/address';
 import { Button } from '../../components/ui/Button';
@@ -23,6 +25,19 @@ import { Badge } from '../../components/ui/Badge';
 import { Progress } from '../../components/ui/Progress';
 import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '../../components/ui/Tooltip';
 import { ScrollArea } from '../../components/ui/ScrollArea';
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from '../../components/ui/ContextMenu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../../components/ui/Dialog';
 import { cn } from '../../lib/utils';
 
 const BROWSER_PARTITION = 'persist:privatevault-browser';
@@ -192,11 +207,16 @@ export const BrowserWorkspace = ({
   const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id);
   const [addressInput, setAddressInput] = useState(HOME_URL);
   const [legacyShowBookmarks, setLegacyShowBookmarks] = useState(false);
-  const [legacyShowExtensions, setLegacyShowExtensions] = useState(false);
+  const [legacyShowExtensions] = useState(false);
   const [libraryTab, setLibraryTab] = useState<'bookmarks' | 'extensions'>('bookmarks');
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
   const [bookmarks, setBookmarks] = useState<BookmarkSummary[]>([]);
+  const [showBookmarkForm, setShowBookmarkForm] = useState(false);
   const [bookmarkTitle, setBookmarkTitle] = useState('');
   const [bookmarkUrl, setBookmarkUrl] = useState('');
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameBookmarkTarget, setRenameBookmarkTarget] = useState<BookmarkSummary | null>(null);
+  const [renameBookmarkTitle, setRenameBookmarkTitle] = useState('');
   const [collapsedDomains, setCollapsedDomains] = useState<Record<string, boolean>>({});
   const [downloads, setDownloads] = useState<Record<string, DownloadEntry>>({});
   const [extensions, setExtensions] = useState<ExtensionSummary[]>([]);
@@ -335,21 +355,67 @@ export const BrowserWorkspace = ({
 
   const handleCreateBookmark = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
+    const normalizedInputUrl = bookmarkUrl.trim().toLowerCase();
+    const hasDuplicate = bookmarks.some((bookmark) => bookmark.url.trim().toLowerCase() === normalizedInputUrl);
+    if (hasDuplicate) {
+      toast.warning('Bookmark already exists for this URL.');
+      return;
+    }
+
     const result = await window.browserAPI.createBookmark({ title: bookmarkTitle, url: bookmarkUrl });
     if (!result.ok) return;
     setBookmarkTitle('');
     setBookmarkUrl('');
+    setShowBookmarkForm(false);
+    toast.success('Bookmark added.');
     await refreshBookmarks();
   };
 
   const handleSaveCurrentAsBookmark = async (): Promise<void> => {
     if (!activeTab) return;
+    const normalizedActiveUrl = activeTab.url.trim().toLowerCase();
+    const hasDuplicate = bookmarks.some((bookmark) => bookmark.url.trim().toLowerCase() === normalizedActiveUrl);
+    if (hasDuplicate) {
+      toast.warning('Bookmark already exists for this URL.');
+      return;
+    }
+
     await window.browserAPI.createBookmark({ title: activeTab.title, url: activeTab.url });
+    toast.success('Bookmark added.');
     await refreshBookmarks();
   };
 
   const handleDeleteBookmark = async (id: number): Promise<void> => {
     await window.browserAPI.deleteBookmark({ id });
+    await refreshBookmarks();
+  };
+
+  const openRenameBookmarkDialog = (bookmark: BookmarkSummary): void => {
+    setRenameBookmarkTarget(bookmark);
+    setRenameBookmarkTitle(bookmark.title);
+    setRenameDialogOpen(true);
+  };
+
+  const handleRenameBookmark = async (): Promise<void> => {
+    if (!renameBookmarkTarget) {
+      return;
+    }
+    const trimmed = renameBookmarkTitle.trim();
+    if (!trimmed || trimmed === renameBookmarkTarget.title) {
+      setRenameDialogOpen(false);
+      return;
+    }
+
+    const created = await window.browserAPI.createBookmark({ title: trimmed, url: renameBookmarkTarget.url });
+    if (!created.ok) {
+      toast.error(created.error);
+      return;
+    }
+    await window.browserAPI.deleteBookmark({ id: renameBookmarkTarget.id });
+    setRenameDialogOpen(false);
+    setRenameBookmarkTarget(null);
+    setRenameBookmarkTitle('');
+    toast.success('Bookmark renamed.');
     await refreshBookmarks();
   };
 
@@ -369,35 +435,6 @@ export const BrowserWorkspace = ({
     }
   };
 
-  const handleToggleBookmarks = (): void => {
-    if (showPersistentLeftPanel) {
-      setLibraryTab('bookmarks');
-      return;
-    }
-    setLegacyShowBookmarks((prev) => {
-      const next = !prev;
-      if (next) {
-        setLegacyShowExtensions(false);
-      }
-      return next;
-    });
-  };
-
-  const handleToggleExtensions = (): void => {
-    void refreshExtensions();
-    if (showPersistentLeftPanel) {
-      setLibraryTab('extensions');
-      return;
-    }
-    setLegacyShowExtensions((prev) => {
-      const next = !prev;
-      if (next) {
-        setLegacyShowBookmarks(false);
-      }
-      return next;
-    });
-  };
-
   const downloadList = useMemo(() => Object.values(downloads), [downloads]);
 
   const groupedBookmarks = useMemo(() => {
@@ -413,21 +450,31 @@ export const BrowserWorkspace = ({
 
   const bookmarksContent = (
     <>
-      <form onSubmit={(e) => void handleCreateBookmark(e)} className="flex flex-col gap-2">
-        <input
-          value={bookmarkTitle}
-          onChange={(e) => setBookmarkTitle(e.target.value)}
-          placeholder="Title"
-          className="h-8 rounded-md border border-border bg-bg px-2 text-xs text-text-primary focus:border-accent focus:outline-none"
-        />
-        <input
-          value={bookmarkUrl}
-          onChange={(e) => setBookmarkUrl(e.target.value)}
-          placeholder="https://example.com"
-          className="h-8 rounded-md border border-border bg-bg px-2 text-xs text-text-primary focus:border-accent focus:outline-none"
-        />
-        <Button type="submit" size="sm" className="h-8 text-xs">Add Bookmark</Button>
-      </form>
+      <Button
+        variant={showBookmarkForm ? 'default' : 'secondary'}
+        size="sm"
+        onClick={() => setShowBookmarkForm((prev) => !prev)}
+        className="h-8 text-xs"
+      >
+        {showBookmarkForm ? 'Hide Manual Add' : 'Add Bookmark'}
+      </Button>
+      {showBookmarkForm && (
+        <form onSubmit={(e) => void handleCreateBookmark(e)} className="mt-2 flex flex-col gap-2">
+          <input
+            value={bookmarkTitle}
+            onChange={(e) => setBookmarkTitle(e.target.value)}
+            placeholder="Title"
+            className="h-8 rounded-md border border-border bg-bg px-2 text-xs text-text-primary focus:border-accent focus:outline-none"
+          />
+          <input
+            value={bookmarkUrl}
+            onChange={(e) => setBookmarkUrl(e.target.value)}
+            placeholder="https://example.com"
+            className="h-8 rounded-md border border-border bg-bg px-2 text-xs text-text-primary focus:border-accent focus:outline-none"
+          />
+          <Button type="submit" size="sm" className="h-8 text-xs">Save Bookmark</Button>
+        </form>
+      )}
       <ScrollArea className="mt-3 flex-1">
         {bookmarks.length === 0 ? (
           <p className="py-2 text-xs text-text-muted">No bookmarks saved.</p>
@@ -447,23 +494,31 @@ export const BrowserWorkspace = ({
                     <Badge variant="secondary" className="ml-auto text-[10px]">{domainBookmarks.length}</Badge>
                   </button>
                   {!collapsed && domainBookmarks.map((bm) => (
-                    <div key={bm.id} className="ml-5 flex items-center gap-2 rounded-md px-2 py-1 text-xs hover:bg-surface-hover">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenBookmark(bm.url)}
-                        className="min-w-0 flex-1 truncate text-left text-text-primary"
-                        title={bm.url}
-                      >
-                        {bm.title}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteBookmark(bm.id)}
-                        className="shrink-0 rounded p-0.5 text-text-muted hover:text-danger"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </div>
+                    <ContextMenu key={bm.id}>
+                      <ContextMenuTrigger asChild>
+                        <div className="ml-5 flex items-center gap-2 rounded-md px-2 py-1 text-xs hover:bg-surface-hover">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenBookmark(bm.url)}
+                            className="min-w-0 flex-1 truncate text-left text-text-primary"
+                            title={bm.url}
+                          >
+                            {bm.title}
+                          </button>
+                        </div>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent>
+                        <ContextMenuItem onClick={() => openRenameBookmarkDialog(bm)}>
+                          Rename
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onClick={() => void handleDeleteBookmark(bm.id)}
+                          className="text-danger focus:text-danger"
+                        >
+                          Delete
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
                   ))}
                 </div>
               );
@@ -558,32 +613,6 @@ export const BrowserWorkspace = ({
               <TooltipContent>Bookmark page</TooltipContent>
             </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={(showPersistentLeftPanel ? libraryTab === 'bookmarks' : legacyShowBookmarks) ? 'default' : 'ghost'}
-                  size="icon-sm"
-                  onClick={handleToggleBookmarks}
-                >
-                  <Bookmark className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Bookmarks</TooltipContent>
-            </Tooltip>
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={(showPersistentLeftPanel ? libraryTab === 'extensions' : legacyShowExtensions) ? 'default' : 'ghost'}
-                  size="icon-sm"
-                  onClick={handleToggleExtensions}
-                >
-                  <Puzzle className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Extensions</TooltipContent>
-            </Tooltip>
-
             {canShowCloseButton && (
               <Button variant="ghost" size="icon-sm" onClick={() => void window.browserAPI.closeBrowserWindow()}>
                 <X className="h-4 w-4" />
@@ -646,35 +675,79 @@ export const BrowserWorkspace = ({
 
         <main className="flex min-h-0 flex-1 overflow-hidden">
           {showPersistentLeftPanel && (
-            <aside className="flex w-[280px] min-w-[240px] shrink-0 flex-col border-r border-border bg-surface p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Library</h2>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant={libraryTab === 'bookmarks' ? 'default' : 'ghost'}
-                    size="icon-sm"
-                    onClick={() => setLibraryTab('bookmarks')}
-                    aria-label="Bookmarks panel"
-                  >
-                    <Bookmark className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant={libraryTab === 'extensions' ? 'default' : 'ghost'}
-                    size="icon-sm"
-                    onClick={() => {
-                      setLibraryTab('extensions');
-                      void refreshExtensions();
-                    }}
-                    aria-label="Extensions panel"
-                  >
-                    <Puzzle className="h-3.5 w-3.5" />
-                  </Button>
+            leftPanelCollapsed ? (
+              <aside className="flex w-12 shrink-0 flex-col items-center gap-2 border-r border-border bg-surface py-3">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setLeftPanelCollapsed(false)}
+                  aria-label="Expand library panel"
+                >
+                  <PanelLeftOpen className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant={libraryTab === 'bookmarks' ? 'default' : 'ghost'}
+                  size="icon-sm"
+                  onClick={() => {
+                    setLibraryTab('bookmarks');
+                    setLeftPanelCollapsed(false);
+                  }}
+                  aria-label="Open bookmarks panel"
+                >
+                  <Bookmark className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant={libraryTab === 'extensions' ? 'default' : 'ghost'}
+                  size="icon-sm"
+                  onClick={() => {
+                    setLibraryTab('extensions');
+                    void refreshExtensions();
+                    setLeftPanelCollapsed(false);
+                  }}
+                  aria-label="Open extensions panel"
+                >
+                  <Puzzle className="h-3.5 w-3.5" />
+                </Button>
+              </aside>
+            ) : (
+              <aside className="flex w-[280px] min-w-[240px] shrink-0 flex-col border-r border-border bg-surface p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Library</h2>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant={libraryTab === 'bookmarks' ? 'default' : 'ghost'}
+                      size="icon-sm"
+                      onClick={() => setLibraryTab('bookmarks')}
+                      aria-label="Bookmarks panel"
+                    >
+                      <Bookmark className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant={libraryTab === 'extensions' ? 'default' : 'ghost'}
+                      size="icon-sm"
+                      onClick={() => {
+                        setLibraryTab('extensions');
+                        void refreshExtensions();
+                      }}
+                      aria-label="Extensions panel"
+                    >
+                      <Puzzle className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setLeftPanelCollapsed(true)}
+                      aria-label="Collapse library panel"
+                    >
+                      <PanelLeftClose className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <div className="flex min-h-0 flex-1 flex-col">
-                {libraryTab === 'bookmarks' ? bookmarksContent : extensionsContent}
-              </div>
-            </aside>
+                <div className="flex min-h-0 flex-1 flex-col">
+                  {libraryTab === 'bookmarks' ? bookmarksContent : extensionsContent}
+                </div>
+              </aside>
+            )
           )}
 
           <div className="min-h-0 flex-1">
@@ -736,6 +809,41 @@ export const BrowserWorkspace = ({
             </div>
           </div>
         )}
+
+        <Dialog
+          open={renameDialogOpen}
+          onOpenChange={(open) => {
+            setRenameDialogOpen(open);
+            if (!open) {
+              setRenameBookmarkTarget(null);
+              setRenameBookmarkTitle('');
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Rename Bookmark</DialogTitle>
+              <DialogDescription>Update bookmark title.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <input
+                value={renameBookmarkTitle}
+                onChange={(e) => setRenameBookmarkTitle(e.target.value)}
+                placeholder="Bookmark title"
+                autoFocus
+                className="h-9 w-full rounded-md border border-border bg-bg px-3 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50"
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setRenameDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={() => void handleRenameBookmark()} disabled={!renameBookmarkTitle.trim()}>
+                  Save
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </TooltipProvider>
   );
