@@ -73,6 +73,28 @@ const SettingSelect: React.FC<{
   </select>
 );
 
+const SettingSwitch: React.FC<{
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  onLabel?: string;
+  offLabel?: string;
+}> = ({ checked, onCheckedChange, onLabel = 'On', offLabel = 'Off' }) => (
+  <div className="flex items-center gap-2">
+    <span
+      className={cn(
+        'inline-flex min-w-[46px] justify-center rounded-md border px-2 py-0.5 text-[11px] font-medium',
+        checked
+          ? 'border-success/40 bg-success/10 text-success'
+          : 'border-border bg-bg text-text-muted',
+      )}
+      aria-live="polite"
+    >
+      {checked ? onLabel : offLabel}
+    </span>
+    <Switch checked={checked} onCheckedChange={onCheckedChange} />
+  </div>
+);
+
 // ── Security Settings ────────────────────────────────────────────────
 const SecuritySection: React.FC = () => {
   const [settings, setSettings] = useState<SecuritySettings | null>(null);
@@ -115,7 +137,7 @@ const SecuritySection: React.FC = () => {
             label="Secure delete on import"
             description="Overwrite original files with 3-pass secure erase after importing to vault."
           >
-            <Switch
+            <SettingSwitch
               checked={settings.secureDeleteOnImport}
               onCheckedChange={(checked) => void updateSetting('secureDeleteOnImport', checked)}
             />
@@ -154,7 +176,7 @@ const SecuritySection: React.FC = () => {
           >
             <div className="flex items-center gap-2">
               <Monitor className="h-3.5 w-3.5 text-text-muted" />
-              <Switch
+              <SettingSwitch
                 checked={settings.lockOnMinimize}
                 onCheckedChange={(checked) => void updateSetting('lockOnMinimize', checked)}
               />
@@ -310,7 +332,7 @@ const BrowserSection: React.FC = () => {
             label="Clear data on exit"
             description="Clear browsing data (cookies, cache, history) when closing the browser."
           >
-            <Switch
+            <SettingSwitch
               checked={settings.clearOnExit}
               onCheckedChange={(checked) => void update({ clearOnExit: checked })}
             />
@@ -322,7 +344,7 @@ const BrowserSection: React.FC = () => {
             label="Block pop-ups"
             description="Prevent websites from opening pop-up windows."
           >
-            <Switch
+            <SettingSwitch
               checked={settings.blockPopups}
               onCheckedChange={(checked) => void update({ blockPopups: checked })}
             />
@@ -334,7 +356,7 @@ const BrowserSection: React.FC = () => {
             label="Block third-party cookies (may break some sites)"
             description="Block cookies from domains other than the current page. Can cause login/challenge loops on anti-bot protected websites."
           >
-            <Switch
+            <SettingSwitch
               checked={settings.blockThirdPartyCookies}
               onCheckedChange={(checked) => void update({ blockThirdPartyCookies: checked })}
             />
