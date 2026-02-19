@@ -7,6 +7,9 @@ import {
   Plus,
   Trash2,
   Library,
+  Image as ImageIcon,
+  Film,
+  Home,
 } from 'lucide-react';
 import type { FolderNode } from '../../../../shared/ipc';
 import { Button } from '../../../components/ui/Button';
@@ -30,8 +33,13 @@ import { cn } from '../../../lib/utils';
 
 type FolderSidebarProps = {
   folders: FolderNode[];
+  selectedViewScope: 'all' | 'video' | 'image' | 'root' | 'folder';
   selectedFolderId: number | null;
-  onSelectFolder: (folderId: number | null) => void;
+  onSelectAllItems: () => void;
+  onSelectVideo: () => void;
+  onSelectImage: () => void;
+  onSelectRoot: () => void;
+  onSelectFolder: (folderId: number) => void;
   newFolderName: string;
   onNewFolderNameChange: (value: string) => void;
   newFolderParentId: number | null;
@@ -55,14 +63,15 @@ const flattenFolders = (folders: FolderNode[], depth = 0): Array<{ id: number; l
 // ── Folder tree node ─────────────────────────────────────────────────
 const FolderTreeNode: React.FC<{
   folder: FolderNode;
+  selectedViewScope: 'all' | 'video' | 'image' | 'root' | 'folder';
   selectedFolderId: number | null;
   onSelectFolder: (folderId: number) => void;
   onDeleteFolder: (folderId: number) => void;
   depth: number;
-}> = ({ folder, selectedFolderId, onSelectFolder, onDeleteFolder, depth }) => {
+}> = ({ folder, selectedViewScope, selectedFolderId, onSelectFolder, onDeleteFolder, depth }) => {
   const [expanded, setExpanded] = useState(true);
   const hasChildren = folder.children.length > 0;
-  const isActive = selectedFolderId === folder.id;
+  const isActive = selectedViewScope === 'folder' && selectedFolderId === folder.id;
 
   return (
     <li>
@@ -125,6 +134,7 @@ const FolderTreeNode: React.FC<{
             <FolderTreeNode
               key={child.id}
               folder={child}
+              selectedViewScope={selectedViewScope}
               selectedFolderId={selectedFolderId}
               onSelectFolder={onSelectFolder}
               onDeleteFolder={onDeleteFolder}
@@ -140,7 +150,12 @@ const FolderTreeNode: React.FC<{
 // ── Main Sidebar ─────────────────────────────────────────────────────
 export const FolderSidebar = ({
   folders,
+  selectedViewScope,
   selectedFolderId,
+  onSelectAllItems,
+  onSelectVideo,
+  onSelectImage,
+  onSelectRoot,
   onSelectFolder,
   newFolderName,
   onNewFolderNameChange,
@@ -160,35 +175,15 @@ export const FolderSidebar = ({
 
   return (
     <aside className="flex h-full flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2.5">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
-          Folders
-        </span>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setShowNewFolderDialog(true)}
-              aria-label="New folder"
-            >
-              <FolderPlus className="h-3.5 w-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>New folder</TooltipContent>
-        </Tooltip>
-      </div>
-
       <ScrollArea className="flex-1">
-        <div className="px-2 pb-2">
-          {/* All items */}
+        <div className="px-2 pt-2 pb-2">
+          {/* Library shortcuts */}
           <button
             type="button"
-            onClick={() => onSelectFolder(null)}
+            onClick={onSelectAllItems}
             className={cn(
               'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-              selectedFolderId === null
+              selectedViewScope === 'all'
                 ? 'bg-accent/15 text-accent font-medium'
                 : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
             )}
@@ -196,15 +191,71 @@ export const FolderSidebar = ({
             <Library className="h-4 w-4 shrink-0" />
             <span>All Items</span>
           </button>
+          <button
+            type="button"
+            onClick={onSelectVideo}
+            className={cn(
+              'mt-0.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+              selectedViewScope === 'video'
+                ? 'bg-accent/15 text-accent font-medium'
+                : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
+            )}
+          >
+            <Film className="h-4 w-4 shrink-0" />
+            <span>Video</span>
+          </button>
+          <button
+            type="button"
+            onClick={onSelectImage}
+            className={cn(
+              'mt-0.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+              selectedViewScope === 'image'
+                ? 'bg-accent/15 text-accent font-medium'
+                : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
+            )}
+          >
+            <ImageIcon className="h-4 w-4 shrink-0" />
+            <span>Image</span>
+          </button>
 
           {/* Folder tree */}
-          {folders.length > 0 && (
-            <div className="mt-2 border-t border-border pt-2">
+          <div className="mt-2 border-t border-border pt-2">
+            <div className="mb-1 flex items-center justify-between px-2 py-1">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Folders</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setShowNewFolderDialog(true)}
+                    aria-label="New folder"
+                  >
+                    <FolderPlus className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>New folder</TooltipContent>
+              </Tooltip>
+            </div>
+            <button
+              type="button"
+              onClick={onSelectRoot}
+              className={cn(
+                'mb-0.5 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                selectedViewScope === 'root'
+                  ? 'bg-accent/15 text-accent font-medium'
+                  : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
+              )}
+            >
+              <Home className="h-4 w-4 shrink-0" />
+              <span>Root</span>
+            </button>
+            {folders.length > 0 ? (
               <ul className="space-y-0.5">
                 {folders.map((folder) => (
                   <FolderTreeNode
                     key={folder.id}
                     folder={folder}
+                    selectedViewScope={selectedViewScope}
                     selectedFolderId={selectedFolderId}
                     onSelectFolder={onSelectFolder}
                     onDeleteFolder={onDeleteFolder}
@@ -212,14 +263,10 @@ export const FolderSidebar = ({
                   />
                 ))}
               </ul>
-            </div>
-          )}
-
-          {folders.length === 0 && (
-            <p className="px-2 py-6 text-center text-xs text-text-muted/60">
-              No folders yet
-            </p>
-          )}
+            ) : (
+              <p className="px-2 py-4 text-xs text-text-muted/60">No folders yet</p>
+            )}
+          </div>
         </div>
       </ScrollArea>
 

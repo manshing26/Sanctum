@@ -113,6 +113,7 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     searchTerm,
     sort,
     selectedFolderId,
+    selectedViewScope,
     selectedTagIds,
     selectedItem,
     selectedItemIds,
@@ -121,6 +122,7 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     showFavoritesOnly,
     setSearchTerm,
     setSelectedFolderId,
+    setSelectedViewScope,
     setSelectedTagIds,
     toggleSelectedItem,
     setSelectedItems,
@@ -254,6 +256,31 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     }
     clearSelection();
     setIsMultiSelect(false);
+  };
+
+  const handleSelectAllItemsScope = (): void => {
+    setSelectedViewScope('all');
+    setSelectedFolderId(null);
+  };
+
+  const handleSelectVideoScope = (): void => {
+    setSelectedViewScope('video');
+    setSelectedFolderId(null);
+  };
+
+  const handleSelectImageScope = (): void => {
+    setSelectedViewScope('image');
+    setSelectedFolderId(null);
+  };
+
+  const handleSelectRootScope = (): void => {
+    setSelectedViewScope('root');
+    setSelectedFolderId(null);
+  };
+
+  const handleSelectFolderScope = (folderId: number): void => {
+    setSelectedViewScope('folder');
+    setSelectedFolderId(folderId);
   };
 
   // ── Handlers ─────────────────────────────────────────────────────
@@ -517,6 +544,7 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
       }
 
       if (folderId !== null) {
+        setSelectedViewScope('folder');
         setSelectedFolderId(folderId);
       }
 
@@ -722,8 +750,13 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
         >
           <FolderSidebar
             folders={folders}
+            selectedViewScope={selectedViewScope}
             selectedFolderId={selectedFolderId}
-            onSelectFolder={setSelectedFolderId}
+            onSelectAllItems={handleSelectAllItemsScope}
+            onSelectVideo={handleSelectVideoScope}
+            onSelectImage={handleSelectImageScope}
+            onSelectRoot={handleSelectRootScope}
+            onSelectFolder={handleSelectFolderScope}
             newFolderName={newFolderName}
             onNewFolderNameChange={setNewFolderName}
             newFolderParentId={newFolderParentId}

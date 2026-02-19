@@ -56,6 +56,7 @@ export const useGalleryState = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sort, setSort] = useState<VaultListSort>('newest');
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
+  const [selectedViewScope, setSelectedViewScope] = useState<'all' | 'video' | 'image' | 'root' | 'folder'>('all');
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [primarySelectedId, setPrimarySelectedId] = useState<string | null>(null);
@@ -211,18 +212,32 @@ export const useGalleryState = () => {
   }, [loadFirstPage]);
 
   const descendantSet = useMemo(() => {
-    if (selectedFolderId === null) {
+    if (selectedViewScope !== 'folder' || selectedFolderId === null) {
       return null;
     }
     return collectDescendantIds(folders, selectedFolderId);
-  }, [folders, selectedFolderId]);
+  }, [folders, selectedFolderId, selectedViewScope]);
 
   const filteredItems = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
 
     return allItems.filter((item) => {
-      if (descendantSet && !descendantSet.has(item.folderId ?? -1)) {
-        return false;
+      if (selectedViewScope === 'folder') {
+        if (descendantSet && !descendantSet.has(item.folderId ?? -1)) {
+          return false;
+        }
+      } else if (selectedViewScope === 'root') {
+        if (item.folderId !== undefined && item.folderId !== null) {
+          return false;
+        }
+      } else if (selectedViewScope === 'video') {
+        if (!item.mimeType.startsWith('video/')) {
+          return false;
+        }
+      } else if (selectedViewScope === 'image') {
+        if (!item.mimeType.startsWith('image/')) {
+          return false;
+        }
       }
 
       if (
@@ -251,7 +266,7 @@ export const useGalleryState = () => {
 
       return true;
     });
-  }, [allItems, descendantSet, selectedTagIds, searchTerm, showFavoritesOnly]);
+  }, [allItems, descendantSet, selectedTagIds, searchTerm, showFavoritesOnly, selectedViewScope]);
 
   const selectedItem = useMemo(() => {
     if (primarySelectedId) {
@@ -320,6 +335,7 @@ export const useGalleryState = () => {
     searchTerm,
     sort,
     selectedFolderId,
+    selectedViewScope,
     selectedTagIds,
     selectedItem,
     selectedItemIds,
@@ -330,6 +346,7 @@ export const useGalleryState = () => {
     setSearchTerm,
     setSort,
     setSelectedFolderId,
+    setSelectedViewScope,
     setSelectedTagIds,
     toggleSelectedItem,
     setSelectedItems,
