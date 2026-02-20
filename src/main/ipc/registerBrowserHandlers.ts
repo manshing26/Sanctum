@@ -40,6 +40,21 @@ export const registerBrowserHandlers = ({
     browserWindowController.close();
   });
 
+  ipcMain.handle(IPC_CHANNELS.clearBrowserData, async () => {
+    try {
+      await browserSession.clearStorageData({
+        storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage', 'websql'],
+      });
+      await browserSession.clearCache();
+      return { ok: true as const };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to clear browser data.',
+      };
+    }
+  });
+
   ipcMain.handle(IPC_CHANNELS.listBookmarks, () => {
     try {
       return {

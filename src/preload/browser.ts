@@ -9,6 +9,7 @@ import {
 
 contextBridge.exposeInMainWorld('browserAPI', {
   closeBrowserWindow: () => ipcRenderer.invoke(IPC_CHANNELS.closeBrowserWindow),
+  clearData: () => ipcRenderer.invoke(IPC_CHANNELS.clearBrowserData),
   listBookmarks: () => ipcRenderer.invoke(IPC_CHANNELS.listBookmarks),
   createBookmark: (input: CreateBookmarkInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.createBookmark, input),

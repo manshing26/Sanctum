@@ -63,6 +63,7 @@ export type BrowserWorkspaceProps = {
   mode: 'same-window' | 'legacy-window';
   showLeftPanel?: boolean;
   showCloseButton?: boolean;
+  isActive?: boolean;
 };
 
 type TabWebViewProps = {
@@ -115,6 +116,20 @@ const CHALLENGE_WINDOW_MS = 12_000;
 const CHALLENGE_MIN_NAVS = 8;
 const CHALLENGE_COOLDOWN_MS = 60_000;
 const CHALLENGE_HISTORY_SIZE = 12;
+const PAUSE_AND_MUTE_ALL_MEDIA_SCRIPT =
+  '(() => { try { document.querySelectorAll("video,audio").forEach((el) => { try { el.muted = true; el.pause(); } catch {} }); } catch {} })();';
+const UNMUTE_ALL_MEDIA_SCRIPT =
+  '(() => { try { document.querySelectorAll("video,audio").forEach((el) => { try { el.muted = false; } catch {} }); } catch {} })();';
+
+const executeWebviewScriptSafely = (webview: WebviewTag, script: string): void => {
+  try {
+    void webview.executeJavaScript(script).catch(() => {
+      // Ignore guest script execution failures when webview is not ready.
+    });
+  } catch {
+    // Ignore sync failures before dom-ready/attachment.
+  }
+};
 
 const isChallengeLikeUrl = (url: string): boolean => {
   const normalized = url.toLowerCase();
@@ -214,23 +229,15 @@ const TabWebView = ({ tab, onAttach, onStateChange, onNavigateEvent }: TabWebVie
       }
     };
 
-    const syncSize = (): void => {
-      webview.style.width = `${host.clientWidth}px`;
-      webview.style.height = `${host.clientHeight}px`;
-    };
-
-    const syncAll = (): void => {
-      syncSize();
+    void dispatchGuestResize();
+    const observer = new ResizeObserver(() => {
       void dispatchGuestResize();
-    };
-
-    syncAll();
-    const observer = new ResizeObserver(syncAll);
+    });
     observer.observe(host);
-    window.addEventListener('resize', syncAll);
+    window.addEventListener('resize', dispatchGuestResize);
     return () => {
       observer.disconnect();
-      window.removeEventListener('resize', syncAll);
+      window.removeEventListener('resize', dispatchGuestResize);
     };
   }, [tab.id]);
 
@@ -256,9 +263,11 @@ export const BrowserWorkspace = ({
   mode,
   showLeftPanel,
   showCloseButton,
+  isActive,
 }: BrowserWorkspaceProps): React.JSX.Element => {
   const showPersistentLeftPanel = showLeftPanel ?? mode === 'same-window';
   const canShowCloseButton = showCloseButton ?? mode === 'legacy-window';
+  const isWorkspaceActive = isActive ?? true;
 
   const [tabs, setTabs] = useState<BrowserTab[]>([createTab()]);
   const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id);
@@ -280,6 +289,7 @@ export const BrowserWorkspace = ({
   const [extensionError, setExtensionError] = useState('');
   const [extensionStartupErrors, setExtensionStartupErrors] = useState<ExtensionStartupError[]>([]);
   const [browserSettings, setBrowserSettings] = useState<BrowserSettings | null>(null);
+  const [isCleaningWeb, setIsCleaningWeb] = useState(false);
   const webviewRefs = useRef<Record<string, WebviewTag | null>>({});
   const downloadCleanupTimers = useRef<Record<string, number>>({});
   const navigationHistoryRef = useRef<Record<string, NavigationSample[]>>({});
@@ -293,6 +303,43 @@ export const BrowserWorkspace = ({
   useEffect(() => {
     if (activeTab) setAddressInput(activeTab.url || HOME_URL);
   }, [activeTab]);
+
+  useEffect(() => {
+    const webviews = Object.values(webviewRefs.current).filter((entry): entry is WebviewTag => Boolean(entry));
+    for (const webview of webviews) {
+      if (isWorkspaceActive) {
+        executeWebviewScriptSafely(webview, UNMUTE_ALL_MEDIA_SCRIPT);
+      } else {
+        executeWebviewScriptSafely(webview, PAUSE_AND_MUTE_ALL_MEDIA_SCRIPT);
+      }
+    }
+  }, [isWorkspaceActive, tabs.length, activeTabId]);
+
+  useEffect(() => {
+    if (!isWorkspaceActive || !activeTab) {
+      return;
+    }
+
+    const activeWebview = webviewRefs.current[activeTab.id];
+    if (!activeWebview) {
+      return;
+    }
+
+    const dispatchResize = (): void => {
+      executeWebviewScriptSafely(activeWebview, 'window.dispatchEvent(new Event("resize"));');
+    };
+
+    const rafA = window.requestAnimationFrame(() => {
+      dispatchResize();
+      window.requestAnimationFrame(dispatchResize);
+    });
+    const timer = window.setTimeout(dispatchResize, 120);
+
+    return () => {
+      window.cancelAnimationFrame(rafA);
+      window.clearTimeout(timer);
+    };
+  }, [isWorkspaceActive, leftPanelOpen, activeTab?.id]);
 
   useEffect(() => {
     void window.browserAPI.listBookmarks().then((result) => {
@@ -457,6 +504,31 @@ export const BrowserWorkspace = ({
           // Ignore transient reload failures.
         }
       }
+    }
+  };
+
+  const handleCleanWeb = async (): Promise<void> => {
+    if (isCleaningWeb) {
+      return;
+    }
+    setIsCleaningWeb(true);
+    try {
+      const result = await window.browserAPI.clearData();
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+
+      const freshTab = createTab(HOME_URL);
+      webviewRefs.current = {};
+      navigationHistoryRef.current = {};
+      challengeWarningCooldownRef.current = {};
+      setTabs([freshTab]);
+      setActiveTabId(freshTab.id);
+      setAddressInput(freshTab.url);
+      toast.success('Web data cleared and tabs reset.');
+    } finally {
+      setIsCleaningWeb(false);
     }
   };
 
@@ -818,6 +890,23 @@ export const BrowserWorkspace = ({
                   ? 'Strict cookie blocking is enabled'
                   : 'Compatibility mode is enabled'}
               </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-xs"
+                  onClick={() => {
+                    void handleCleanWeb();
+                  }}
+                  disabled={isCleaningWeb}
+                >
+                  {isCleaningWeb ? 'Cleaning...' : 'Clean Web'}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Clear all browser data and reset tabs</TooltipContent>
             </Tooltip>
 
             {canShowCloseButton && (

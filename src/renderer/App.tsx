@@ -350,6 +350,7 @@ export const App: React.FC = () => {
   const [isBusy, setIsBusy] = useState(false);
   const [authError, setAuthError] = useState('');
   const [activeTab, setActiveTab] = useState<AppTab>('gallery');
+  const [shouldMountBrowser, setShouldMountBrowser] = useState(false);
 
   const refreshSession = async (): Promise<SessionState> => {
     const state = await window.electronAPI.getSession();
@@ -378,6 +379,14 @@ export const App: React.FC = () => {
     });
     return unsubscribe;
   }, []);
+
+  const isUnlocked = session.status === 'unlocked';
+
+  useEffect(() => {
+    if (isUnlocked) {
+      setShouldMountBrowser(true);
+    }
+  }, [isUnlocked]);
 
   const openLegacyBrowser = async (): Promise<void> => {
     const result = await refreshSession();
@@ -434,8 +443,6 @@ export const App: React.FC = () => {
     toast.info('Vault locked.');
   };
 
-  const isUnlocked = session.status === 'unlocked';
-
   return (
     <div className="flex h-screen flex-col bg-bg text-text-primary">
       <TopBar
@@ -445,25 +452,52 @@ export const App: React.FC = () => {
         isUnlocked={isUnlocked}
       />
 
-      {mode === 'loading' && <LoadingScreen />}
+      <div className="relative flex min-h-0 flex-1">
+        {mode === 'loading' && <LoadingScreen />}
 
-      {isUnlocked && activeTab === 'gallery' && <GalleryPage onMessage={(msg) => toast.info(msg)} />}
-      {isUnlocked && activeTab === 'browser' && (
-        <BrowserWorkspace mode="same-window" showLeftPanel showCloseButton={false} />
-      )}
-      {isUnlocked && activeTab === 'settings' && <SettingsPage />}
-      {isUnlocked && activeTab === 'browser-window' && (
-        <NewWindowBrowserTabPage onOpen={() => void openLegacyBrowser()} />
-      )}
-      {isUnlocked && activeTab === 'placeholder' && <GeneralPlaceholderPage />}
+        {isUnlocked && activeTab === 'gallery' && (
+          <div className="flex min-h-0 flex-1">
+            <GalleryPage onMessage={(msg) => toast.info(msg)} />
+          </div>
+        )}
 
-      {!isUnlocked && mode === 'login' && (
-        <UnlockScreen onUnlock={handleUnlock} isBusy={isBusy} error={authError} />
-      )}
+        {isUnlocked && activeTab === 'settings' && (
+          <div className="flex min-h-0 flex-1">
+            <SettingsPage />
+          </div>
+        )}
 
-      {!isUnlocked && mode === 'create-account' && (
-        <CreateAccountScreen onCreate={handleCreate} isBusy={isBusy} error={authError} />
-      )}
+        {isUnlocked && activeTab === 'browser-window' && (
+          <div className="flex min-h-0 flex-1">
+            <NewWindowBrowserTabPage onOpen={() => void openLegacyBrowser()} />
+          </div>
+        )}
+
+        {isUnlocked && activeTab === 'placeholder' && (
+          <div className="flex min-h-0 flex-1">
+            <GeneralPlaceholderPage />
+          </div>
+        )}
+
+        {shouldMountBrowser && (
+          <div className={isUnlocked && activeTab === 'browser' ? 'flex min-h-0 flex-1' : 'hidden'}>
+            <BrowserWorkspace
+              mode="same-window"
+              showLeftPanel
+              showCloseButton={false}
+              isActive={isUnlocked && activeTab === 'browser'}
+            />
+          </div>
+        )}
+
+        {!isUnlocked && mode === 'login' && (
+          <UnlockScreen onUnlock={handleUnlock} isBusy={isBusy} error={authError} />
+        )}
+
+        {!isUnlocked && mode === 'create-account' && (
+          <CreateAccountScreen onCreate={handleCreate} isBusy={isBusy} error={authError} />
+        )}
+      </div>
     </div>
   );
 };

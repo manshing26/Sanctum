@@ -114,7 +114,7 @@ const ListRow: React.FC<{
         }
       }}
       className={cn(
-        'group flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left transition-colors',
+        'group flex w-full max-w-full items-center gap-3 overflow-hidden rounded-md px-2 py-1.5 text-left transition-colors',
         isSelected
           ? 'bg-accent/10 ring-1 ring-accent/30'
           : 'hover:bg-surface-hover',
@@ -167,7 +167,7 @@ const ListRow: React.FC<{
       </div>
 
       {/* Filename */}
-      <span className="min-w-0 flex-1 truncate text-xs font-medium text-text-primary">
+      <span className="block min-w-0 flex-1 truncate text-xs font-medium text-text-primary">
         {item.originalName}
       </span>
 
@@ -358,7 +358,7 @@ export const GalleryListView = ({
     <div
       ref={containerRef}
       onMouseDown={onMouseDown}
-      className="relative min-h-full select-none space-y-1"
+      className="relative min-h-full w-full max-w-full select-none space-y-1 overflow-x-hidden"
     >
       {/* Header row */}
       <div className="flex items-center gap-3 px-2 py-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">

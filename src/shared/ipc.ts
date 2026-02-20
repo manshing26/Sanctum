@@ -4,6 +4,7 @@ export const IPC_CHANNELS = {
   getVersion: 'app:get-version',
   openBrowserWindow: 'browser:open-window',
   closeBrowserWindow: 'browser:close-window',
+  clearBrowserData: 'browser:clear-data',
   listBookmarks: 'browser:bookmarks:list',
   createBookmark: 'browser:bookmarks:create',
   deleteBookmark: 'browser:bookmarks:delete',
@@ -398,6 +399,7 @@ export type ElectronAPI = {
 
 export type BrowserAPI = {
   closeBrowserWindow: () => Promise<void>;
+  clearData: () => Promise<OperationResult>;
   listBookmarks: () => Promise<OperationResult<BookmarkSummary[]>>;
   createBookmark: (input: CreateBookmarkInput) => Promise<OperationResult<BookmarkSummary>>;
   deleteBookmark: (input: DeleteBookmarkInput) => Promise<OperationResult>;
