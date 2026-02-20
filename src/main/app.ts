@@ -232,6 +232,14 @@ export const bootstrapApp = (): void => {
     downloadService.start();
 
     for (const extensionPath of settingsService.getExtensionPaths()) {
+      if (app.isPackaged) {
+        extensionStartupErrors.push({
+          path: extensionPath,
+          error: 'Skipped: extension loading is disabled in production builds.',
+        });
+        continue;
+      }
+
       try {
         await browserSession.loadExtension(extensionPath);
       } catch (error) {
@@ -344,6 +352,14 @@ export const bootstrapApp = (): void => {
 
     const isMediaUrl = (url: string): boolean =>
       /\.(mp4|webm|mov|mkv|jpg|jpeg|png|gif|webp|heic)$/i.test(url);
+    const isAllowedDownloadProtocol = (url: string): boolean => {
+      try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+      } catch {
+        return false;
+      }
+    };
 
     app.on('web-contents-created', (_event, contents) => {
       if (contents.getType() !== 'webview') {
@@ -360,6 +376,9 @@ export const bootstrapApp = (): void => {
           (targetUrl && isMediaUrl(targetUrl));
 
         if (!isMedia || !targetUrl) {
+          return;
+        }
+        if (!isAllowedDownloadProtocol(targetUrl)) {
           return;
         }
 

@@ -117,6 +117,12 @@ export class VaultService {
     private readonly vaultPaths: VaultPaths,
   ) {}
 
+  private ensureUnlocked(): void {
+    if (this.sessionStore.getState().status !== 'unlocked') {
+      throw new Error('Vault is locked.');
+    }
+  }
+
   private decryptOriginalName(originalFilenameEnc: Buffer): string {
     try {
       const key = this.sessionStore.getMasterKey();
@@ -347,6 +353,7 @@ export class VaultService {
   }
 
   listItems(limit = 50): VaultItemSummary[] {
+    this.ensureUnlocked();
     const rows = this.db
       .prepare(
         `SELECT id, original_filename_enc, created_at, file_size, mime_type, is_favorite, rating, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
@@ -359,6 +366,7 @@ export class VaultService {
   }
 
   listItemsQuery(input: ListItemsQueryInput): ListItemsQueryResult {
+    this.ensureUnlocked();
     const sort = input.sort in SORT_TO_ORDER_BY ? input.sort : 'newest';
     const limit = Math.max(1, Math.min(input.limit || 100, 200));
     const offset = Math.max(0, input.offset || 0);
@@ -412,6 +420,7 @@ export class VaultService {
   }
 
   getItemThumbnail(itemId: string): ItemThumbnail {
+    this.ensureUnlocked();
     const row = this.db
       .prepare(
         `SELECT thumbnail_mime_type, thumbnail_enc, thumbnail_iv, thumbnail_auth_tag

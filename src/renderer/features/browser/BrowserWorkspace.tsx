@@ -116,20 +116,6 @@ const CHALLENGE_WINDOW_MS = 12_000;
 const CHALLENGE_MIN_NAVS = 8;
 const CHALLENGE_COOLDOWN_MS = 60_000;
 const CHALLENGE_HISTORY_SIZE = 12;
-const PAUSE_AND_MUTE_ALL_MEDIA_SCRIPT =
-  '(() => { try { document.querySelectorAll("video,audio").forEach((el) => { try { el.muted = true; el.pause(); } catch {} }); } catch {} })();';
-const UNMUTE_ALL_MEDIA_SCRIPT =
-  '(() => { try { document.querySelectorAll("video,audio").forEach((el) => { try { el.muted = false; } catch {} }); } catch {} })();';
-
-const executeWebviewScriptSafely = (webview: WebviewTag, script: string): void => {
-  try {
-    void webview.executeJavaScript(script).catch(() => {
-      // Ignore guest script execution failures when webview is not ready.
-    });
-  } catch {
-    // Ignore sync failures before dom-ready/attachment.
-  }
-};
 
 const isChallengeLikeUrl = (url: string): boolean => {
   const normalized = url.toLowerCase();
@@ -268,6 +254,7 @@ export const BrowserWorkspace = ({
   const showPersistentLeftPanel = showLeftPanel ?? mode === 'same-window';
   const canShowCloseButton = showCloseButton ?? mode === 'legacy-window';
   const isWorkspaceActive = isActive ?? true;
+  const isSuspended = !isWorkspaceActive;
 
   const [tabs, setTabs] = useState<BrowserTab[]>([createTab()]);
   const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id);
@@ -301,22 +288,27 @@ export const BrowserWorkspace = ({
   );
 
   useEffect(() => {
+    if (tabs.length === 0) {
+      return;
+    }
+    const stillExists = tabs.some((tab) => tab.id === activeTabId);
+    if (!stillExists) {
+      setActiveTabId(tabs[0].id);
+    }
+  }, [tabs, activeTabId]);
+
+  useEffect(() => {
     if (activeTab) setAddressInput(activeTab.url || HOME_URL);
   }, [activeTab]);
 
   useEffect(() => {
-    const webviews = Object.values(webviewRefs.current).filter((entry): entry is WebviewTag => Boolean(entry));
-    for (const webview of webviews) {
-      if (isWorkspaceActive) {
-        executeWebviewScriptSafely(webview, UNMUTE_ALL_MEDIA_SCRIPT);
-      } else {
-        executeWebviewScriptSafely(webview, PAUSE_AND_MUTE_ALL_MEDIA_SCRIPT);
-      }
+    if (isSuspended) {
+      webviewRefs.current = {};
     }
-  }, [isWorkspaceActive, tabs.length, activeTabId]);
+  }, [isSuspended]);
 
   useEffect(() => {
-    if (!isWorkspaceActive || !activeTab) {
+    if (!isWorkspaceActive || !activeTab || isSuspended) {
       return;
     }
 
@@ -326,7 +318,11 @@ export const BrowserWorkspace = ({
     }
 
     const dispatchResize = (): void => {
-      executeWebviewScriptSafely(activeWebview, 'window.dispatchEvent(new Event("resize"));');
+      try {
+        void activeWebview.executeJavaScript('window.dispatchEvent(new Event("resize"));');
+      } catch {
+        // Ignore pre-dom-ready sync failures.
+      }
     };
 
     const rafA = window.requestAnimationFrame(() => {
@@ -339,7 +335,7 @@ export const BrowserWorkspace = ({
       window.cancelAnimationFrame(rafA);
       window.clearTimeout(timer);
     };
-  }, [isWorkspaceActive, leftPanelOpen, activeTab?.id]);
+  }, [isWorkspaceActive, leftPanelOpen, activeTab?.id, isSuspended]);
 
   useEffect(() => {
     void window.browserAPI.listBookmarks().then((result) => {
@@ -1030,12 +1026,18 @@ export const BrowserWorkspace = ({
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
             {tabs.map((tab) => (
               <div key={tab.id} className={cn(tab.id === activeTabId ? 'flex' : 'hidden', 'relative min-h-0 min-w-0 h-full flex-1')}>
-                <TabWebView
-                  tab={tab}
-                  onAttach={(tabId, el) => { webviewRefs.current[tabId] = el; }}
-                  onStateChange={applyTabPatch}
-                  onNavigateEvent={handleTabNavigate}
-                />
+                {isSuspended ? (
+                  <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center bg-bg">
+                    <p className="text-xs text-text-muted">Browser suspended while vault is locked or tab is inactive.</p>
+                  </div>
+                ) : (
+                  <TabWebView
+                    tab={tab}
+                    onAttach={(tabId, el) => { webviewRefs.current[tabId] = el; }}
+                    onStateChange={applyTabPatch}
+                    onNavigateEvent={handleTabNavigate}
+                  />
+                )}
                 {tab.hasCrashed && (
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-bg/80">
                     <div className="pointer-events-auto flex flex-col items-center gap-3 rounded-lg border border-border bg-surface px-6 py-4">

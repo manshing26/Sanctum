@@ -1,4 +1,4 @@
-import { dialog, ipcMain } from 'electron';
+import { app, dialog, ipcMain } from 'electron';
 import {
   IPC_CHANNELS,
   type CreateBookmarkInput,
@@ -140,6 +140,13 @@ export const registerBrowserHandlers = ({
 
   ipcMain.handle(IPC_CHANNELS.loadExtension, async () => {
     try {
+      if (app.isPackaged) {
+        return {
+          ok: false as const,
+          error: 'Extension loading is only available in development builds.',
+        };
+      }
+
       const parent = browserWindowController.getWindow() ?? mainWindowController.getWindow();
       const result = parent
         ? await dialog.showOpenDialog(parent, { properties: ['openDirectory'] })
