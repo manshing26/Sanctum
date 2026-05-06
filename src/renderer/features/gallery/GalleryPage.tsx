@@ -228,8 +228,9 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     setIsMultiSelect((prev) => !prev);
   };
 
-  const handleItemClick = (itemId: string): void => {
-    if (isMultiSelect) {
+  const handleItemClick = (itemId: string, multiKey = false): void => {
+    if (isMultiSelect || multiKey) {
+      if (!isMultiSelect) setIsMultiSelect(true);
       toggleSelectedItem(itemId);
     } else {
       setSelectedItems([itemId]);
@@ -237,17 +238,18 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
   };
 
   const resolveContextTargetIds = (clickedItemId: string): string[] => {
-    if (!isMultiSelect || selectedItemIds.length <= 1) {
-      return [clickedItemId];
-    }
-    if (selectedItemIds.includes(clickedItemId)) {
+    if (selectedItemIds.length > 1 && selectedItemIds.includes(clickedItemId)) {
       return selectedItemIds;
     }
     return [clickedItemId];
   };
 
   const handleItemContextMenu = (itemId: string): void => {
-    setSelectedItems(resolveContextTargetIds(itemId));
+    // If the right-clicked item is already part of a multi-selection, keep
+    // the selection intact. Otherwise, select only the right-clicked item.
+    if (!selectedItemIds.includes(itemId)) {
+      setSelectedItems([itemId]);
+    }
   };
 
   const handleEmptyBackgroundClick = (): void => {

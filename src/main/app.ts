@@ -196,7 +196,7 @@ export const bootstrapApp = (): void => {
     const database = new DatabaseService(vaultPaths);
     const sessionStore = new SessionStore();
     const cryptoService = new CryptoService();
-    const authService = new AuthService(database.getDb(), cryptoService, sessionStore);
+    const authService = new AuthService(database.getDb(), cryptoService, sessionStore, vaultPaths);
     const settingsService = new SettingsService(database.getDb());
     applyBrowserSettingsToPolicy(settingsService.getBrowserSettings());
     applySecuritySettings(settingsService.getSecuritySettings());
@@ -342,6 +342,7 @@ export const bootstrapApp = (): void => {
     });
     registerAuthHandlers({
       authService,
+      mainWindowController,
       onLock: performGlobalLock,
     });
     registerSettingsHandlers({

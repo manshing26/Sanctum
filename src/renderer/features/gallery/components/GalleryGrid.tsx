@@ -10,7 +10,7 @@ type GalleryGridProps = {
   items: VaultItemSummary[];
   thumbnails: Record<string, string>;
   selectedItemIds: string[];
-  onToggleSelect: (itemId: string) => void;
+  onToggleSelect: (itemId: string, multiKey?: boolean) => void;
   onSetSelectedItems: (itemIds: string[]) => void;
   onBeginMarqueeSelection?: () => void;
   onEmptyBackgroundClick?: () => void;

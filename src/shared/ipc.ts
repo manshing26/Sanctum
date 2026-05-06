@@ -16,6 +16,7 @@ export const IPC_CHANNELS = {
   createVaultPassword: 'auth:create-vault-password',
   unlockVault: 'auth:unlock-vault',
   lockVault: 'auth:lock-vault',
+  changePassword: 'auth:change-password',
   getSession: 'auth:get-session',
   sessionChanged: 'auth:session-changed',
   importFiles: 'vault:import-files',
@@ -49,6 +50,7 @@ export const IPC_CHANNELS = {
   unassignItemTag: 'tags:unassign-item',
   assignItemsTag: 'tags:assign-items',
   unassignItemsTag: 'tags:unassign-items',
+  changePasswordProgress: 'auth:change-password-progress',
   getSecuritySettings: 'settings:get-security',
   updateSecuritySettings: 'settings:update-security',
   getAppearanceSettings: 'settings:get-appearance',
@@ -63,6 +65,11 @@ export type CreateVaultPasswordInput = {
 
 export type UnlockVaultInput = {
   password: string;
+};
+
+export type ChangePasswordInput = {
+  currentPassword: string;
+  newPassword: string;
 };
 
 export type SessionState = {
@@ -296,6 +303,11 @@ export type ExportItemsInput = {
   targetDir: string;
 };
 
+export type ChangePasswordProgress = {
+  total: number;
+  processed: number;
+};
+
 export type ImportProgress = {
   total: number;
   processed: number;
@@ -348,6 +360,7 @@ export type ElectronAPI = {
   createVaultPassword: (input: CreateVaultPasswordInput) => Promise<OperationResult>;
   unlockVault: (input: UnlockVaultInput) => Promise<OperationResult>;
   lockVault: () => Promise<OperationResult>;
+  changePassword: (input: ChangePasswordInput) => Promise<OperationResult>;
   getSession: () => Promise<SessionState>;
   importFiles: (input: ImportRequest) => Promise<OperationResult<ImportResult>>;
   listItems: () => Promise<VaultItemSummary[]>;
@@ -364,6 +377,7 @@ export type ElectronAPI = {
   setRating: (input: SetRatingInput) => Promise<OperationResult>;
   renameVaultItem: (input: RenameItemInput) => Promise<OperationResult>;
   exportItems: (input: ExportItemsInput) => Promise<OperationResult<{ exported: number; failed: number }>>;
+  onChangePasswordProgress: (handler: (payload: ChangePasswordProgress) => void) => () => void;
   onImportProgress: (handler: (payload: ImportProgress) => void) => () => void;
   onExportProgress: (handler: (payload: ExportProgress) => void) => () => void;
   createFolder: (input: CreateFolderInput) => Promise<OperationResult<FolderNode>>;

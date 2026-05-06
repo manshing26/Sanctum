@@ -15,7 +15,7 @@ type GalleryCardProps = {
   item: VaultItemSummary;
   thumbnailUrl?: string;
   isSelected: boolean;
-  onToggleSelect: (itemId: string) => void;
+  onToggleSelect: (itemId: string, multiKey?: boolean) => void;
   onOpen: (itemId: string) => void;
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
   onContextMenuOpen?: (itemId: string) => void;
@@ -82,11 +82,7 @@ export const GalleryCard = ({
       tabIndex={0}
       onContextMenu={() => onContextMenuOpen?.(item.id)}
       onClick={(e) => {
-        if (e.metaKey || e.ctrlKey) {
-          onToggleSelect(item.id);
-        } else {
-          onToggleSelect(item.id);
-        }
+        onToggleSelect(item.id, e.metaKey || e.ctrlKey);
       }}
       onDoubleClick={() => onOpen(item.id)}
       onKeyDown={(e) => {

@@ -4,11 +4,11 @@ import {
   HardDrive,
   Info,
   Trash2,
-  AlertTriangle,
   Palette,
   Globe,
   Timer,
   Monitor,
+  KeyRound,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/Button';
@@ -27,6 +27,7 @@ import {
 } from '../../components/ui/Dialog';
 import { ScrollArea } from '../../components/ui/ScrollArea';
 import { cn } from '../../lib/utils';
+import { PasswordInput } from '../../components/ui/PasswordInput';
 import type { SecuritySettings, AppearanceSettings, BrowserSettings } from '../../../shared/ipc';
 
 type SettingsCategory = 'security' | 'appearance' | 'browser' | 'storage' | 'about';
@@ -94,6 +95,169 @@ const SettingSwitch: React.FC<{
     <Switch checked={checked} onCheckedChange={onCheckedChange} />
   </div>
 );
+
+// ── Change Password Card ─────────────────────────────────────────────
+const ChangePasswordCard: React.FC = () => {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ processed: number; total: number } | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const startTimeRef = React.useRef<number | null>(null);
+  const timerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const passwordsMatch = newPassword === confirmPassword;
+  const newPasswordValid = newPassword.length >= 8;
+  const canSubmit =
+    currentPassword.length > 0 &&
+    newPasswordValid &&
+    confirmPassword.length > 0 &&
+    passwordsMatch &&
+    !isSubmitting;
+
+  const stopTimer = (): void => {
+    if (timerRef.current !== null) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault();
+    setError(null);
+    setProgress(null);
+    setElapsedSeconds(0);
+    setIsSubmitting(true);
+
+    startTimeRef.current = Date.now();
+    timerRef.current = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - (startTimeRef.current ?? Date.now())) / 1000));
+    }, 1000);
+
+    const unsubscribe = window.electronAPI.onChangePasswordProgress((p) => {
+      setProgress(p);
+    });
+
+    try {
+      const result = await window.electronAPI.changePassword({ currentPassword, newPassword });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      toast.success('Password changed successfully.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setProgress(null);
+    } finally {
+      unsubscribe();
+      stopTimer();
+      setIsSubmitting(false);
+    }
+  };
+
+  const formatElapsed = (s: number): string => {
+    if (s < 60) return `${s}s`;
+    return `${Math.floor(s / 60)}m ${s % 60}s`;
+  };
+
+  const pct = progress && progress.total > 0
+    ? Math.round((progress.processed / progress.total) * 100)
+    : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <KeyRound className="h-4 w-4 text-text-muted" />
+          Change Password
+        </CardTitle>
+        <CardDescription>
+          Re-encrypts all vault data with the new password. You will remain logged in.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-text-muted">Current password</Label>
+            <PasswordInput
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Enter current password"
+              autoComplete="current-password"
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-text-muted">New password</Label>
+            <PasswordInput
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Enter new password"
+              autoComplete="new-password"
+              showStrength
+              error={newPassword.length > 0 && !newPasswordValid}
+              disabled={isSubmitting}
+            />
+            {newPassword.length > 0 && !newPasswordValid && (
+              <p className="text-xs text-danger">Password must be at least 8 characters.</p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs text-text-muted">Confirm new password</Label>
+            <PasswordInput
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm new password"
+              autoComplete="new-password"
+              error={confirmPassword.length > 0 && !passwordsMatch}
+              disabled={isSubmitting}
+            />
+            {confirmPassword.length > 0 && !passwordsMatch && (
+              <p className="text-xs text-danger">Passwords do not match.</p>
+            )}
+          </div>
+
+          {isSubmitting && (
+            <div className="space-y-2 rounded-lg border border-border bg-surface p-3">
+              <div className="flex items-center justify-between text-xs text-text-muted">
+                <span>
+                  {pct !== null
+                    ? `Re-encrypting files… ${progress!.processed} / ${progress!.total}`
+                    : 'Verifying password…'}
+                </span>
+                <span className="tabular-nums">{formatElapsed(elapsedSeconds)}</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-border/40">
+                <div
+                  className="h-full rounded-full bg-accent transition-all duration-300"
+                  style={{ width: pct !== null ? `${pct}%` : '0%' }}
+                />
+              </div>
+              {pct !== null && (
+                <p className="text-right text-xs text-text-muted tabular-nums">{pct}%</p>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <Alert variant="danger">
+              <AlertDescription className="text-xs">{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <Button type="submit" size="sm" disabled={!canSubmit} className="w-full">
+            {isSubmitting ? 'Changing password…' : 'Change Password'}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
 
 // ── Security Settings ────────────────────────────────────────────────
 const SecuritySection: React.FC = () => {
@@ -185,22 +349,7 @@ const SecuritySection: React.FC = () => {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Vault Password</CardTitle>
-          <CardDescription>
-            Your vault is protected by an Argon2id-derived encryption key.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert variant="warning">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Password change is not yet available. This feature is planned for a future update.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
+      <ChangePasswordCard />
     </div>
   );
 };

@@ -176,7 +176,8 @@ export const MoveToFolderDialog = ({
           </div>
 
           <div className="rounded-md border border-border">
-            <ScrollArea className="max-h-72 p-2">
+            <div className="h-72">
+            <ScrollArea className="h-full p-2">
               <button
                 type="button"
                 onClick={() => setSelectedDestination(null)}
@@ -201,6 +202,7 @@ export const MoveToFolderDialog = ({
                 <p className="px-2 py-4 text-xs text-text-muted">No folders match your search.</p>
               )}
             </ScrollArea>
+            </div>
           </div>
         </div>
 

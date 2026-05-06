@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import type { Database as SqliteDatabase } from 'better-sqlite3';
 import {
   CryptoService,
@@ -5,6 +7,7 @@ import {
   type Argon2KdfParams,
 } from '../crypto/CryptoService';
 import { SessionStore } from '../../state/SessionStore';
+import type { VaultPaths } from '../vault/VaultPaths';
 
 type AuthStateRow = {
   password_verifier: string;
@@ -17,6 +20,29 @@ type VaultConfigRow = {
   kdf_params: string;
 };
 
+type VaultItemRow = {
+  id: string;
+  encrypted_filename: string;
+  original_filename_enc: Buffer;
+  thumbnail_enc: Buffer | null;
+  thumbnail_iv: Buffer | null;
+  thumbnail_auth_tag: Buffer | null;
+  iv: Buffer;
+  auth_tag: Buffer;
+};
+
+type BookmarkRow = {
+  id: number;
+  title_enc: Buffer;
+  url_enc: Buffer;
+};
+
+type EncryptedPayload = {
+  iv: string;
+  authTag: string;
+  data: string;
+};
+
 export class AuthService {
   private static readonly MAX_FAILED_ATTEMPTS = 5;
   private static readonly LOCKOUT_MINUTES = 15;
@@ -25,6 +51,7 @@ export class AuthService {
     private readonly db: SqliteDatabase,
     private readonly cryptoService: CryptoService,
     private readonly sessionStore: SessionStore,
+    private readonly vaultPaths?: VaultPaths,
   ) {
     this.refreshVaultPresence();
   }
@@ -133,6 +160,222 @@ export class AuthService {
          WHERE id = 1`,
       )
       .run();
+  }
+
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+    onProgress?: (processed: number, total: number) => void,
+  ): Promise<void> {
+    if (this.sessionStore.getState().status !== 'unlocked') {
+      throw new Error('Vault must be unlocked to change password.');
+    }
+    if (!this.vaultPaths) {
+      throw new Error('VaultPaths not available.');
+    }
+
+    // Verify current password.
+    const authState = this.db
+      .prepare('SELECT password_verifier FROM auth_state WHERE id = 1')
+      .get() as Pick<AuthStateRow, 'password_verifier'> | undefined;
+    if (!authState) {
+      throw new Error('Vault not configured.');
+    }
+    const isValid = await this.cryptoService.verifyPassword(currentPassword, authState.password_verifier);
+    if (!isValid) {
+      throw new Error('Current password is incorrect.');
+    }
+
+    // Derive new master key from a fresh salt.
+    const oldKey = this.sessionStore.getMasterKey();
+    const newSalt = this.cryptoService.generateVaultSalt();
+    const newKey = await this.cryptoService.deriveMasterKey(newPassword, newSalt, DEFAULT_ARGON2_PARAMS);
+    const newVerifier = await this.cryptoService.createPasswordVerifier(newPassword);
+
+    // Re-encrypt all vault item files on disk and collect new DB values.
+    const itemRows = this.db
+      .prepare(
+        `SELECT id, encrypted_filename, original_filename_enc,
+                thumbnail_enc, thumbnail_iv, thumbnail_auth_tag,
+                iv, auth_tag
+         FROM vault_items`,
+      )
+      .all() as VaultItemRow[];
+
+    type ItemUpdate = {
+      id: string;
+      originalFilenameEnc: Buffer;
+      thumbnailEnc: Buffer | null;
+      thumbnailIv: Buffer | null;
+      thumbnailAuthTag: Buffer | null;
+      iv: Buffer;
+      authTag: Buffer;
+      newFilePath: string;
+      newFileData: Buffer;
+    };
+
+    const total = itemRows.length;
+    const itemUpdates: ItemUpdate[] = [];
+    for (const row of itemRows) {
+      // Re-encrypt file content.
+      const encPath = path.join(this.vaultPaths.filesDir, row.encrypted_filename);
+      const encData = await fs.readFile(encPath);
+      const decrypted = this.cryptoService.decryptBuffer(
+        { iv: row.iv, authTag: row.auth_tag, encrypted: encData },
+        oldKey,
+      );
+      const reEncrypted = this.cryptoService.encryptBuffer(decrypted, newKey);
+
+      // Re-encrypt original filename.
+      const namePayload = JSON.parse(row.original_filename_enc.toString('utf8')) as EncryptedPayload;
+      const decryptedName = this.cryptoService.decryptBuffer(
+        {
+          iv: Buffer.from(namePayload.iv, 'base64'),
+          authTag: Buffer.from(namePayload.authTag, 'base64'),
+          encrypted: Buffer.from(namePayload.data, 'base64'),
+        },
+        oldKey,
+      );
+      const reEncName = this.cryptoService.encryptBuffer(decryptedName, newKey);
+      const newNameEnc = Buffer.from(
+        JSON.stringify({
+          iv: reEncName.iv.toString('base64'),
+          authTag: reEncName.authTag.toString('base64'),
+          data: reEncName.encrypted.toString('base64'),
+        }),
+        'utf8',
+      );
+
+      // Re-encrypt thumbnail if present.
+      let newThumbEnc: Buffer | null = null;
+      let newThumbIv: Buffer | null = null;
+      let newThumbAuthTag: Buffer | null = null;
+      if (row.thumbnail_enc && row.thumbnail_iv && row.thumbnail_auth_tag) {
+        const decThumb = this.cryptoService.decryptBuffer(
+          { iv: row.thumbnail_iv, authTag: row.thumbnail_auth_tag, encrypted: row.thumbnail_enc },
+          oldKey,
+        );
+        const reEncThumb = this.cryptoService.encryptBuffer(decThumb, newKey);
+        newThumbEnc = reEncThumb.encrypted;
+        newThumbIv = reEncThumb.iv;
+        newThumbAuthTag = reEncThumb.authTag;
+      }
+
+      itemUpdates.push({
+        id: row.id,
+        originalFilenameEnc: newNameEnc,
+        thumbnailEnc: newThumbEnc,
+        thumbnailIv: newThumbIv,
+        thumbnailAuthTag: newThumbAuthTag,
+        iv: reEncrypted.iv,
+        authTag: reEncrypted.authTag,
+        newFilePath: encPath,
+        newFileData: reEncrypted.encrypted,
+      });
+      onProgress?.(itemUpdates.length, total);
+    }
+
+    // Re-encrypt bookmarks.
+    const bookmarkRows = this.db
+      .prepare('SELECT id, title_enc, url_enc FROM bookmarks')
+      .all() as BookmarkRow[];
+
+    type BookmarkUpdate = { id: number; titleEnc: Buffer; urlEnc: Buffer };
+    const bookmarkUpdates: BookmarkUpdate[] = [];
+    for (const row of bookmarkRows) {
+      const reEncField = (enc: Buffer): Buffer => {
+        const p = JSON.parse(enc.toString('utf8')) as EncryptedPayload;
+        const dec = this.cryptoService.decryptBuffer(
+          {
+            iv: Buffer.from(p.iv, 'base64'),
+            authTag: Buffer.from(p.authTag, 'base64'),
+            encrypted: Buffer.from(p.data, 'base64'),
+          },
+          oldKey,
+        );
+        const reEnc = this.cryptoService.encryptBuffer(dec, newKey);
+        return Buffer.from(
+          JSON.stringify({
+            iv: reEnc.iv.toString('base64'),
+            authTag: reEnc.authTag.toString('base64'),
+            data: reEnc.encrypted.toString('base64'),
+          }),
+          'utf8',
+        );
+      };
+      bookmarkUpdates.push({
+        id: row.id,
+        titleEnc: reEncField(row.title_enc),
+        urlEnc: reEncField(row.url_enc),
+      });
+    }
+
+    // Write new file content to disk first (still readable with old key until DB commits).
+    // Use temp files so a crash mid-write doesn't corrupt existing data.
+    const tempPaths: Array<{ tmpPath: string; finalPath: string }> = [];
+    for (const update of itemUpdates) {
+      const tmpPath = `${update.newFilePath}.tmp`;
+      await fs.writeFile(tmpPath, update.newFileData);
+      tempPaths.push({ tmpPath, finalPath: update.newFilePath });
+    }
+
+    // Commit everything atomically in a single DB transaction, then rename temp files.
+    try {
+      this.db.transaction(() => {
+        this.db
+          .prepare(
+            `UPDATE auth_state
+             SET password_verifier = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE id = 1`,
+          )
+          .run(newVerifier);
+
+        this.db
+          .prepare(
+            `UPDATE vault_config
+             SET salt = ?, kdf_params = ?
+             WHERE id = 1`,
+          )
+          .run(newSalt, JSON.stringify(DEFAULT_ARGON2_PARAMS));
+
+        const updateItem = this.db.prepare(
+          `UPDATE vault_items
+           SET original_filename_enc = ?,
+               thumbnail_enc = ?, thumbnail_iv = ?, thumbnail_auth_tag = ?,
+               iv = ?, auth_tag = ?
+           WHERE id = ?`,
+        );
+        for (const u of itemUpdates) {
+          updateItem.run(
+            u.originalFilenameEnc,
+            u.thumbnailEnc, u.thumbnailIv, u.thumbnailAuthTag,
+            u.iv, u.authTag,
+            u.id,
+          );
+        }
+
+        const updateBookmark = this.db.prepare(
+          `UPDATE bookmarks SET title_enc = ?, url_enc = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        );
+        for (const b of bookmarkUpdates) {
+          updateBookmark.run(b.titleEnc, b.urlEnc, b.id);
+        }
+      })();
+
+      // DB committed — rename temp files to final paths.
+      for (const { tmpPath, finalPath } of tempPaths) {
+        await fs.rename(tmpPath, finalPath);
+      }
+    } catch (err) {
+      // DB transaction rolled back — clean up temp files.
+      for (const { tmpPath } of tempPaths) {
+        await fs.unlink(tmpPath).catch(() => undefined);
+      }
+      throw err;
+    }
+
+    // Update the live session key so the vault stays unlocked with the new key.
+    this.sessionStore.unlock(newKey);
   }
 
   lockVault(): void {

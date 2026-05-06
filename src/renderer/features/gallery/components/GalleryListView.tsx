@@ -17,7 +17,7 @@ type GalleryListViewProps = {
   items: VaultItemSummary[];
   thumbnails: Record<string, string>;
   selectedItemIds: string[];
-  onToggleSelect: (itemId: string) => void;
+  onToggleSelect: (itemId: string, multiKey?: boolean) => void;
   onSetSelectedItems: (itemIds: string[]) => void;
   onBeginMarqueeSelection?: () => void;
   onEmptyBackgroundClick?: () => void;
@@ -60,7 +60,7 @@ const ListRow: React.FC<{
   item: VaultItemSummary;
   thumbnailUrl?: string;
   isSelected: boolean;
-  onToggleSelect: (itemId: string) => void;
+  onToggleSelect: (itemId: string, multiKey?: boolean) => void;
   onOpen: (itemId: string) => void;
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
   onContextMenuOpen?: (itemId: string) => void;
@@ -105,7 +105,7 @@ const ListRow: React.FC<{
       role="button"
       tabIndex={0}
       onContextMenu={() => onContextMenuOpen?.(item.id)}
-      onClick={() => onToggleSelect(item.id)}
+      onClick={(e) => onToggleSelect(item.id, e.metaKey || e.ctrlKey)}
       onDoubleClick={() => onOpen(item.id)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {

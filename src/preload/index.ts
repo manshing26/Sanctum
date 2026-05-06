@@ -4,6 +4,8 @@ import {
   type AssignItemsFolderInput,
   type AssignItemTagInput,
   type AssignItemsTagInput,
+  type ChangePasswordInput,
+  type ChangePasswordProgress,
   type CreateBookmarkInput,
   type CreateFolderInput,
   type CreateTagInput,
@@ -46,6 +48,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   unlockVault: (input: UnlockVaultInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.unlockVault, input),
   lockVault: () => ipcRenderer.invoke(IPC_CHANNELS.lockVault),
+  changePassword: (input: ChangePasswordInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.changePassword, input),
   getSession: () => ipcRenderer.invoke(IPC_CHANNELS.getSession),
   importFiles: (input: ImportRequest) => ipcRenderer.invoke(IPC_CHANNELS.importFiles, input),
   listItems: () => ipcRenderer.invoke(IPC_CHANNELS.listItems),
@@ -103,6 +107,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getBrowserSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getBrowserSettings),
   updateBrowserSettings: (input: UpdateBrowserSettingsInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.updateBrowserSettings, input),
+  onChangePasswordProgress: (handler: (payload: ChangePasswordProgress) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: ChangePasswordProgress) => {
+      handler(payload);
+    };
+    ipcRenderer.on(IPC_CHANNELS.changePasswordProgress, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.changePasswordProgress, listener);
+    };
+  },
   onImportProgress: (handler: (payload: ImportProgress) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: ImportProgress) => {
       handler(payload);
