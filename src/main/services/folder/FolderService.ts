@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import type { Database as SqliteDatabase } from 'better-sqlite3';
 import type {
   AssignItemFolderInput,
@@ -8,6 +10,7 @@ import type {
   RenameFolderInput,
 } from '../../../shared/ipc';
 import { SessionStore } from '../../state/SessionStore';
+import type { VaultPaths } from '../vault/VaultPaths';
 
 type FolderRow = {
   id: number;
@@ -20,6 +23,7 @@ export class FolderService {
   constructor(
     private readonly db: SqliteDatabase,
     private readonly sessionStore: SessionStore,
+    private readonly vaultPaths: VaultPaths,
   ) {}
 
   private ensureUnlocked(): void {
@@ -197,7 +201,7 @@ export class FolderService {
     return this.getFolderNodeById(input.folderId);
   }
 
-  deleteFolder(folderId: number): void {
+  async deleteFolder(folderId: number, deleteItems: boolean): Promise<void> {
     this.ensureUnlocked();
     this.getFolderById(folderId);
 
@@ -220,9 +224,40 @@ export class FolderService {
     }
 
     const placeholders = folderIds.map(() => '?').join(', ');
-    this.db
-      .prepare(`UPDATE vault_items SET folder_id = NULL WHERE folder_id IN (${placeholders})`)
-      .run(...folderIds);
+
+    if (deleteItems) {
+      // Collect encrypted filenames for all items in the subtree.
+      const itemRows = this.db
+        .prepare(
+          `SELECT id, encrypted_filename FROM vault_items WHERE folder_id IN (${placeholders})`
+        )
+        .all(...folderIds) as Array<{ id: string; encrypted_filename: string }>;
+
+      // Delete encrypted files from disk (best-effort).
+      await Promise.all(
+        itemRows.map(async (row) => {
+          try {
+            await fs.unlink(path.join(this.vaultPaths.filesDir, row.encrypted_filename));
+          } catch (err) {
+            const nodeErr = err as NodeJS.ErrnoException;
+            if (nodeErr.code !== 'ENOENT') throw err;
+          }
+        }),
+      );
+
+      // Remove item_tags and vault_items rows for the subtree.
+      if (itemRows.length > 0) {
+        const itemPlaceholders = itemRows.map(() => '?').join(', ');
+        const itemIds = itemRows.map((r) => r.id);
+        this.db.prepare(`DELETE FROM item_tags WHERE item_id IN (${itemPlaceholders})`).run(...itemIds);
+        this.db.prepare(`DELETE FROM vault_items WHERE id IN (${itemPlaceholders})`).run(...itemIds);
+      }
+    } else {
+      // Move items in the subtree back to root (NULL folder).
+      this.db
+        .prepare(`UPDATE vault_items SET folder_id = NULL WHERE folder_id IN (${placeholders})`)
+        .run(...folderIds);
+    }
 
     this.db.prepare('DELETE FROM folders WHERE id = ?').run(folderId);
   }

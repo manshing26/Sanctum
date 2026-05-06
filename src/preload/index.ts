@@ -72,7 +72,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listFoldersTree: () => ipcRenderer.invoke(IPC_CHANNELS.listFoldersTree),
   renameFolder: (input: RenameFolderInput) => ipcRenderer.invoke(IPC_CHANNELS.renameFolder, input),
   moveFolder: (input: MoveFolderInput) => ipcRenderer.invoke(IPC_CHANNELS.moveFolder, input),
-  deleteFolder: (folderId: number) => ipcRenderer.invoke(IPC_CHANNELS.deleteFolder, folderId),
+  deleteFolder: (folderId: number, deleteItems: boolean) => ipcRenderer.invoke(IPC_CHANNELS.deleteFolder, folderId, deleteItems),
   assignItemFolder: (input: AssignItemFolderInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.assignItemFolder, input),
   assignItemsFolder: (input: AssignItemsFolderInput) =>

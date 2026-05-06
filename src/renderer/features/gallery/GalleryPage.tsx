@@ -11,6 +11,8 @@ import { GalleryToolbar } from './components/GalleryToolbar';
 import { ItemDetailsSidebar, ItemDetailsSheet } from './components/ItemDetailsPanel';
 import { TagFilterBar } from './components/TagFilterBar';
 import { MoveToFolderDialog } from './components/MoveToFolderDialog';
+import { ImportSettingsDialog } from './components/ImportSettingsDialog';
+import { DeleteFolderDialog } from './components/DeleteFolderDialog';
 import { useGalleryState } from './state/useGalleryState';
 import { MediaViewerOverlay } from '../viewer/MediaViewerOverlay';
 import { cn } from '../../lib/utils';
@@ -117,7 +119,7 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     selectedTagIds,
     selectedItem,
     selectedItemIds,
-    deleteOriginalsOverride,
+    secureDelete,
     importFolderId,
     showFavoritesOnly,
     setSearchTerm,
@@ -128,7 +130,7 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     setSelectedItems,
     clearSelection,
     setSecuritySettings,
-    setDeleteOriginalsOverride,
+    setSecureDelete,
     setImportFolderId,
     setShowFavoritesOnly,
     loadFirstPage,
@@ -152,6 +154,9 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
   const [moveDialogItemIds, setMoveDialogItemIds] = useState<string[]>([]);
   const [moveDialogSource, setMoveDialogSource] = useState<'single' | 'bulk'>('single');
   const [isMoveBusy, setIsMoveBusy] = useState(false);
+  const [importSettingsOpen, setImportSettingsOpen] = useState(false);
+  const [deleteFolderDialog, setDeleteFolderDialog] = useState<{ folderId: number; folderName: string } | null>(null);
+  const [isDeletingFolder, setIsDeletingFolder] = useState(false);
 
   useEffect(() => {
     void loadFirstPage().then((result) => {
@@ -299,17 +304,18 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
   const handleImport = async (): Promise<void> => {
     const selectedFiles = await window.electronAPI.pickFiles();
     if (selectedFiles.length === 0) return;
-    await runImport(selectedFiles);
+    await runImport(selectedFiles, importFolderId, secureDelete);
   };
 
-  const runImport = async (filePaths: string[]): Promise<void> => {
+  const runImport = async (
+    filePaths: string[],
+    folderId: number | null = importFolderId,
+    deleteOriginals = false,
+  ): Promise<void> => {
     const importResult = await window.electronAPI.importFiles({
       filePaths,
-      folderId: importFolderId,
-      deleteOriginals:
-        deleteOriginalsOverride === 'default'
-          ? undefined
-          : deleteOriginalsOverride === 'true',
+      folderId,
+      deleteOriginals: deleteOriginals || undefined,
     });
 
     if (!importResult.ok) {
@@ -353,15 +359,56 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     toast.success('Folder created.');
   };
 
-  const handleDeleteFolder = async (folderId: number): Promise<void> => {
-    const result = await window.electronAPI.deleteFolder(folderId);
-    if (!result.ok) {
-      toast.error(result.error);
+  const handleDeleteFolder = (folderId: number): void => {
+    const findNode = (nodes: typeof folders, id: number): (typeof folders)[0] | null => {
+      for (const node of nodes) {
+        if (node.id === id) return node;
+        const found = findNode(node.children, id);
+        if (found) return found;
+      }
+      return null;
+    };
+    const collectIds = (nodes: typeof folders): Set<number> => {
+      const ids = new Set<number>();
+      const stack = [...nodes];
+      while (stack.length > 0) {
+        const node = stack.pop()!;
+        ids.add(node.id);
+        stack.push(...node.children);
+      }
+      return ids;
+    };
+
+    const node = findNode(folders, folderId);
+    const folderName = node?.name ?? 'this folder';
+    const subtreeIds = node ? collectIds([node]) : new Set([folderId]);
+    const hasFiles = allItems.some((item) => item.folderId != null && subtreeIds.has(item.folderId));
+
+    if (!hasFiles) {
+      void confirmDeleteFolder(false, folderId);
       return;
     }
-    const refreshed = await refresh();
-    if (!refreshed.ok) toast.error(refreshed.error);
-    else toast.success('Folder deleted.');
+
+    setDeleteFolderDialog({ folderId, folderName });
+  };
+
+  const confirmDeleteFolder = async (deleteItems: boolean, folderIdOverride?: number): Promise<void> => {
+    const folderId = folderIdOverride ?? deleteFolderDialog?.folderId;
+    if (folderId == null) return;
+    setIsDeletingFolder(true);
+    try {
+      const result = await window.electronAPI.deleteFolder(folderId, deleteItems);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      setDeleteFolderDialog(null);
+      const refreshed = await refresh();
+      if (!refreshed.ok) toast.error(refreshed.error);
+      else toast.success(deleteItems ? 'Folder and files deleted.' : 'Folder deleted.');
+    } finally {
+      setIsDeletingFolder(false);
+    }
   };
 
   const handleCreateTag = async (color?: string): Promise<void> => {
@@ -644,7 +691,10 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
           toast.error('No local file paths detected from drop. Please use Import button for this source.');
           return;
         }
-        void runImport(files);
+        const dropFolderId = selectedViewScope === 'folder' && selectedFolderId !== null
+          ? selectedFolderId
+          : importFolderId;
+        void runImport(files, dropFolderId, false);
       }}
     >
       {/* Drag overlay */}
@@ -653,6 +703,11 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
           <div className="flex flex-col items-center gap-2 text-accent">
             <Upload className="h-10 w-10" />
             <span className="text-sm font-medium">Drop files to import</span>
+            {selectedViewScope === 'folder' && selectedFolderId !== null && (
+              <span className="text-xs opacity-75">
+                into current folder
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -664,12 +719,7 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
           onSearchTermChange={setSearchTerm}
           sort={sort}
           onSortChange={(value) => void handleSortChange(value)}
-          folders={folders}
-          importFolderId={importFolderId}
-          onImportFolderChange={setImportFolderId}
-          deleteOriginalsOverride={deleteOriginalsOverride}
-          onDeleteOriginalsOverrideChange={setDeleteOriginalsOverride}
-          onImport={() => void handleImport()}
+          onOpenImportSettings={() => setImportSettingsOpen(true)}
           onExportSelected={() => void handleExportSelected()}
           onDeleteSelected={() => void handleDeleteSelected()}
           onToggleFavoriteSelected={() => void handleToggleFavoriteSelected()}
@@ -711,12 +761,7 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
           onSearchTermChange={setSearchTerm}
           sort={sort}
           onSortChange={(value) => void handleSortChange(value)}
-          folders={folders}
-          importFolderId={importFolderId}
-          onImportFolderChange={setImportFolderId}
-          deleteOriginalsOverride={deleteOriginalsOverride}
-          onDeleteOriginalsOverrideChange={setDeleteOriginalsOverride}
-          onImport={() => void handleImport()}
+          onOpenImportSettings={() => setImportSettingsOpen(true)}
           onExportSelected={() => void handleExportSelected()}
           onDeleteSelected={() => void handleDeleteSelected()}
           onToggleFavoriteSelected={() => void handleToggleFavoriteSelected()}
@@ -848,6 +893,26 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
         onConfirm={handleConfirmMoveDialog}
         title={moveDialogSource === 'bulk' ? 'Move selected items' : 'Move item'}
         isBusy={isMoveBusy}
+      />
+
+      <DeleteFolderDialog
+        open={deleteFolderDialog !== null}
+        onOpenChange={(open) => { if (!open) setDeleteFolderDialog(null); }}
+        folderName={deleteFolderDialog?.folderName ?? ''}
+        onKeepFiles={() => void confirmDeleteFolder(false)}
+        onDeleteFiles={() => void confirmDeleteFolder(true)}
+        isBusy={isDeletingFolder}
+      />
+
+      <ImportSettingsDialog
+        open={importSettingsOpen}
+        onOpenChange={setImportSettingsOpen}
+        folders={folders}
+        importFolderId={importFolderId}
+        onImportFolderChange={setImportFolderId}
+        secureDelete={secureDelete}
+        onSecureDeleteChange={setSecureDelete}
+        onImport={() => void handleImport()}
       />
 
       {/* Floating detail toggle button (visible below 2xl) */}

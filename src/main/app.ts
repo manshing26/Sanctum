@@ -203,7 +203,7 @@ export const bootstrapApp = (): void => {
     const secureDeleteService = new SecureDeleteService();
     const metadataService = new MetadataService();
     const thumbnailService = new ThumbnailService();
-    const folderService = new FolderService(database.getDb(), sessionStore);
+    const folderService = new FolderService(database.getDb(), sessionStore, vaultPaths);
     const tagService = new TagService(database.getDb(), sessionStore);
     const bookmarkService = new BookmarkService(database.getDb(), cryptoService, sessionStore);
     const vaultService = new VaultService(

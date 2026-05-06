@@ -298,20 +298,6 @@ const SecuritySection: React.FC = () => {
       <Card>
         <CardContent className="space-y-5 pt-6">
           <SettingRow
-            label="Secure delete on import"
-            description="Overwrite original files with 3-pass secure erase after importing to vault."
-          >
-            <SettingSwitch
-              checked={settings.secureDeleteOnImport}
-              onCheckedChange={(checked) => void updateSetting('secureDeleteOnImport', checked)}
-            />
-          </SettingRow>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="space-y-5 pt-6">
-          <SettingRow
             label="Auto-lock timeout"
             description="Automatically lock the vault after a period of inactivity."
           >

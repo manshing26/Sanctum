@@ -64,9 +64,7 @@ export const useGalleryState = () => {
   const [primarySelectedId, setPrimarySelectedId] = useState<string | null>(null);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
-  const [deleteOriginalsOverride, setDeleteOriginalsOverride] = useState<
-    'default' | 'true' | 'false'
-  >('default');
+  const [secureDelete, setSecureDelete] = useState(false);
   const [importFolderId, setImportFolderId] = useState<number | null>(null);
 
   const hydrateThumbnails = useCallback(async (items: VaultItemSummary[]): Promise<void> => {
@@ -343,7 +341,7 @@ export const useGalleryState = () => {
     selectedItemIds,
     primarySelectedId,
     showFavoritesOnly,
-    deleteOriginalsOverride,
+    secureDelete,
     importFolderId,
     setSearchTerm,
     setSort,
@@ -355,7 +353,7 @@ export const useGalleryState = () => {
     clearSelection,
     setShowFavoritesOnly,
     setSecuritySettings,
-    setDeleteOriginalsOverride,
+    setSecureDelete,
     setImportFolderId,
     setFolders,
     setTags,

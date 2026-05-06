@@ -70,9 +70,9 @@ export const registerFolderHandlers = ({ folderService }: RegisterFolderHandlers
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.deleteFolder, (_event, folderId: number) => {
+  ipcMain.handle(IPC_CHANNELS.deleteFolder, async (_event, folderId: number, deleteItems: boolean) => {
     try {
-      folderService.deleteFolder(folderId);
+      await folderService.deleteFolder(folderId, deleteItems);
       return { ok: true as const };
     } catch (error) {
       return {

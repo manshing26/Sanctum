@@ -14,7 +14,7 @@ import {
   List,
   CheckSquare,
 } from 'lucide-react';
-import type { FolderNode, VaultListSort } from '../../../../shared/ipc';
+import type { VaultListSort } from '../../../../shared/ipc';
 import { Button } from '../../../components/ui/Button';
 import { Badge } from '../../../components/ui/Badge';
 import { Separator } from '../../../components/ui/Separator';
@@ -23,29 +23,11 @@ import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuCheckboxItem,
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from '../../../components/ui/DropdownMenu';
 import { cn } from '../../../lib/utils';
-
-type FolderOption = {
-  id: number;
-  label: string;
-};
-
-const flattenFolderOptions = (folders: FolderNode[], depth = 0): FolderOption[] => {
-  const result: FolderOption[] = [];
-  for (const folder of folders) {
-    result.push({
-      id: folder.id,
-      label: `${'  '.repeat(depth)}${folder.name}`,
-    });
-    result.push(...flattenFolderOptions(folder.children, depth + 1));
-  }
-  return result;
-};
 
 const SORT_OPTIONS: { value: VaultListSort; label: string }[] = [
   { value: 'newest', label: 'Newest First' },
@@ -63,12 +45,7 @@ type GalleryToolbarProps = {
   onSearchTermChange: (value: string) => void;
   sort: VaultListSort;
   onSortChange: (value: VaultListSort) => void;
-  folders: FolderNode[];
-  importFolderId: number | null;
-  onImportFolderChange: (folderId: number | null) => void;
-  deleteOriginalsOverride: 'default' | 'true' | 'false';
-  onDeleteOriginalsOverrideChange: (value: 'default' | 'true' | 'false') => void;
-  onImport: () => void;
+  onOpenImportSettings: () => void;
   onExportSelected: () => void;
   onDeleteSelected: () => void;
   onToggleFavoriteSelected: () => void;
@@ -92,12 +69,7 @@ export const GalleryToolbar = ({
   onSearchTermChange,
   sort,
   onSortChange,
-  folders,
-  importFolderId,
-  onImportFolderChange,
-  deleteOriginalsOverride,
-  onDeleteOriginalsOverrideChange,
-  onImport,
+  onOpenImportSettings,
   onExportSelected,
   onDeleteSelected,
   onToggleFavoriteSelected,
@@ -115,7 +87,6 @@ export const GalleryToolbar = ({
   showSearchRow = true,
   showActionRow = true,
 }: GalleryToolbarProps): React.JSX.Element => {
-  const folderOptions = flattenFolderOptions(folders);
   return (
     <div className={cn(showSearchRow && showActionRow && 'space-y-2')}>
       {/* Row 1: Search + view/sort/favorites */}
@@ -310,59 +281,15 @@ export const GalleryToolbar = ({
         </div>
 
         <div className="ml-auto flex items-center gap-1.5">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" disabled={isBusy} className="h-7 shrink-0 gap-1 px-2.5 text-xs">
-                <Upload className="h-3.5 w-3.5" />
-                Import
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Import Settings</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onImport}>
-                <Upload className="mr-2 h-4 w-4" />
-                Select files...
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[11px]">Target folder</DropdownMenuLabel>
-              <DropdownMenuCheckboxItem
-                checked={importFolderId === null}
-                onCheckedChange={() => onImportFolderChange(null)}
-              >
-                Root
-              </DropdownMenuCheckboxItem>
-              {folderOptions.map((folder) => (
-                <DropdownMenuCheckboxItem
-                  key={folder.id}
-                  checked={importFolderId === folder.id}
-                  onCheckedChange={() => onImportFolderChange(folder.id)}
-                >
-                  {folder.label}
-                </DropdownMenuCheckboxItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[11px]">Secure delete</DropdownMenuLabel>
-              <DropdownMenuCheckboxItem
-                checked={deleteOriginalsOverride === 'default'}
-                onCheckedChange={() => onDeleteOriginalsOverrideChange('default')}
-              >
-                Use default
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={deleteOriginalsOverride === 'true'}
-                onCheckedChange={() => onDeleteOriginalsOverrideChange('true')}
-              >
-                Force on
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={deleteOriginalsOverride === 'false'}
-                onCheckedChange={() => onDeleteOriginalsOverrideChange('false')}
-              >
-                Force off
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            size="sm"
+            disabled={isBusy}
+            onClick={onOpenImportSettings}
+            className="h-7 shrink-0 gap-1 px-2.5 text-xs"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Import
+          </Button>
 
           <Tooltip>
             <TooltipTrigger asChild>
