@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, powerMonitor, protocol, session } from 'electron';
+import { app, BrowserWindow, Menu, powerMonitor, protocol, session, webContents } from 'electron';
 import type {
   BrowserSettings,
   ExtensionStartupError,
@@ -265,13 +265,20 @@ export const bootstrapApp = (): void => {
 
       isLocking = true;
       try {
+        // Mute all webContents immediately so audio stops synchronously before
+        // any async teardown. This covers webviews in the main window (same-window
+        // browser) which are guest processes that keep playing until explicitly stopped.
+        for (const wc of webContents.getAllWebContents()) {
+          wc.setAudioMuted(true);
+        }
+
         authService.lockVault();
         browserWindowController.close();
         await mediaSessionService.clearAllSessions();
 
-        const mainWindow = mainWindowController.getWindow();
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IPC_CHANNELS.sessionChanged, {
+        const win = mainWindowController.getWindow();
+        if (win && !win.isDestroyed()) {
+          win.webContents.send(IPC_CHANNELS.sessionChanged, {
             state: authService.getSessionState(),
             reason,
           });
@@ -310,6 +317,13 @@ export const bootstrapApp = (): void => {
       if (sessionStore.getState().status !== 'unlocked') {
         return;
       }
+      // Send the lock signal synchronously before the async lock completes so the
+      // renderer blanks immediately. On macOS this ensures the Dock thumbnail and
+      // the un-minimize animation show the lock screen rather than the gallery.
+      mainWindow.webContents.send(IPC_CHANNELS.sessionChanged, {
+        state: { status: 'locked', hasVault: true },
+        reason: 'window_minimize',
+      } satisfies import('../shared/ipc').SessionChangedPayload);
       void performGlobalLock('window_minimize');
     });
 
