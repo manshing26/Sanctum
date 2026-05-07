@@ -9,6 +9,7 @@ import {
   Timer,
   Monitor,
   KeyRound,
+  Archive,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/Button';
@@ -28,7 +29,7 @@ import {
 import { ScrollArea } from '../../components/ui/ScrollArea';
 import { cn } from '../../lib/utils';
 import { PasswordInput } from '../../components/ui/PasswordInput';
-import type { SecuritySettings, AppearanceSettings, BrowserSettings } from '../../../shared/ipc';
+import type { SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgress } from '../../../shared/ipc';
 
 type SettingsCategory = 'security' | 'appearance' | 'browser' | 'storage' | 'about';
 
@@ -516,6 +517,93 @@ const BrowserSection: React.FC = () => {
   );
 };
 
+// ── Backup Card ───────────────────────────────────────────────────────
+const BackupCard: React.FC = () => {
+  const [isRunning, setIsRunning] = useState(false);
+  const [progress, setProgress] = useState<BackupProgress | null>(null);
+  const [successPath, setSuccessPath] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleBackup = async (): Promise<void> => {
+    setSuccessPath(null);
+    setErrorMsg(null);
+
+    const outputPath = await window.electronAPI.pickBackupSavePath();
+    if (!outputPath) return;
+
+    setIsRunning(true);
+    setProgress(null);
+
+    const unsub = window.electronAPI.onBackupProgress((p) => setProgress(p));
+    try {
+      const result = await window.electronAPI.backupVault({ outputPath });
+      if (result.ok) {
+        setSuccessPath(outputPath);
+      } else {
+        setErrorMsg(result.error);
+      }
+    } finally {
+      unsub();
+      setIsRunning(false);
+      setProgress(null);
+    }
+  };
+
+  const progressPct =
+    progress && progress.total > 0
+      ? Math.round((progress.processed / progress.total) * 100)
+      : 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Backup Vault</CardTitle>
+        <CardDescription>
+          Create an encrypted backup of your vault. Restoring requires your current password.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void handleBackup()}
+          disabled={isRunning}
+          className="gap-1.5"
+        >
+          <Archive className="h-3.5 w-3.5" />
+          {isRunning ? 'Backing up…' : 'Create Backup'}
+        </Button>
+
+        {isRunning && progress && (
+          <div className="space-y-1">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
+              <div
+                className="h-full rounded-full bg-accent transition-all duration-200"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <p className="text-xs text-text-muted">
+              Backing up {progress.processed} / {progress.total} files…
+            </p>
+          </div>
+        )}
+
+        {successPath && !isRunning && (
+          <p className="text-xs text-success break-all">
+            Backup saved to {successPath}
+          </p>
+        )}
+
+        {errorMsg && !isRunning && (
+          <Alert variant="danger">
+            <AlertDescription>{errorMsg}</AlertDescription>
+          </Alert>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 // ── Storage Settings ─────────────────────────────────────────────────
 const StorageSection: React.FC = () => {
   const [showWipeDialog, setShowWipeDialog] = useState(false);
@@ -542,6 +630,8 @@ const StorageSection: React.FC = () => {
         <h2 className="text-lg font-semibold text-text-primary">Storage</h2>
         <p className="text-sm text-text-muted">Manage vault storage and data.</p>
       </div>
+
+      <BackupCard />
 
       <Card>
         <CardHeader>

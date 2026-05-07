@@ -28,6 +28,7 @@ import { SettingsService } from './services/settings/SettingsService';
 import { TagService } from './services/tag/TagService';
 import { VaultPaths } from './services/vault/VaultPaths';
 import { MediaSessionService } from './services/vault/MediaSessionService';
+import { BackupService } from './services/vault/BackupService';
 import { VaultService } from './services/vault/VaultService';
 import { SessionStore } from './state/SessionStore';
 import { MainWindowController } from './windows/MainWindowController';
@@ -226,6 +227,7 @@ export const bootstrapApp = (): void => {
       browserWindowController,
       sessionStore,
     );
+    const backupService = new BackupService(database.getDb(), vaultPaths, sessionStore);
     const mediaSessionService = new MediaSessionService(vaultService, vaultPaths);
     mediaSessionService.start();
 
@@ -359,6 +361,7 @@ export const bootstrapApp = (): void => {
     registerVaultHandlers({
       importService,
       vaultService,
+      backupService,
       mainWindowController,
     });
     registerMediaHandlers({

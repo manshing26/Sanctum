@@ -1,6 +1,8 @@
-import { dialog, ipcMain, type OpenDialogOptions } from 'electron';
+import { app, dialog, ipcMain, type OpenDialogOptions, type SaveDialogOptions } from 'electron';
 import {
   IPC_CHANNELS,
+  type BackupProgress,
+  type BackupVaultInput,
   type DeleteVaultItemInput,
   type ExportItemsInput,
   type ImportRequest,
@@ -13,16 +15,19 @@ import {
 import { MainWindowController } from '../windows/MainWindowController';
 import { ImportService } from '../services/import/ImportService';
 import { VaultService } from '../services/vault/VaultService';
+import { BackupService } from '../services/vault/BackupService';
 
 type RegisterVaultHandlersParams = {
   importService: ImportService;
   vaultService: VaultService;
+  backupService: BackupService;
   mainWindowController: MainWindowController;
 };
 
 export const registerVaultHandlers = ({
   importService,
   vaultService,
+  backupService,
   mainWindowController,
 }: RegisterVaultHandlersParams): void => {
   ipcMain.handle(IPC_CHANNELS.importFiles, async (_event, input: ImportRequest) => {
@@ -204,5 +209,34 @@ export const registerVaultHandlers = ({
     }
 
     return result.filePaths;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.pickBackupSavePath, async () => {
+    const window = mainWindowController.getWindow();
+    const today = new Date().toISOString().slice(0, 10);
+    const dialogOptions: SaveDialogOptions = {
+      title: 'Save backup',
+      defaultPath: `privatevault-backup-${today}.pvbackup`,
+      filters: [{ name: 'Vault Backup', extensions: ['pvbackup'] }],
+    };
+    const result = window
+      ? await dialog.showSaveDialog(window, dialogOptions)
+      : await dialog.showSaveDialog(dialogOptions);
+    return result.canceled ? null : result.filePath ?? null;
+  });
+
+  ipcMain.handle(IPC_CHANNELS.backupVault, async (_event, input: BackupVaultInput) => {
+    try {
+      const window = mainWindowController.getWindow();
+      await backupService.createBackup(input.outputPath, (progress: BackupProgress) => {
+        window?.webContents.send(IPC_CHANNELS.backupProgress, progress);
+      });
+      return { ok: true as const };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to create backup.',
+      };
+    }
   });
 };

@@ -4,6 +4,8 @@ import {
   type AssignItemsFolderInput,
   type AssignItemTagInput,
   type AssignItemsTagInput,
+  type BackupProgress,
+  type BackupVaultInput,
   type ChangePasswordInput,
   type ChangePasswordProgress,
   type CreateBookmarkInput,
@@ -135,6 +137,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(IPC_CHANNELS.exportProgress, listener);
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.exportProgress, listener);
+    };
+  },
+  pickBackupSavePath: () => ipcRenderer.invoke(IPC_CHANNELS.pickBackupSavePath),
+  backupVault: (input: BackupVaultInput) => ipcRenderer.invoke(IPC_CHANNELS.backupVault, input),
+  onBackupProgress: (handler: (payload: BackupProgress) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: BackupProgress) => {
+      handler(payload);
+    };
+    ipcRenderer.on(IPC_CHANNELS.backupProgress, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.backupProgress, listener);
     };
   },
 });

@@ -52,6 +52,9 @@ export const IPC_CHANNELS = {
   assignItemsTag: 'tags:assign-items',
   unassignItemsTag: 'tags:unassign-items',
   changePasswordProgress: 'auth:change-password-progress',
+  backupVault: 'vault:backup',
+  backupProgress: 'vault:backup-progress',
+  pickBackupSavePath: 'vault:backup-pick-path',
   getSecuritySettings: 'settings:get-security',
   updateSecuritySettings: 'settings:update-security',
   getAppearanceSettings: 'settings:get-appearance',
@@ -353,6 +356,16 @@ export type ExportProgress = {
   currentFile?: string;
 };
 
+export type BackupProgress = {
+  total: number;
+  processed: number;
+  currentFile?: string;
+};
+
+export type BackupVaultInput = {
+  outputPath: string;
+};
+
 export type DownloadState = 'downloading' | 'completed' | 'cancelled' | 'failed';
 
 export type DownloadProgress = {
@@ -408,9 +421,12 @@ export type ElectronAPI = {
   setRating: (input: SetRatingInput) => Promise<OperationResult>;
   renameVaultItem: (input: RenameItemInput) => Promise<OperationResult>;
   exportItems: (input: ExportItemsInput) => Promise<OperationResult<{ exported: number; failed: number }>>;
+  backupVault: (input: BackupVaultInput) => Promise<OperationResult>;
+  pickBackupSavePath: () => Promise<string | null>;
   onChangePasswordProgress: (handler: (payload: ChangePasswordProgress) => void) => () => void;
   onImportProgress: (handler: (payload: ImportProgress) => void) => () => void;
   onExportProgress: (handler: (payload: ExportProgress) => void) => () => void;
+  onBackupProgress: (handler: (payload: BackupProgress) => void) => () => void;
   createFolder: (input: CreateFolderInput) => Promise<OperationResult<FolderNode>>;
   listFoldersTree: () => Promise<OperationResult<FolderNode[]>>;
   renameFolder: (input: RenameFolderInput) => Promise<OperationResult<FolderNode>>;
