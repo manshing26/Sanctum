@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, type OpenDialogOptions, type SaveDialogOptions } from 'electron';
+import { dialog, ipcMain, type OpenDialogOptions, type SaveDialogOptions } from 'electron';
 import {
   IPC_CHANNELS,
   type BackupProgress,
@@ -8,6 +8,7 @@ import {
   type ImportRequest,
   type ListItemsQueryInput,
   type RenameItemInput,
+  type RestoreVaultInput,
   type ScanImportConflictsInput,
   type ToggleFavoriteInput,
   type SetRatingInput,
@@ -16,11 +17,13 @@ import { MainWindowController } from '../windows/MainWindowController';
 import { ImportService } from '../services/import/ImportService';
 import { VaultService } from '../services/vault/VaultService';
 import { BackupService } from '../services/vault/BackupService';
+import { RestoreService } from '../services/vault/RestoreService';
 
 type RegisterVaultHandlersParams = {
   importService: ImportService;
   vaultService: VaultService;
   backupService: BackupService;
+  restoreService: RestoreService;
   mainWindowController: MainWindowController;
 };
 
@@ -28,6 +31,7 @@ export const registerVaultHandlers = ({
   importService,
   vaultService,
   backupService,
+  restoreService,
   mainWindowController,
 }: RegisterVaultHandlersParams): void => {
   ipcMain.handle(IPC_CHANNELS.importFiles, async (_event, input: ImportRequest) => {
@@ -236,6 +240,37 @@ export const registerVaultHandlers = ({
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to create backup.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.pickRestoreFile, async () => {
+    const window = mainWindowController.getWindow();
+    const dialogOptions: OpenDialogOptions = {
+      title: 'Select backup file',
+      filters: [{ name: 'Vault Backup', extensions: ['pvbackup'] }],
+      properties: ['openFile'],
+    };
+    const result = window
+      ? await dialog.showOpenDialog(window, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions);
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+  });
+
+  ipcMain.handle(IPC_CHANNELS.restoreVault, async (_event, input: RestoreVaultInput) => {
+    if (input.mode === 'merge') {
+      return { ok: false as const, error: 'Merge restore is not yet available.' };
+    }
+    try {
+      const window = mainWindowController.getWindow();
+      await restoreService.replaceVault(input.backupPath, input.password, (progress) => {
+        window?.webContents.send(IPC_CHANNELS.restoreProgress, progress);
+      });
+      return { ok: true as const };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to restore vault.',
       };
     }
   });

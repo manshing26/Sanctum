@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Lock, Globe, Settings, Shield, AlertTriangle, Loader2, Images, FlaskConical, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
-import type { AuthScreenMode, SessionState } from '../shared/ipc';
+import type { AuthScreenMode, RestoreProgress, SessionState } from '../shared/ipc';
 import { Button } from './components/ui/Button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './components/ui/Card';
 import { Label } from './components/ui/Label';
@@ -124,6 +124,176 @@ const TopBar: React.FC<{
   </header>
 );
 
+// ── Post-restore countdown dialog ────────────────────────────────────
+export const RestoreCountdownDialog: React.FC = () => {
+  const [seconds, setSeconds] = useState(10);
+  const calledRef = useRef(false);
+
+  const quit = (): void => {
+    if (calledRef.current) return;
+    calledRef.current = true;
+    void window.electronAPI.quitApp();
+  };
+
+  useEffect(() => {
+    if (seconds <= 0) {
+      quit();
+      return;
+    }
+    const id = setTimeout(() => setSeconds((s) => s - 1), 1000);
+    return () => clearTimeout(id);
+  }, [seconds]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-bg p-6 shadow-2xl space-y-4 text-center">
+        <div className="flex flex-col items-center gap-2">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success/15">
+            <svg className="h-6 w-6 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </div>
+          <h2 className="text-base font-semibold text-text-primary">Vault Restored</h2>
+          <p className="text-sm text-text-muted">
+            The app needs to restart to load the restored vault.
+          </p>
+        </div>
+        <Button className="w-full" onClick={quit}>
+          Exit Now
+        </Button>
+        <p className="text-xs text-text-muted">Closing automatically in {seconds}s…</p>
+      </div>
+    </div>
+  );
+};
+
+// ── Restore from Backup (inline, used on both auth screens) ──────────
+const RestoreFromBackupSection: React.FC = () => {
+  const [backupPath, setBackupPath] = useState<string | null>(null);
+  const [password, setPassword] = useState('');
+  const [isRunning, setIsRunning] = useState(false);
+  const [restored, setRestored] = useState(false);
+  const [progress, setProgress] = useState<RestoreProgress | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handlePickFile = async (): Promise<void> => {
+    const picked = await window.electronAPI.pickRestoreFile();
+    if (!picked) return;
+    setBackupPath(picked);
+    setPassword('');
+    setErrorMsg(null);
+  };
+
+  const handleRestore = async (): Promise<void> => {
+    if (!backupPath || !password) return;
+    setErrorMsg(null);
+    setIsRunning(true);
+    setProgress(null);
+    const unsub = window.electronAPI.onRestoreProgress((p) => setProgress(p));
+    try {
+      const result = await window.electronAPI.restoreVault({
+        backupPath,
+        password,
+        mode: 'replace',
+      });
+      if (result.ok) {
+        setRestored(true);
+      } else {
+        setErrorMsg(result.error);
+      }
+    } finally {
+      unsub();
+      setIsRunning(false);
+      setProgress(null);
+    }
+  };
+
+  const progressPct =
+    progress && progress.total > 0
+      ? Math.round((progress.processed / progress.total) * 100)
+      : 0;
+
+  if (restored) {
+    return <RestoreCountdownDialog />;
+  }
+
+  if (!backupPath) {
+    return (
+      <button
+        type="button"
+        onClick={() => void handlePickFile()}
+        className="text-xs text-text-muted underline-offset-2 hover:text-accent hover:underline"
+      >
+        Restore from backup…
+      </button>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border border-border p-3">
+      <p className="truncate text-xs text-text-muted">{backupPath}</p>
+      {errorMsg && (
+        <Alert variant="danger">
+          <AlertDescription>{errorMsg}</AlertDescription>
+        </Alert>
+      )}
+      <div className="space-y-1">
+        <Label htmlFor="restore-pw" className="text-xs">Backup password</Label>
+        <PasswordInput
+          id="restore-pw"
+          placeholder="Enter backup password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && password && !isRunning) void handleRestore();
+          }}
+          error={!!errorMsg}
+          disabled={isRunning}
+          autoFocus
+        />
+      </div>
+      {isRunning && progress && (
+        <div className="space-y-1">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
+            <div
+              className="h-full rounded-full bg-accent transition-all duration-200"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <p className="text-xs text-text-muted">
+            Restoring {progress.processed} / {progress.total} files…
+          </p>
+        </div>
+      )}
+      <div className="flex gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => { setBackupPath(null); setErrorMsg(null); }}
+          disabled={isRunning}
+        >
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => void handleRestore()}
+          disabled={!password || isRunning}
+          className="flex-1"
+        >
+          {isRunning ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Restoring…
+            </>
+          ) : (
+            'Restore Vault'
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 // ── Unlock Screen ────────────────────────────────────────────────────
 const UnlockScreen: React.FC<{
   onUnlock: (password: string) => Promise<void>;
@@ -183,6 +353,10 @@ const UnlockScreen: React.FC<{
               )}
             </Button>
           </form>
+
+          <div className="mt-4 flex justify-center">
+            <RestoreFromBackupSection />
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -292,6 +466,10 @@ const CreateAccountScreen: React.FC<{
               )}
             </Button>
           </form>
+
+          <div className="mt-4 flex justify-center">
+            <RestoreFromBackupSection />
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -21,4 +21,11 @@ export const registerIpcHandlers = ({
   });
 
   ipcMain.handle(IPC_CHANNELS.getVersion, () => app.getVersion());
+
+  ipcMain.handle(IPC_CHANNELS.quitApp, () => {
+    if (app.isPackaged) {
+      app.relaunch();
+    }
+    app.exit(0);
+  });
 };

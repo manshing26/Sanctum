@@ -178,4 +178,13 @@ export class DatabaseService {
   getDb(): SqliteDatabase {
     return this.db;
   }
+
+  close(): void {
+    this.db.close();
+  }
+
+  reopen(): void {
+    this.db = new BetterSqlite3(this.vaultPaths.dbPath);
+    this.initialize();
+  }
 }

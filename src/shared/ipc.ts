@@ -55,6 +55,10 @@ export const IPC_CHANNELS = {
   backupVault: 'vault:backup',
   backupProgress: 'vault:backup-progress',
   pickBackupSavePath: 'vault:backup-pick-path',
+  restoreVault: 'vault:restore',
+  restoreProgress: 'vault:restore-progress',
+  pickRestoreFile: 'vault:restore-pick-file',
+  quitApp: 'app:quit',
   getSecuritySettings: 'settings:get-security',
   updateSecuritySettings: 'settings:update-security',
   getAppearanceSettings: 'settings:get-appearance',
@@ -366,6 +370,20 @@ export type BackupVaultInput = {
   outputPath: string;
 };
 
+export type RestoreMode = 'replace' | 'merge';
+
+export type RestoreVaultInput = {
+  backupPath: string;
+  password: string;
+  mode: RestoreMode;
+};
+
+export type RestoreProgress = {
+  total: number;
+  processed: number;
+  currentFile?: string;
+};
+
 export type DownloadState = 'downloading' | 'completed' | 'cancelled' | 'failed';
 
 export type DownloadProgress = {
@@ -423,10 +441,14 @@ export type ElectronAPI = {
   exportItems: (input: ExportItemsInput) => Promise<OperationResult<{ exported: number; failed: number }>>;
   backupVault: (input: BackupVaultInput) => Promise<OperationResult>;
   pickBackupSavePath: () => Promise<string | null>;
+  restoreVault: (input: RestoreVaultInput) => Promise<OperationResult>;
+  pickRestoreFile: () => Promise<string | null>;
+  quitApp: () => Promise<void>;
   onChangePasswordProgress: (handler: (payload: ChangePasswordProgress) => void) => () => void;
   onImportProgress: (handler: (payload: ImportProgress) => void) => () => void;
   onExportProgress: (handler: (payload: ExportProgress) => void) => () => void;
   onBackupProgress: (handler: (payload: BackupProgress) => void) => () => void;
+  onRestoreProgress: (handler: (payload: RestoreProgress) => void) => () => void;
   createFolder: (input: CreateFolderInput) => Promise<OperationResult<FolderNode>>;
   listFoldersTree: () => Promise<OperationResult<FolderNode[]>>;
   renameFolder: (input: RenameFolderInput) => Promise<OperationResult<FolderNode>>;

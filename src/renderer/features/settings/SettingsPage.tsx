@@ -10,6 +10,7 @@ import {
   Monitor,
   KeyRound,
   Archive,
+  ArchiveRestore,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/Button';
@@ -27,9 +28,10 @@ import {
   DialogDescription,
 } from '../../components/ui/Dialog';
 import { ScrollArea } from '../../components/ui/ScrollArea';
+import { RestoreCountdownDialog } from '../../App';
 import { cn } from '../../lib/utils';
 import { PasswordInput } from '../../components/ui/PasswordInput';
-import type { SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgress } from '../../../shared/ipc';
+import type { SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgress, RestoreProgress } from '../../../shared/ipc';
 
 type SettingsCategory = 'security' | 'appearance' | 'browser' | 'storage' | 'about';
 
@@ -604,6 +606,140 @@ const BackupCard: React.FC = () => {
   );
 };
 
+// ── Restore Card ──────────────────────────────────────────────────────
+const RestoreCard: React.FC = () => {
+  const [isRunning, setIsRunning] = useState(false);
+  const [restored, setRestored] = useState(false);
+  const [progress, setProgress] = useState<RestoreProgress | null>(null);
+  const [password, setPassword] = useState('');
+  const [backupPath, setBackupPath] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handlePickFile = async (): Promise<void> => {
+    const picked = await window.electronAPI.pickRestoreFile();
+    if (!picked) return;
+    setBackupPath(picked);
+    setPassword('');
+    setErrorMsg(null);
+  };
+
+  const handleReplace = async (): Promise<void> => {
+    if (!backupPath || !password) return;
+    setErrorMsg(null);
+    setIsRunning(true);
+    setProgress(null);
+
+    const unsub = window.electronAPI.onRestoreProgress((p) => setProgress(p));
+    try {
+      const result = await window.electronAPI.restoreVault({
+        backupPath,
+        password,
+        mode: 'replace',
+      });
+      if (result.ok) {
+        setRestored(true);
+      } else {
+        setErrorMsg(result.error);
+      }
+    } finally {
+      unsub();
+      setIsRunning(false);
+      setProgress(null);
+    }
+  };
+
+  const progressPct =
+    progress && progress.total > 0
+      ? Math.round((progress.processed / progress.total) * 100)
+      : 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Restore Vault</CardTitle>
+        <CardDescription>
+          Restore from a <code>.pvbackup</code> file. Requires the backup password.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => void handlePickFile()}
+            disabled={isRunning}
+            className="gap-1.5"
+          >
+            <ArchiveRestore className="h-3.5 w-3.5" />
+            Replace vault…
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled
+            onClick={() => toast.info('Merge restore is coming soon.')}
+            className="gap-1.5"
+          >
+            <ArchiveRestore className="h-3.5 w-3.5" />
+            Merge into vault…
+          </Button>
+        </div>
+
+        {backupPath && !restored && (
+          <div className="space-y-2 rounded-md border border-border p-3">
+            <p className="truncate text-xs text-text-muted">{backupPath}</p>
+            <div className="space-y-1">
+              <Label htmlFor="restore-password" className="text-xs">Backup password</Label>
+              <PasswordInput
+                id="restore-password"
+                placeholder="Enter backup password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && password && !isRunning) void handleReplace();
+                }}
+                error={!!errorMsg}
+                disabled={isRunning}
+              />
+            </div>
+            <Button
+              variant="danger-solid"
+              size="sm"
+              onClick={() => void handleReplace()}
+              disabled={!password || isRunning}
+              className="w-full"
+            >
+              {isRunning ? 'Restoring…' : 'Confirm Replace'}
+            </Button>
+          </div>
+        )}
+
+        {isRunning && progress && (
+          <div className="space-y-1">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
+              <div
+                className="h-full rounded-full bg-accent transition-all duration-200"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+            <p className="text-xs text-text-muted">
+              Restoring {progress.processed} / {progress.total} files…
+            </p>
+          </div>
+        )}
+
+        {restored && <RestoreCountdownDialog />}
+
+        {errorMsg && !isRunning && (
+          <Alert variant="danger">
+            <AlertDescription>{errorMsg}</AlertDescription>
+          </Alert>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 // ── Storage Settings ─────────────────────────────────────────────────
 const StorageSection: React.FC = () => {
   const [showWipeDialog, setShowWipeDialog] = useState(false);
@@ -632,6 +768,8 @@ const StorageSection: React.FC = () => {
       </div>
 
       <BackupCard />
+
+      <RestoreCard />
 
       <Card>
         <CardHeader>

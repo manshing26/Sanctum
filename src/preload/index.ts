@@ -6,6 +6,8 @@ import {
   type AssignItemsTagInput,
   type BackupProgress,
   type BackupVaultInput,
+  type RestoreProgress,
+  type RestoreVaultInput,
   type ChangePasswordInput,
   type ChangePasswordProgress,
   type CreateBookmarkInput,
@@ -148,6 +150,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(IPC_CHANNELS.backupProgress, listener);
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.backupProgress, listener);
+    };
+  },
+  quitApp: () => ipcRenderer.invoke(IPC_CHANNELS.quitApp),
+  pickRestoreFile: () => ipcRenderer.invoke(IPC_CHANNELS.pickRestoreFile),
+  restoreVault: (input: RestoreVaultInput) => ipcRenderer.invoke(IPC_CHANNELS.restoreVault, input),
+  onRestoreProgress: (handler: (payload: RestoreProgress) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: RestoreProgress) => {
+      handler(payload);
+    };
+    ipcRenderer.on(IPC_CHANNELS.restoreProgress, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.restoreProgress, listener);
     };
   },
 });
