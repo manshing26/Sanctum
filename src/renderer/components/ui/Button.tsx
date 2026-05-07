@@ -18,6 +18,10 @@ const buttonVariants = cva(
           'border border-danger/30 bg-danger/10 text-danger hover:bg-danger/20 focus-visible:ring-danger/50',
         'danger-solid':
           'bg-danger text-white hover:bg-danger-hover focus-visible:ring-danger/50',
+        warning:
+          'border border-warning/30 bg-warning/10 text-warning hover:bg-warning/20 focus-visible:ring-warning/50',
+        'warning-solid':
+          'bg-warning text-white hover:bg-warning-hover focus-visible:ring-warning/50',
         link: 'text-accent underline-offset-4 hover:underline',
       },
       size: {

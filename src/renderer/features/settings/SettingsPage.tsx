@@ -28,7 +28,7 @@ import {
   DialogDescription,
 } from '../../components/ui/Dialog';
 import { ScrollArea } from '../../components/ui/ScrollArea';
-import { RestoreCountdownDialog } from '../../App';
+import { RestoreCountdownDialog } from '../../components/ui/RestoreCountdownDialog';
 import { cn } from '../../lib/utils';
 import { PasswordInput } from '../../components/ui/PasswordInput';
 import type { SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgress, RestoreProgress } from '../../../shared/ipc';
@@ -339,6 +339,7 @@ const SecuritySection: React.FC = () => {
       </Card>
 
       <ChangePasswordCard />
+
     </div>
   );
 };
@@ -780,7 +781,7 @@ const StorageSection: React.FC = () => {
         </CardHeader>
         <CardContent>
           <Button
-            variant="danger-solid"
+            variant="danger"
             size="sm"
             onClick={() => setShowWipeDialog(true)}
             className="gap-1.5"

@@ -25,6 +25,7 @@
   --danger-hover: 239 68 68;
   --success: 74 222 128;
   --warning: 251 191 36;
+  --warning-hover: 245 158 11;
   --info: 96 165 250;
 
   /* Radii */
@@ -150,6 +151,22 @@
 
   .text-info {
     color: rgb(var(--info));
+  }
+
+  .bg-danger {
+    background-color: rgb(var(--danger));
+  }
+
+  .bg-danger-hover {
+    background-color: rgb(var(--danger-hover));
+  }
+
+  .bg-warning {
+    background-color: rgb(var(--warning));
+  }
+
+  .bg-warning-hover {
+    background-color: rgb(var(--warning-hover));
   }
 
   .border-danger {

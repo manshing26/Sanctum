@@ -18,6 +18,7 @@ const config: Config = {
         'danger-hover': 'rgb(var(--danger-hover) / <alpha-value>)',
         success: 'rgb(var(--success) / <alpha-value>)',
         warning: 'rgb(var(--warning) / <alpha-value>)',
+        'warning-hover': 'rgb(var(--warning-hover) / <alpha-value>)',
         info: 'rgb(var(--info) / <alpha-value>)',
       },
       borderRadius: {
