@@ -104,6 +104,27 @@ const createTab = (url = HOME_URL): BrowserTab => ({
   hasCrashed: false,
 });
 
+const TAB_PERSIST_KEY = 'pv_browser_tabs';
+
+type PersistedTabState = {
+  urls: string[];
+  activeIndex: number;
+};
+
+const loadPersistedTabs = (): { tabs: BrowserTab[]; activeTabId: string } => {
+  try {
+    const raw = localStorage.getItem(TAB_PERSIST_KEY);
+    if (!raw) return { tabs: [createTab()], activeTabId: '' };
+    const saved = JSON.parse(raw) as PersistedTabState;
+    if (!Array.isArray(saved.urls) || saved.urls.length === 0) return { tabs: [createTab()], activeTabId: '' };
+    const tabs = saved.urls.map((url) => createTab(url));
+    const index = Math.max(0, Math.min(saved.activeIndex ?? 0, tabs.length - 1));
+    return { tabs, activeTabId: tabs[index].id };
+  } catch {
+    return { tabs: [createTab()], activeTabId: '' };
+  }
+};
+
 const CHALLENGE_HINT_PATTERNS = [
   '__cf_chl_',
   '/cdn-cgi/challenge-platform',
@@ -256,8 +277,9 @@ export const BrowserWorkspace = ({
   const isWorkspaceActive = isActive ?? true;
   const isSuspended = !isWorkspaceActive;
 
-  const [tabs, setTabs] = useState<BrowserTab[]>([createTab()]);
-  const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id);
+  const [{ tabs: initialTabs, activeTabId: initialActiveTabId }] = useState(loadPersistedTabs);
+  const [tabs, setTabs] = useState<BrowserTab[]>(initialTabs);
+  const [activeTabId, setActiveTabId] = useState<string>(initialActiveTabId || initialTabs[0].id);
   const [addressInput, setAddressInput] = useState(HOME_URL);
   const [legacyShowBookmarks, setLegacyShowBookmarks] = useState(false);
   const [legacyShowExtensions] = useState(false);
@@ -286,6 +308,15 @@ export const BrowserWorkspace = ({
     () => tabs.find((tab) => tab.id === activeTabId) ?? tabs[0],
     [tabs, activeTabId],
   );
+
+  useEffect(() => {
+    const activeIndex = tabs.findIndex((t) => t.id === activeTabId);
+    const state: PersistedTabState = {
+      urls: tabs.map((t) => t.url),
+      activeIndex: Math.max(0, activeIndex),
+    };
+    localStorage.setItem(TAB_PERSIST_KEY, JSON.stringify(state));
+  }, [tabs, activeTabId]);
 
   useEffect(() => {
     if (tabs.length === 0) {
@@ -519,6 +550,7 @@ export const BrowserWorkspace = ({
       webviewRefs.current = {};
       navigationHistoryRef.current = {};
       challengeWarningCooldownRef.current = {};
+      localStorage.removeItem(TAB_PERSIST_KEY);
       setTabs([freshTab]);
       setActiveTabId(freshTab.id);
       setAddressInput(freshTab.url);
