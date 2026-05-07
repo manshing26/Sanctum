@@ -251,6 +251,7 @@ export class VaultService {
     metadata: MediaMetadata = {},
     thumbnail?: ThumbnailInput,
     folderId?: number | null,
+    overrideName?: string,
   ): Promise<VaultItemSummary> {
     if (folderId !== null && folderId !== undefined) {
       const folderExists = this.db
@@ -273,7 +274,7 @@ export class VaultService {
     await fs.writeFile(outputPath, encryptedFile.encrypted);
 
     const originalNamePayload = this.cryptoService.encryptBuffer(
-      Buffer.from(path.basename(sourcePath), 'utf8'),
+      Buffer.from(overrideName ?? path.basename(sourcePath), 'utf8'),
       key,
     );
 
@@ -339,7 +340,7 @@ export class VaultService {
 
     return {
       id: itemId,
-      originalName: path.basename(sourcePath),
+      originalName: overrideName ?? path.basename(sourcePath),
       createdAt: created.created_at,
       size: fileBuffer.byteLength,
       mimeType,
@@ -588,6 +589,112 @@ export class VaultService {
     this.db.prepare('DELETE FROM item_tags').run();
     this.db.prepare('DELETE FROM vault_items').run();
     return { deleted: rows.length };
+  }
+
+  async scanImportConflicts(
+    filePaths: string[],
+    folderId: number | null,
+  ): Promise<import('../../../shared/ipc').ConflictItem[]> {
+    this.ensureUnlocked();
+    const folderItems = this.scanFolderItems(folderId);
+    const nameToItem = new Map(folderItems.map((item) => [item.originalName.toLowerCase(), item]));
+    const hashToItem = new Map(
+      folderItems
+        .filter((item) => item.contentHash !== null)
+        .map((item) => [item.contentHash as string, item]),
+    );
+
+    const conflicts: import('../../../shared/ipc').ConflictItem[] = [];
+
+    for (const filePath of filePaths) {
+      const fileName = path.basename(filePath);
+      const fileBuffer = await fs.readFile(filePath);
+      const fileHash = createHash('sha256').update(fileBuffer).digest('hex');
+
+      const nameMatch = nameToItem.get(fileName.toLowerCase());
+      const hashMatch = hashToItem.get(fileHash);
+
+      if (nameMatch) {
+        const isExactDuplicate = nameMatch.contentHash === fileHash;
+        conflicts.push({
+          filePath,
+          fileName,
+          existingItemId: nameMatch.id,
+          existingItemName: nameMatch.originalName,
+          conflictType: isExactDuplicate ? 'exact_duplicate' : 'name_conflict',
+        });
+      } else if (hashMatch) {
+        conflicts.push({
+          filePath,
+          fileName,
+          existingItemId: hashMatch.id,
+          existingItemName: hashMatch.originalName,
+          conflictType: 'exact_duplicate',
+        });
+      }
+    }
+
+    return conflicts;
+  }
+
+  scanFolderItems(folderId: number | null): Array<{ id: string; originalName: string; contentHash: string | null }> {
+    this.ensureUnlocked();
+    const rows = this.db
+      .prepare(
+        `SELECT id, original_filename_enc, content_hash
+         FROM vault_items
+         WHERE ${folderId === null ? 'folder_id IS NULL' : 'folder_id = ?'}`
+      )
+      .all(...(folderId === null ? [] : [folderId])) as Array<{
+        id: string;
+        original_filename_enc: Buffer;
+        content_hash: string | null;
+      }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      originalName: this.decryptOriginalName(row.original_filename_enc),
+      contentHash: row.content_hash,
+    }));
+  }
+
+  async replaceItem(
+    existingItemId: string,
+    sourcePath: string,
+    metadata: MediaMetadata = {},
+    thumbnail?: ThumbnailInput,
+    folderId?: number | null,
+  ): Promise<VaultItemSummary> {
+    const metaRow = this.db
+      .prepare('SELECT rating, is_favorite FROM vault_items WHERE id = ?')
+      .get(existingItemId) as { rating: number | null; is_favorite: number | null } | undefined;
+
+    const tagRows = this.db
+      .prepare('SELECT tag_id FROM item_tags WHERE item_id = ?')
+      .all(existingItemId) as Array<{ tag_id: number }>;
+
+    await this.deleteItem(existingItemId);
+
+    const newItem = await this.addEncryptedFile(sourcePath, metadata, thumbnail, folderId);
+
+    if (metaRow) {
+      if (metaRow.rating !== null) {
+        this.setRating(newItem.id, metaRow.rating);
+      }
+      if (metaRow.is_favorite) {
+        this.setFavorite(newItem.id, true);
+      }
+    }
+
+    if (tagRows.length > 0) {
+      const placeholders = tagRows.map(() => '(?, ?)').join(', ');
+      const values = tagRows.flatMap((r) => [newItem.id, r.tag_id]);
+      this.db
+        .prepare(`INSERT OR IGNORE INTO item_tags (item_id, tag_id) VALUES ${placeholders}`)
+        .run(...values);
+    }
+
+    return newItem;
   }
 
   async deleteItem(itemId: string): Promise<void> {

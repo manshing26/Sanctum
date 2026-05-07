@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Upload, PanelRight } from 'lucide-react';
 import { toast } from 'sonner';
-import type { CreateFolderInput, FolderNode, VaultListSort } from '../../../shared/ipc';
+import type { ConflictItem, ConflictResolution, CreateFolderInput, FolderNode, VaultListSort } from '../../../shared/ipc';
 import { Button } from '../../components/ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../../components/ui/Tooltip';
 import { FolderSidebar } from './components/FolderSidebar';
@@ -13,6 +13,7 @@ import { TagFilterBar } from './components/TagFilterBar';
 import { MoveToFolderDialog } from './components/MoveToFolderDialog';
 import { ImportSettingsDialog } from './components/ImportSettingsDialog';
 import { DeleteFolderDialog } from './components/DeleteFolderDialog';
+import { ImportConflictDialog } from './components/ImportConflictDialog';
 import { useGalleryState } from './state/useGalleryState';
 import { MediaViewerOverlay } from '../viewer/MediaViewerOverlay';
 import { cn } from '../../lib/utils';
@@ -157,6 +158,12 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
   const [importSettingsOpen, setImportSettingsOpen] = useState(false);
   const [deleteFolderDialog, setDeleteFolderDialog] = useState<{ folderId: number; folderName: string } | null>(null);
   const [isDeletingFolder, setIsDeletingFolder] = useState(false);
+  const [conflictDialog, setConflictDialog] = useState<{
+    conflicts: ConflictItem[];
+    filePaths: string[];
+    folderId: number | null;
+    deleteOriginals: boolean;
+  } | null>(null);
 
   useEffect(() => {
     void loadFirstPage().then((result) => {
@@ -311,11 +318,25 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     filePaths: string[],
     folderId: number | null = importFolderId,
     deleteOriginals = false,
+    conflictResolutions?: ConflictResolution[],
   ): Promise<void> => {
+    if (!conflictResolutions) {
+      const scanResult = await window.electronAPI.scanImportConflicts({ filePaths, folderId });
+      if (!scanResult.ok) {
+        toast.error(scanResult.error);
+        return;
+      }
+      if (scanResult.data.conflicts.length > 0) {
+        setConflictDialog({ conflicts: scanResult.data.conflicts, filePaths, folderId, deleteOriginals });
+        return;
+      }
+    }
+
     const importResult = await window.electronAPI.importFiles({
       filePaths,
       folderId,
       deleteOriginals: deleteOriginals || undefined,
+      conflictResolutions,
     });
 
     if (!importResult.ok) {
@@ -329,9 +350,18 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
       return;
     }
 
-    toast.success(
-      `Imported ${importResult.data.imported} file(s)${importResult.data.failed > 0 ? `, ${importResult.data.failed} failed` : ''}`,
-    );
+    const { imported, skipped, failed } = importResult.data;
+    const parts = [`Imported ${imported} file(s)`];
+    if (skipped > 0) parts.push(`${skipped} skipped`);
+    if (failed > 0) parts.push(`${failed} failed`);
+    toast.success(parts.join(', '));
+  };
+
+  const handleConflictConfirm = (decisions: ConflictResolution[]): void => {
+    if (!conflictDialog) return;
+    const { filePaths, folderId, deleteOriginals } = conflictDialog;
+    setConflictDialog(null);
+    void runImport(filePaths, folderId, deleteOriginals, decisions);
   };
 
   const handleRefresh = async (): Promise<void> => {
@@ -837,6 +867,7 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
               onOpenMoveDialog={openSingleMoveDialog}
               onExportItem={(itemId) => void handleExportItem(itemId)}
               onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
+              onRenameItem={(itemId, newName) => void handleRenameItem(itemId, newName)}
               hasMore={hasMore}
               isLoading={isLoading}
               onLoadMore={() => void handleLoadMore()}
@@ -864,6 +895,7 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
               onOpenMoveDialog={openSingleMoveDialog}
               onExportItem={(itemId) => void handleExportItem(itemId)}
               onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
+              onRenameItem={(itemId, newName) => void handleRenameItem(itemId, newName)}
               hasMore={hasMore}
               isLoading={isLoading}
               onLoadMore={() => void handleLoadMore()}
@@ -913,6 +945,13 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
         secureDelete={secureDelete}
         onSecureDeleteChange={setSecureDelete}
         onImport={() => void handleImport()}
+      />
+
+      <ImportConflictDialog
+        open={conflictDialog !== null}
+        onOpenChange={(open) => { if (!open) setConflictDialog(null); }}
+        conflicts={conflictDialog?.conflicts ?? []}
+        onConfirm={handleConflictConfirm}
       />
 
       {/* Floating detail toggle button (visible below 2xl) */}

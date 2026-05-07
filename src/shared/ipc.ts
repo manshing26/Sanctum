@@ -41,6 +41,7 @@ export const IPC_CHANNELS = {
   deleteFolder: 'folders:delete',
   assignItemFolder: 'folders:assign-item',
   assignItemsFolder: 'folders:assign-items',
+  scanImportConflicts: 'vault:scan-import-conflicts',
   createTag: 'tags:create',
   listTags: 'tags:list',
   renameTag: 'tags:rename',
@@ -88,13 +89,42 @@ export type ImportRequest = {
   filePaths: string[];
   deleteOriginals?: boolean;
   folderId?: number | null;
+  conflictResolutions?: ConflictResolution[];
 };
 
 export type ImportResult = {
   imported: number;
+  skipped: number;
   failed: number;
   errors: string[];
   warnings?: string[];
+};
+
+export type ConflictType = 'exact_duplicate' | 'name_conflict';
+
+export type ConflictItem = {
+  filePath: string;
+  fileName: string;
+  existingItemId: string;
+  existingItemName: string;
+  conflictType: ConflictType;
+};
+
+export type ConflictAction = 'replace' | 'keep_both' | 'skip';
+
+export type ConflictResolution = {
+  filePath: string;
+  action: ConflictAction;
+  existingItemId?: string;
+};
+
+export type ScanImportConflictsInput = {
+  filePaths: string[];
+  folderId?: number | null;
+};
+
+export type ScanImportConflictsResult = {
+  conflicts: ConflictItem[];
 };
 
 export type OperationResult<T = undefined> =
@@ -363,6 +393,7 @@ export type ElectronAPI = {
   changePassword: (input: ChangePasswordInput) => Promise<OperationResult>;
   getSession: () => Promise<SessionState>;
   importFiles: (input: ImportRequest) => Promise<OperationResult<ImportResult>>;
+  scanImportConflicts: (input: ScanImportConflictsInput) => Promise<OperationResult<ScanImportConflictsResult>>;
   listItems: () => Promise<VaultItemSummary[]>;
   listItemsQuery: (input: ListItemsQueryInput) => Promise<OperationResult<ListItemsQueryResult>>;
   getItemThumbnail: (itemId: string) => Promise<OperationResult<ItemThumbnail>>;

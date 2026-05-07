@@ -5,7 +5,7 @@ import { ThumbnailService } from './ThumbnailService';
 import { SettingsService } from '../settings/SettingsService';
 import { SecureDeleteService } from '../security/SecureDeleteService';
 import { VaultService } from '../vault/VaultService';
-import type { ImportRequest, ImportResult } from '../../../shared/ipc';
+import type { ConflictResolution, ImportRequest, ImportResult } from '../../../shared/ipc';
 
 const getMimeType = (filename: string): string => {
   const ext = path.extname(filename).toLowerCase();
@@ -53,6 +53,7 @@ export class ImportService {
   async importFiles(request: ImportRequest, onProgress?: ImportProgressCallback): Promise<ImportResult> {
     const result: ImportResult = {
       imported: 0,
+      skipped: 0,
       failed: 0,
       errors: [],
       warnings: [],
@@ -64,12 +65,25 @@ export class ImportService {
         ? request.deleteOriginals
         : securitySettings.secureDeleteOnImport;
 
+    const resolutionMap = new Map<string, ConflictResolution>(
+      (request.conflictResolutions ?? []).map((r) => [r.filePath, r]),
+    );
+
     const total = request.filePaths.length;
     let processed = 0;
     let failed = 0;
 
     for (const filePath of request.filePaths) {
       try {
+        const resolution = resolutionMap.get(filePath);
+
+        if (resolution?.action === 'skip') {
+          result.skipped += 1;
+          processed += 1;
+          onProgress?.({ total, processed, failed, currentFile: filePath });
+          continue;
+        }
+
         await fs.promises.access(filePath, fs.constants.R_OK);
         const mimeType = getMimeType(filePath);
         const { metadata, warning } = await this.metadataService.extract(filePath);
@@ -85,11 +99,33 @@ export class ImportService {
           result.warnings?.push(`${filePath}: ${thumbnailWarning}`);
         }
 
+        const effectiveFolderId = request.folderId ?? null;
+
         try {
-          await this.vaultService.addEncryptedFile(filePath, metadata, thumbnail, request.folderId);
+          if (resolution?.action === 'replace' && resolution.existingItemId) {
+            await this.vaultService.replaceItem(
+              resolution.existingItemId,
+              filePath,
+              metadata,
+              thumbnail,
+              effectiveFolderId,
+            );
+          } else {
+            let importName = path.basename(filePath);
+            if (resolution?.action === 'keep_both') {
+              importName = await this.resolveUniqueFilename(importName, effectiveFolderId);
+            }
+            await this.vaultService.addEncryptedFile(
+              filePath,
+              metadata,
+              thumbnail,
+              effectiveFolderId,
+              importName,
+            );
+          }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown import error';
-          if (request.folderId !== undefined && request.folderId !== null) {
+          if (effectiveFolderId !== null) {
             const shouldFallbackToUnfiled =
               errorMessage.includes('Folder not found') || errorMessage.includes('FOREIGN KEY');
             if (shouldFallbackToUnfiled) {
@@ -133,5 +169,21 @@ export class ImportService {
     }
 
     return result;
+  }
+
+  private async resolveUniqueFilename(filename: string, folderId: number | null): Promise<string> {
+    const existing = this.vaultService.scanFolderItems(folderId);
+    const existingNames = new Set(existing.map((item) => item.originalName.toLowerCase()));
+
+    const ext = path.extname(filename);
+    const base = ext ? filename.slice(0, -ext.length) : filename;
+
+    let counter = 1;
+    let candidate = filename;
+    while (existingNames.has(candidate.toLowerCase())) {
+      candidate = `${base} (${counter})${ext}`;
+      counter += 1;
+    }
+    return candidate;
   }
 }

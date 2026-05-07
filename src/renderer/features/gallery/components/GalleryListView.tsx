@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Heart, Image, Film, Eye, Star, ImageOff, Download, Trash2, FolderOpen } from 'lucide-react';
+import { Heart, Image, Film, Eye, Pencil, Star, ImageOff, Download, Trash2, FolderOpen } from 'lucide-react';
 import type { VaultItemSummary } from '../../../../shared/ipc';
+import { RenameItemDialog } from './RenameItemDialog';
 import { Button } from '../../../components/ui/Button';
 import { Spinner } from '../../../components/ui/Spinner';
 import { Skeleton } from '../../../components/ui/Skeleton';
@@ -34,6 +35,7 @@ type GalleryListViewProps = {
   onOpenMoveDialog: (itemId: string) => void;
   onExportItem?: (itemId: string) => void;
   onDeleteItem?: (itemId: string) => void;
+  onRenameItem?: (itemId: string, newName: string) => void;
   hasMore: boolean;
   isLoading: boolean;
   onLoadMore: () => void;
@@ -74,6 +76,7 @@ const ListRow: React.FC<{
   onOpenMoveDialog: (itemId: string) => void;
   onExport?: (itemId: string) => void;
   onDelete?: (itemId: string) => void;
+  onRename?: (itemId: string, newName: string) => void;
   isMultiSelect: boolean;
 }> = ({
   item,
@@ -93,9 +96,11 @@ const ListRow: React.FC<{
   onOpenMoveDialog,
   onExport,
   onDelete,
+  onRename,
   isMultiSelect,
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   const contextTargetIds = contextTargetIdsForItem?.(item.id) ?? [item.id];
   const openViewerDisabled = isOpenViewerDisabledForItem?.(item.id) ?? contextTargetIds.length > 1;
 
@@ -222,6 +227,7 @@ const ListRow: React.FC<{
   );
 
   return (
+    <>
     <ContextMenu>
       <ContextMenuTrigger asChild>{rowContent}</ContextMenuTrigger>
       <ContextMenuContent>
@@ -286,6 +292,12 @@ const ListRow: React.FC<{
             {contextTargetIds.length > 1 ? 'Export Selected' : 'Export'}
           </ContextMenuItem>
         )}
+        {onRename && contextTargetIds.length === 1 && (
+          <ContextMenuItem onClick={() => setRenameOpen(true)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Rename
+          </ContextMenuItem>
+        )}
         {(onDelete || onDeleteForIds) && (
           <ContextMenuItem
             onClick={() => {
@@ -306,6 +318,15 @@ const ListRow: React.FC<{
         )}
       </ContextMenuContent>
     </ContextMenu>
+    {onRename && (
+      <RenameItemDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        currentName={item.originalName}
+        onConfirm={(newName) => onRename(item.id, newName)}
+      />
+    )}
+    </>
   );
 };
 
@@ -331,6 +352,7 @@ export const GalleryListView = ({
   onOpenMoveDialog,
   onExportItem,
   onDeleteItem,
+  onRenameItem,
   hasMore,
   isLoading,
   onLoadMore,
@@ -393,6 +415,7 @@ export const GalleryListView = ({
           onOpenMoveDialog={onOpenMoveDialog}
           onExport={onExportItem}
           onDelete={onDeleteItem}
+          onRename={onRenameItem}
           isMultiSelect={isMultiSelect}
         />
       ))}

@@ -6,6 +6,7 @@ import {
   type ImportRequest,
   type ListItemsQueryInput,
   type RenameItemInput,
+  type ScanImportConflictsInput,
   type ToggleFavoriteInput,
   type SetRatingInput,
 } from '../../shared/ipc';
@@ -38,6 +39,21 @@ export const registerVaultHandlers = ({
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to import files.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.scanImportConflicts, async (_event, input: ScanImportConflictsInput) => {
+    try {
+      const conflicts = await vaultService.scanImportConflicts(
+        input.filePaths,
+        input.folderId ?? null,
+      );
+      return { ok: true as const, data: { conflicts } };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to scan for conflicts.',
       };
     }
   });

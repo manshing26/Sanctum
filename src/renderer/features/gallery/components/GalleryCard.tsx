@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Heart, Image, Film, Play, Eye, Star, Download, Trash2, FolderOpen } from 'lucide-react';
+import { Heart, Image, Film, Play, Eye, Pencil, Star, Download, Trash2, FolderOpen } from 'lucide-react';
 import type { VaultItemSummary } from '../../../../shared/ipc';
 import { Badge } from '../../../components/ui/Badge';
 import { Skeleton } from '../../../components/ui/Skeleton';
@@ -9,6 +9,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from '../../../components/ui/ContextMenu';
+import { RenameItemDialog } from './RenameItemDialog';
 import { cn } from '../../../lib/utils';
 
 type GalleryCardProps = {
@@ -29,6 +30,7 @@ type GalleryCardProps = {
   onOpenMoveDialog?: (itemId: string) => void;
   onExport?: (itemId: string) => void;
   onDelete?: (itemId: string) => void;
+  onRename?: (itemId: string, newName: string) => void;
   isMultiSelect: boolean;
 };
 
@@ -66,9 +68,11 @@ export const GalleryCard = ({
   onOpenMoveDialog,
   onExport,
   onDelete,
+  onRename,
   isMultiSelect,
 }: GalleryCardProps): React.JSX.Element => {
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   const showSkeleton = item.hasThumbnail && thumbnailUrl && !imageLoaded;
   const contextTargetIds = contextTargetIdsForItem?.(item.id) ?? [item.id];
   const openViewerDisabled = isOpenViewerDisabledForItem?.(item.id) ?? contextTargetIds.length > 1;
@@ -220,6 +224,7 @@ export const GalleryCard = ({
   );
 
   return (
+    <>
     <ContextMenu>
       <ContextMenuTrigger asChild>
         {cardContent}
@@ -291,6 +296,12 @@ export const GalleryCard = ({
             {contextTargetIds.length > 1 ? 'Export Selected' : 'Export'}
           </ContextMenuItem>
         )}
+        {onRename && contextTargetIds.length === 1 && (
+          <ContextMenuItem onClick={() => setRenameOpen(true)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Rename
+          </ContextMenuItem>
+        )}
         {(onDelete || onDeleteForIds) && (
           <ContextMenuItem
             onClick={() => {
@@ -311,5 +322,14 @@ export const GalleryCard = ({
         )}
       </ContextMenuContent>
     </ContextMenu>
+    {onRename && (
+      <RenameItemDialog
+        open={renameOpen}
+        onOpenChange={setRenameOpen}
+        currentName={item.originalName}
+        onConfirm={(newName) => onRename(item.id, newName)}
+      />
+    )}
+    </>
   );
 };

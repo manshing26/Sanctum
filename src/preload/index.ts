@@ -17,6 +17,7 @@ import {
   type RenameItemInput,
   type RenameTagInput,
   type RenameFolderInput,
+  type ScanImportConflictsInput,
   type ToggleFavoriteInput,
   type UnassignItemTagInput,
   type UnassignItemsTagInput,
@@ -52,6 +53,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.changePassword, input),
   getSession: () => ipcRenderer.invoke(IPC_CHANNELS.getSession),
   importFiles: (input: ImportRequest) => ipcRenderer.invoke(IPC_CHANNELS.importFiles, input),
+  scanImportConflicts: (input: ScanImportConflictsInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.scanImportConflicts, input),
   listItems: () => ipcRenderer.invoke(IPC_CHANNELS.listItems),
   listItemsQuery: (input: ListItemsQueryInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.listItemsQuery, input),

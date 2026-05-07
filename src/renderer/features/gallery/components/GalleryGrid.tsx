@@ -27,6 +27,7 @@ type GalleryGridProps = {
   onOpenMoveDialog?: (itemId: string) => void;
   onExportItem?: (itemId: string) => void;
   onDeleteItem?: (itemId: string) => void;
+  onRenameItem?: (itemId: string, newName: string) => void;
   hasMore: boolean;
   isLoading: boolean;
   onLoadMore: () => void;
@@ -54,6 +55,7 @@ export const GalleryGrid = ({
   onOpenMoveDialog,
   onExportItem,
   onDeleteItem,
+  onRenameItem,
   hasMore,
   isLoading,
   onLoadMore,
@@ -105,6 +107,7 @@ export const GalleryGrid = ({
               onOpenMoveDialog={onOpenMoveDialog}
               onExport={onExportItem}
               onDelete={onDeleteItem}
+              onRename={onRenameItem}
               isMultiSelect={isMultiSelect}
             />
           ))}
