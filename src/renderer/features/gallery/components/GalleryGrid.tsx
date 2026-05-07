@@ -2,7 +2,6 @@ import React from 'react';
 import { ImageOff } from 'lucide-react';
 import type { VaultItemSummary } from '../../../../shared/ipc';
 import { GalleryCard } from './GalleryCard';
-import { Button } from '../../../components/ui/Button';
 import { Spinner } from '../../../components/ui/Spinner';
 import { useMarqueeSelection } from '../hooks/useMarqueeSelection';
 
@@ -29,8 +28,8 @@ type GalleryGridProps = {
   onDeleteItem?: (itemId: string) => void;
   onRenameItem?: (itemId: string, newName: string) => void;
   hasMore: boolean;
-  isLoading: boolean;
-  onLoadMore: () => void;
+  isLoadingMore: boolean;
+  sentinelRef: React.RefObject<HTMLDivElement | null>;
   isMultiSelect: boolean;
 };
 
@@ -57,8 +56,8 @@ export const GalleryGrid = ({
   onDeleteItem,
   onRenameItem,
   hasMore,
-  isLoading,
-  onLoadMore,
+  isLoadingMore,
+  sentinelRef,
   isMultiSelect,
 }: GalleryGridProps): React.JSX.Element => {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -70,7 +69,7 @@ export const GalleryGrid = ({
     onEmptyBackgroundClick,
   });
 
-  if (items.length === 0 && !isLoading) {
+  if (items.length === 0 && !isLoadingMore) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-16">
         <ImageOff className="h-10 w-10 text-text-muted opacity-40" />
@@ -121,23 +120,8 @@ export const GalleryGrid = ({
       </div>
 
       {hasMore && (
-        <div className="flex justify-center py-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={isLoading}
-            onClick={onLoadMore}
-            className="gap-2"
-          >
-            {isLoading ? (
-              <>
-                <Spinner size="sm" />
-                Loading...
-              </>
-            ) : (
-              'Load More'
-            )}
-          </Button>
+        <div ref={sentinelRef} className="flex justify-center py-4">
+          {isLoadingMore && <Spinner size="sm" />}
         </div>
       )}
     </div>

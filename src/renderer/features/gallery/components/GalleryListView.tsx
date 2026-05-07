@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Heart, Image, Film, Eye, Pencil, Star, ImageOff, Download, Trash2, FolderOpen } from 'lucide-react';
 import type { VaultItemSummary } from '../../../../shared/ipc';
 import { RenameItemDialog } from './RenameItemDialog';
-import { Button } from '../../../components/ui/Button';
 import { Spinner } from '../../../components/ui/Spinner';
 import { Skeleton } from '../../../components/ui/Skeleton';
 import { useMarqueeSelection } from '../hooks/useMarqueeSelection';
@@ -37,8 +36,8 @@ type GalleryListViewProps = {
   onDeleteItem?: (itemId: string) => void;
   onRenameItem?: (itemId: string, newName: string) => void;
   hasMore: boolean;
-  isLoading: boolean;
-  onLoadMore: () => void;
+  isLoadingMore: boolean;
+  sentinelRef: React.RefObject<HTMLDivElement | null>;
   isMultiSelect: boolean;
 };
 
@@ -354,8 +353,8 @@ export const GalleryListView = ({
   onDeleteItem,
   onRenameItem,
   hasMore,
-  isLoading,
-  onLoadMore,
+  isLoadingMore,
+  sentinelRef,
   isMultiSelect,
 }: GalleryListViewProps): React.JSX.Element => {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -367,7 +366,7 @@ export const GalleryListView = ({
     onEmptyBackgroundClick,
   });
 
-  if (items.length === 0 && !isLoading) {
+  if (items.length === 0 && !isLoadingMore) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-16">
         <ImageOff className="h-10 w-10 text-text-muted opacity-40" />
@@ -421,23 +420,8 @@ export const GalleryListView = ({
       ))}
 
       {hasMore && (
-        <div className="flex justify-center py-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={isLoading}
-            onClick={onLoadMore}
-            className="gap-2"
-          >
-            {isLoading ? (
-              <>
-                <Spinner size="sm" />
-                Loading...
-              </>
-            ) : (
-              'Load More'
-            )}
-          </Button>
+        <div ref={sentinelRef} className="flex justify-center py-4">
+          {isLoadingMore && <Spinner size="sm" />}
         </div>
       )}
       {isSelecting && overlayStyle && (

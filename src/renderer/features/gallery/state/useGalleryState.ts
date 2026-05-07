@@ -7,7 +7,8 @@ import type {
   VaultListSort,
 } from '../../../../shared/ipc';
 
-const PAGE_SIZE = 100;
+const ALL_ITEMS_LIMIT = 5000;
+const THUMBNAIL_BATCH_SIZE = 20;
 
 const collectDescendantIds = (nodes: FolderNode[], rootId: number): Set<number> => {
   const map = new Map<number, FolderNode>();
@@ -42,8 +43,6 @@ const collectDescendantIds = (nodes: FolderNode[], rootId: number): Set<number> 
 
 export const useGalleryState = () => {
   const [allItems, setAllItems] = useState<VaultItemSummary[]>([]);
-  const [totalItems, setTotalItems] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
@@ -69,33 +68,28 @@ export const useGalleryState = () => {
 
   const hydrateThumbnails = useCallback(async (items: VaultItemSummary[]): Promise<void> => {
     const missing = items.filter((item) => item.hasThumbnail && !thumbnails[item.id]);
-    if (missing.length === 0) {
-      return;
+    if (missing.length === 0) return;
+
+    for (let i = 0; i < missing.length; i += THUMBNAIL_BATCH_SIZE) {
+      const batch = missing.slice(i, i + THUMBNAIL_BATCH_SIZE);
+      const entries = await Promise.all(
+        batch.map(async (item) => {
+          const result = await window.electronAPI.getItemThumbnail(item.id);
+          if (!result.ok) return null;
+          return [
+            item.id,
+            `data:${result.data.mimeType};base64,${result.data.base64Data}`,
+          ] as const;
+        }),
+      );
+      setThumbnails((prev) => {
+        const next = { ...prev };
+        for (const entry of entries) {
+          if (entry) next[entry[0]] = entry[1];
+        }
+        return next;
+      });
     }
-
-    const entries = await Promise.all(
-      missing.map(async (item) => {
-        const thumbnailResult = await window.electronAPI.getItemThumbnail(item.id);
-        if (!thumbnailResult.ok) {
-          return null;
-        }
-        return [
-          item.id,
-          `data:${thumbnailResult.data.mimeType};base64,${thumbnailResult.data.base64Data}`,
-        ] as const;
-      }),
-    );
-
-    setThumbnails((prev) => {
-      const next = { ...prev };
-      for (const entry of entries) {
-        if (!entry) {
-          continue;
-        }
-        next[entry[0]] = entry[1];
-      }
-      return next;
-    });
   }, [thumbnails]);
 
   const loadSupportingData = useCallback(async (): Promise<{ ok: true } | { ok: false; error: string }> => {
@@ -133,7 +127,7 @@ export const useGalleryState = () => {
 
       const [itemsResult, supportResult] = await Promise.all([
         window.electronAPI.listItemsQuery({
-          limit: PAGE_SIZE,
+          limit: ALL_ITEMS_LIMIT,
           offset: 0,
           sort: effectiveSort,
         }),
@@ -148,64 +142,25 @@ export const useGalleryState = () => {
       }
 
       setAllItems(itemsResult.data.items);
-      setTotalItems(itemsResult.data.total);
-      setHasMore(itemsResult.data.hasMore);
       setSelectedItemIds((prev) => {
         const visible = new Set(itemsResult.data.items.map((item) => item.id));
         const kept = prev.filter((id) => visible.has(id));
-        if (kept.length > 0) {
-          return kept;
-        }
+        if (kept.length > 0) return kept;
         const fallback = itemsResult.data.items[0]?.id;
         return fallback ? [fallback] : [];
       });
       setPrimarySelectedId((prev) => {
-        if (!prev) {
-          return itemsResult.data.items[0]?.id ?? null;
-        }
+        if (!prev) return itemsResult.data.items[0]?.id ?? null;
         return itemsResult.data.items.some((item) => item.id === prev)
           ? prev
           : itemsResult.data.items[0]?.id ?? null;
       });
 
-      await hydrateThumbnails(itemsResult.data.items);
       return { ok: true };
     } finally {
       setIsLoading(false);
     }
-  }, [sort, loadSupportingData, hydrateThumbnails]);
-
-  const loadMore = useCallback(async (): Promise<{ ok: true } | { ok: false; error: string }> => {
-    if (!hasMore || isLoading) {
-      return { ok: true };
-    }
-
-    setIsLoading(true);
-    try {
-      const offset = allItems.length;
-      const itemsResult = await window.electronAPI.listItemsQuery({
-        limit: PAGE_SIZE,
-        offset,
-        sort,
-      });
-
-      if (!itemsResult.ok) {
-        return { ok: false, error: itemsResult.error };
-      }
-
-      const existing = new Set(allItems.map((item) => item.id));
-      const appended = itemsResult.data.items.filter((item) => !existing.has(item.id));
-      const nextItems = [...allItems, ...appended];
-
-      setAllItems(nextItems);
-      setTotalItems(itemsResult.data.total);
-      setHasMore(itemsResult.data.hasMore);
-      await hydrateThumbnails(appended);
-      return { ok: true };
-    } finally {
-      setIsLoading(false);
-    }
-  }, [allItems, hasMore, isLoading, sort, hydrateThumbnails]);
+  }, [sort, loadSupportingData]);
 
   const refresh = useCallback(async (): Promise<{ ok: true } | { ok: false; error: string }> => {
     return loadFirstPage();
@@ -325,10 +280,9 @@ export const useGalleryState = () => {
   return {
     allItems,
     filteredItems,
-    totalItems,
-    hasMore,
     isLoading,
     thumbnails,
+    hydrateThumbnails,
     folders,
     tags,
     securitySettings,
@@ -358,7 +312,6 @@ export const useGalleryState = () => {
     setFolders,
     setTags,
     loadFirstPage,
-    loadMore,
     refresh,
     loadSupportingData,
   };

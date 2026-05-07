@@ -369,7 +369,7 @@ export class VaultService {
   listItemsQuery(input: ListItemsQueryInput): ListItemsQueryResult {
     this.ensureUnlocked();
     const sort = input.sort in SORT_TO_ORDER_BY ? input.sort : 'newest';
-    const limit = Math.max(1, Math.min(input.limit || 100, 200));
+    const limit = Math.max(1, Math.min(input.limit || 100, 5000));
     const offset = Math.max(0, input.offset || 0);
     const needsNameSort = sort === 'name_asc' || sort === 'name_desc';
 

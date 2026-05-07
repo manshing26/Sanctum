@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Upload, PanelRight } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ConflictItem, ConflictResolution, CreateFolderInput, FolderNode, VaultListSort } from '../../../shared/ipc';
@@ -107,9 +107,9 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
   const {
     allItems,
     filteredItems,
-    hasMore,
     isLoading,
     thumbnails,
+    hydrateThumbnails,
     folders,
     tags,
     securitySettings,
@@ -135,7 +135,6 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     setImportFolderId,
     setShowFavoritesOnly,
     loadFirstPage,
-    loadMore,
     refresh,
     loadSupportingData,
   } = state;
@@ -164,6 +163,45 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     folderId: number | null;
     deleteOriginals: boolean;
   } | null>(null);
+
+  const RENDER_PAGE = 100;
+  const [renderCount, setRenderCount] = useState(RENDER_PAGE);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Reset render window when filtered set changes
+  useEffect(() => {
+    setRenderCount(RENDER_PAGE);
+  }, [filteredItems]);
+
+  // Auto-expand render window + hydrate thumbnails when sentinel is visible
+  const handleSentinelIntersect = useCallback(async (entries: IntersectionObserverEntry[]) => {
+    if (!entries[0]?.isIntersecting) return;
+    if (renderCount >= filteredItems.length) return;
+    setIsLoadingMore(true);
+    const next = Math.min(renderCount + RENDER_PAGE, filteredItems.length);
+    const newBatch = filteredItems.slice(renderCount, next);
+    setRenderCount(next);
+    await hydrateThumbnails(newBatch);
+    setIsLoadingMore(false);
+  }, [renderCount, filteredItems, hydrateThumbnails]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => { void handleSentinelIntersect(entries); },
+      { threshold: 0.1 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [handleSentinelIntersect]);
+
+  // Hydrate thumbnails for the initial render window after load
+  useEffect(() => {
+    if (filteredItems.length === 0) return;
+    void hydrateThumbnails(filteredItems.slice(0, RENDER_PAGE));
+  }, [filteredItems]);
 
   useEffect(() => {
     void loadFirstPage().then((result) => {
@@ -660,11 +698,6 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
     if (!refreshed.ok) toast.error(refreshed.error);
   };
 
-  const handleLoadMore = async (): Promise<void> => {
-    const result = await loadMore();
-    if (!result.ok) toast.error(result.error);
-  };
-
   const handleToggleTagFilter = (tagId: number): void => {
     setSelectedTagIds(
       selectedTagIds.includes(tagId)
@@ -847,7 +880,7 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
         <div className="flex-1 overflow-y-auto p-4">
           {viewMode === 'grid' ? (
             <GalleryGrid
-              items={filteredItems}
+              items={filteredItems.slice(0, renderCount)}
               thumbnails={thumbnails}
               selectedItemIds={selectedItemIds}
               onToggleSelect={handleItemClick}
@@ -868,14 +901,14 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
               onExportItem={(itemId) => void handleExportItem(itemId)}
               onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
               onRenameItem={(itemId, newName) => void handleRenameItem(itemId, newName)}
-              hasMore={hasMore}
-              isLoading={isLoading}
-              onLoadMore={() => void handleLoadMore()}
+              hasMore={renderCount < filteredItems.length}
+              isLoadingMore={isLoadingMore}
+              sentinelRef={sentinelRef}
               isMultiSelect={isMultiSelect}
             />
           ) : (
             <GalleryListView
-              items={filteredItems}
+              items={filteredItems.slice(0, renderCount)}
               thumbnails={thumbnails}
               selectedItemIds={selectedItemIds}
               onToggleSelect={handleItemClick}
@@ -896,9 +929,9 @@ export const GalleryPage = ({ onMessage }: GalleryPageProps): React.JSX.Element 
               onExportItem={(itemId) => void handleExportItem(itemId)}
               onDeleteItem={(itemId) => void handleDeleteItem(itemId)}
               onRenameItem={(itemId, newName) => void handleRenameItem(itemId, newName)}
-              hasMore={hasMore}
-              isLoading={isLoading}
-              onLoadMore={() => void handleLoadMore()}
+              hasMore={renderCount < filteredItems.length}
+              isLoadingMore={isLoadingMore}
+              sentinelRef={sentinelRef}
               isMultiSelect={isMultiSelect}
             />
           )}

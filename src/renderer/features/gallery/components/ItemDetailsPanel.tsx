@@ -58,10 +58,23 @@ const DetailsContent: React.FC<
   selectedCount,
 }) => {
   const [isRenaming, setIsRenaming] = useState(false);
-  const [nameDraft, setNameDraft] = useState('');
+  const [baseDraft, setBaseDraft] = useState('');
+  const [extDraft, setExtDraft] = useState('');
+
+  const splitName = (name: string): { base: string; ext: string } => {
+    const i = name.lastIndexOf('.');
+    return i > 0 ? { base: name.slice(0, i), ext: name.slice(i + 1) } : { base: name, ext: '' };
+  };
+
+  const buildName = (): string => {
+    const cleanExt = extDraft.trim().replace(/^\.+/, '');
+    return cleanExt ? `${baseDraft.trim()}.${cleanExt}` : baseDraft.trim();
+  };
 
   useEffect(() => {
-    setNameDraft(item?.originalName ?? '');
+    const { base, ext } = splitName(item?.originalName ?? '');
+    setBaseDraft(base);
+    setExtDraft(ext);
     setIsRenaming(false);
   }, [item?.id, item?.originalName]);
 
@@ -89,46 +102,74 @@ const DetailsContent: React.FC<
       {/* Name + rename */}
       <div>
         {isRenaming ? (
-          <div className="flex items-center gap-1">
-            <Input
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              className="h-8 text-sm"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && nameDraft.trim() && nameDraft.trim() !== item.originalName) {
-                  onRenameItem(item.id, nameDraft.trim());
+          <div className="space-y-1">
+            <div className="flex items-center gap-1">
+              <Input
+                value={baseDraft}
+                onChange={(e) => setBaseDraft(e.target.value)}
+                className="h-8 min-w-0 flex-1 text-sm"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const newName = buildName();
+                    if (newName && newName !== item.originalName) onRenameItem(item.id, newName);
+                    setIsRenaming(false);
+                  }
+                  if (e.key === 'Escape') {
+                    const { base, ext } = splitName(item.originalName);
+                    setBaseDraft(base);
+                    setExtDraft(ext);
+                    setIsRenaming(false);
+                  }
+                }}
+              />
+              <div className="flex h-8 w-16 shrink-0 items-center rounded-lg border border-border bg-bg px-1.5 text-sm text-text-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25">
+                <span className="select-none text-text-muted/60">.</span>
+                <input
+                  value={extDraft}
+                  onChange={(e) => setExtDraft(e.target.value.replace(/^\.+/, ''))}
+                  placeholder="ext"
+                  className="w-full min-w-0 bg-transparent text-xs text-text-primary outline-none placeholder:text-text-muted/50"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const newName = buildName();
+                      if (newName && newName !== item.originalName) onRenameItem(item.id, newName);
+                      setIsRenaming(false);
+                    }
+                    if (e.key === 'Escape') {
+                      const { base, ext } = splitName(item.originalName);
+                      setBaseDraft(base);
+                      setExtDraft(ext);
+                      setIsRenaming(false);
+                    }
+                  }}
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => {
+                  const newName = buildName();
+                  if (newName && newName !== item.originalName) onRenameItem(item.id, newName);
                   setIsRenaming(false);
-                }
-                if (e.key === 'Escape') {
-                  setNameDraft(item.originalName);
+                }}
+                disabled={!baseDraft.trim() || buildName() === item.originalName}
+              >
+                <Check className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => {
+                  const { base, ext } = splitName(item.originalName);
+                  setBaseDraft(base);
+                  setExtDraft(ext);
                   setIsRenaming(false);
-                }
-              }}
-            />
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => {
-                if (nameDraft.trim() && nameDraft.trim() !== item.originalName) {
-                  onRenameItem(item.id, nameDraft.trim());
-                }
-                setIsRenaming(false);
-              }}
-              disabled={!nameDraft.trim() || nameDraft.trim() === item.originalName}
-            >
-              <Check className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => {
-                setNameDraft(item.originalName);
-                setIsRenaming(false);
-              }}
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
+                }}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_1.75rem] items-center gap-2">
