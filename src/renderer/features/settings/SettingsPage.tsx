@@ -608,37 +608,38 @@ const BackupCard: React.FC = () => {
 };
 
 // ── Restore Card ──────────────────────────────────────────────────────
+type RestoreMode = 'replace' | 'merge';
+
 const RestoreCard: React.FC = () => {
+  const [mode, setMode] = useState<RestoreMode | null>(null);
   const [isRunning, setIsRunning] = useState(false);
-  const [restored, setRestored] = useState(false);
+  const [replaced, setReplaced] = useState(false);
   const [progress, setProgress] = useState<RestoreProgress | null>(null);
   const [password, setPassword] = useState('');
   const [backupPath, setBackupPath] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handlePickFile = async (): Promise<void> => {
+  const handlePickFile = async (pickedMode: RestoreMode): Promise<void> => {
     const picked = await window.electronAPI.pickRestoreFile();
     if (!picked) return;
+    setMode(pickedMode);
     setBackupPath(picked);
     setPassword('');
     setErrorMsg(null);
+    setReplaced(false);
   };
 
-  const handleReplace = async (): Promise<void> => {
-    if (!backupPath || !password) return;
+  const handleRestore = async (): Promise<void> => {
+    if (!backupPath || !password || !mode) return;
     setErrorMsg(null);
     setIsRunning(true);
     setProgress(null);
 
     const unsub = window.electronAPI.onRestoreProgress((p) => setProgress(p));
     try {
-      const result = await window.electronAPI.restoreVault({
-        backupPath,
-        password,
-        mode: 'replace',
-      });
+      const result = await window.electronAPI.restoreVault({ backupPath, password, mode });
       if (result.ok) {
-        setRestored(true);
+        setReplaced(true);
       } else {
         setErrorMsg(result.error);
       }
@@ -667,7 +668,7 @@ const RestoreCard: React.FC = () => {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => void handlePickFile()}
+            onClick={() => void handlePickFile('replace')}
             disabled={isRunning}
             className="gap-1.5"
           >
@@ -677,8 +678,8 @@ const RestoreCard: React.FC = () => {
           <Button
             variant="secondary"
             size="sm"
-            disabled
-            onClick={() => toast.info('Merge restore is coming soon.')}
+            onClick={() => void handlePickFile('merge')}
+            disabled={isRunning}
             className="gap-1.5"
           >
             <ArchiveRestore className="h-3.5 w-3.5" />
@@ -686,7 +687,7 @@ const RestoreCard: React.FC = () => {
           </Button>
         </div>
 
-        {backupPath && !restored && (
+        {backupPath && !replaced && (
           <div className="space-y-2 rounded-md border border-border p-3">
             <p className="truncate text-xs text-text-muted">{backupPath}</p>
             <div className="space-y-1">
@@ -697,20 +698,24 @@ const RestoreCard: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && password && !isRunning) void handleReplace();
+                  if (e.key === 'Enter' && password && !isRunning) void handleRestore();
                 }}
                 error={!!errorMsg}
                 disabled={isRunning}
               />
             </div>
             <Button
-              variant="danger-solid"
+              variant={mode === 'replace' ? 'danger-solid' : 'default'}
               size="sm"
-              onClick={() => void handleReplace()}
+              onClick={() => void handleRestore()}
               disabled={!password || isRunning}
               className="w-full"
             >
-              {isRunning ? 'Restoring…' : 'Confirm Replace'}
+              {isRunning
+                ? 'Restoring…'
+                : mode === 'replace'
+                  ? 'Confirm Replace'
+                  : 'Merge into Vault'}
             </Button>
           </div>
         )}
@@ -729,7 +734,7 @@ const RestoreCard: React.FC = () => {
           </div>
         )}
 
-        {restored && <RestoreCountdownDialog />}
+        {replaced && <RestoreCountdownDialog />}
 
         {errorMsg && !isRunning && (
           <Alert variant="danger">

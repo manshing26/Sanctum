@@ -229,7 +229,7 @@ export const bootstrapApp = (): void => {
       sessionStore,
     );
     const backupService = new BackupService(database.getDb(), vaultPaths, sessionStore);
-    const restoreService = new RestoreService(cryptoService, vaultPaths);
+    const restoreService = new RestoreService(database.getDb(), folderService, cryptoService, vaultPaths);
     const mediaSessionService = new MediaSessionService(vaultService, vaultPaths);
     mediaSessionService.start();
 

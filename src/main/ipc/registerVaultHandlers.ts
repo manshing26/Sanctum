@@ -258,11 +258,21 @@ export const registerVaultHandlers = ({
   });
 
   ipcMain.handle(IPC_CHANNELS.restoreVault, async (_event, input: RestoreVaultInput) => {
+    const window = mainWindowController.getWindow();
     if (input.mode === 'merge') {
-      return { ok: false as const, error: 'Merge restore is not yet available.' };
+      try {
+        await restoreService.mergeVault(input.backupPath, input.password, (progress) => {
+          window?.webContents.send(IPC_CHANNELS.restoreProgress, progress);
+        });
+        return { ok: true as const };
+      } catch (error) {
+        return {
+          ok: false as const,
+          error: error instanceof Error ? error.message : 'Merge restore failed.',
+        };
+      }
     }
     try {
-      const window = mainWindowController.getWindow();
       await restoreService.replaceVault(input.backupPath, input.password, (progress) => {
         window?.webContents.send(IPC_CHANNELS.restoreProgress, progress);
       });

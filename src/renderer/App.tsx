@@ -312,9 +312,6 @@ const UnlockScreen: React.FC<{
             </Button>
           </form>
 
-          <div className="mt-4 flex justify-center">
-            <RestoreFromBackupSection />
-          </div>
         </CardContent>
       </Card>
     </div>
