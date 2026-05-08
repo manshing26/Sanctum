@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Lock, Globe, Settings, Shield, AlertTriangle, Loader2, Images, FlaskConical, ExternalLink } from 'lucide-react';
+import { Lock, Globe, Settings, Shield, AlertTriangle, Loader2, Images, BookMarked } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AuthScreenMode, RestoreProgress, SessionState } from '../shared/ipc';
 import { Button } from './components/ui/Button';
@@ -12,6 +12,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from './components/ui/Tooltip
 import { GalleryPage } from './features/gallery/GalleryPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { BrowserWorkspace } from './features/browser/BrowserWorkspace';
+import { BookmarkGalleryPage } from './features/browser/BookmarkGalleryPage';
 import { RestoreCountdownDialog } from './components/ui/RestoreCountdownDialog';
 
 const PASSWORD_MIN_LENGTH = 12;
@@ -30,7 +31,7 @@ const getPasswordChecks = (password: string): PasswordCheck[] => [
 ];
 
 // ── Top Bar ──────────────────────────────────────────────────────────
-type AppTab = 'gallery' | 'browser' | 'settings' | 'browser-window' | 'placeholder';
+type AppTab = 'gallery' | 'browser' | 'settings' | 'bookmarks';
 
 const TopBar: React.FC<{
   activeTab: AppTab;
@@ -82,6 +83,20 @@ const TopBar: React.FC<{
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
+            variant={activeTab === 'bookmarks' ? 'default' : 'ghost'}
+            size="icon"
+            onClick={() => onSelectTab('bookmarks')}
+            disabled={!isUnlocked}
+            aria-label="Open bookmarks tab"
+          >
+            <BookMarked className="h-4 w-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Bookmarks</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
             variant={activeTab === 'browser' ? 'default' : 'ghost'}
             size="icon"
             onClick={() => onSelectTab('browser')}
@@ -91,7 +106,7 @@ const TopBar: React.FC<{
             <Globe className="h-4 w-4" />
           </Button>
         </TooltipTrigger>
-        <TooltipContent>Browser (same window)</TooltipContent>
+        <TooltipContent>Browser</TooltipContent>
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -106,20 +121,6 @@ const TopBar: React.FC<{
           </Button>
         </TooltipTrigger>
         <TooltipContent>Settings</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant={activeTab === 'placeholder' ? 'default' : 'ghost'}
-            size="icon"
-            onClick={() => onSelectTab('placeholder')}
-            disabled={!isUnlocked}
-            aria-label="Open placeholder tab"
-          >
-            <FlaskConical className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Placeholder</TooltipContent>
       </Tooltip>
     </div>
   </header>
@@ -441,40 +442,6 @@ const LoadingScreen: React.FC = () => (
   </div>
 );
 
-const NewWindowBrowserTabPage: React.FC<{ onOpen: () => void }> = ({ onOpen }) => (
-  <div className="flex flex-1 items-center justify-center p-6">
-    <Card className="w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle>Browser (New Window)</CardTitle>
-        <CardDescription>
-          Open the existing standalone browser window flow.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button onClick={onOpen} className="gap-2">
-          <ExternalLink className="h-4 w-4" />
-          Open Browser Window
-        </Button>
-      </CardContent>
-    </Card>
-  </div>
-);
-
-const GeneralPlaceholderPage: React.FC = () => (
-  <div className="flex flex-1 items-center justify-center p-6">
-    <Card className="w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle>Placeholder Tab</CardTitle>
-        <CardDescription>
-          Reserved for future development.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-text-muted">General placeholder content.</p>
-      </CardContent>
-    </Card>
-  </div>
-);
 
 // ── Main App ─────────────────────────────────────────────────────────
 export const App: React.FC = () => {
@@ -484,6 +451,7 @@ export const App: React.FC = () => {
   const [authError, setAuthError] = useState('');
   const [activeTab, setActiveTab] = useState<AppTab>('gallery');
   const [shouldMountBrowser, setShouldMountBrowser] = useState(false);
+  const [pendingBrowserUrl, setPendingBrowserUrl] = useState<string | null>(null);
 
   const refreshSession = async (): Promise<SessionState> => {
     const state = await window.electronAPI.getSession();
@@ -520,15 +488,6 @@ export const App: React.FC = () => {
       setShouldMountBrowser(true);
     }
   }, [isUnlocked]);
-
-  const openLegacyBrowser = async (): Promise<void> => {
-    const result = await refreshSession();
-    if (result.status !== 'unlocked') {
-      toast.error('Unlock vault before opening browser.');
-      return;
-    }
-    await window.electronAPI.openBrowserWindow();
-  };
 
   const handleUnlock = async (password: string): Promise<void> => {
     setIsBusy(true);
@@ -600,15 +559,14 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {isUnlocked && activeTab === 'browser-window' && (
+        {isUnlocked && activeTab === 'bookmarks' && (
           <div className="flex min-h-0 flex-1">
-            <NewWindowBrowserTabPage onOpen={() => void openLegacyBrowser()} />
-          </div>
-        )}
-
-        {isUnlocked && activeTab === 'placeholder' && (
-          <div className="flex min-h-0 flex-1">
-            <GeneralPlaceholderPage />
+            <BookmarkGalleryPage
+              onOpenUrl={(url) => {
+                setPendingBrowserUrl(url);
+                setActiveTab('browser');
+              }}
+            />
           </div>
         )}
 
@@ -619,6 +577,8 @@ export const App: React.FC = () => {
               showLeftPanel
               showCloseButton={false}
               isActive={isUnlocked && activeTab === 'browser'}
+              pendingUrl={pendingBrowserUrl}
+              onPendingUrlConsumed={() => setPendingBrowserUrl(null)}
             />
           </div>
         )}

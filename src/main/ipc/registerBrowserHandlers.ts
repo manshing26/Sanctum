@@ -69,11 +69,11 @@ export const registerBrowserHandlers = ({
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.createBookmark, (_event, input: CreateBookmarkInput) => {
+  ipcMain.handle(IPC_CHANNELS.createBookmark, async (_event, input: CreateBookmarkInput) => {
     try {
       return {
         ok: true as const,
-        data: bookmarkService.createBookmark(input),
+        data: await bookmarkService.createBookmark(input),
       };
     } catch (error) {
       return {

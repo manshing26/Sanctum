@@ -305,11 +305,14 @@ export type BookmarkSummary = {
   url: string;
   createdAt: string;
   updatedAt: string;
+  thumbnailDataUrl?: string;
 };
 
 export type CreateBookmarkInput = {
   title?: string;
   url: string;
+  thumbnailUrl?: string;
+  thumbnailDataUrl?: string;
 };
 
 export type DeleteBookmarkInput = {

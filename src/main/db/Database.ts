@@ -137,6 +137,11 @@ export class DatabaseService {
     // Tags table migrations
     this.ensureTableColumn('tags', 'color', 'TEXT');
 
+    // Bookmarks thumbnail migration
+    this.ensureTableColumn('bookmarks', 'thumbnail_enc', 'BLOB');
+    this.ensureTableColumn('bookmarks', 'thumbnail_iv', 'BLOB');
+    this.ensureTableColumn('bookmarks', 'thumbnail_auth_tag', 'BLOB');
+
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_vault_items_folder_id ON vault_items(folder_id)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id)');
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_item_tags_item_id ON item_tags(item_id)');

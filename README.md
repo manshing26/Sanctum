@@ -30,10 +30,20 @@ A privacy-first, local-only media vault with a built-in private browser. All fil
 - **Replace restore** — verifies backup password, wipes current vault, restores backup DB and files, forces clean restart via countdown dialog
 - **Merge restore** — imports backup items into live vault under a new root folder named `Restored YYYY-MM-DD`; preserves tags, ratings, and favourites; skips items whose UUID already exists; forces clean restart
 
+### Bookmark Gallery
+- Dedicated full-page tab showing saved bookmarks as a Netflix-style thumbnail grid
+- Thumbnails fetched automatically from each site's Open Graph (`og:image`) meta tag at save time — fetched inside the browser session to bypass bot-blocking
+- Encrypted and stored as BLOBs in the vault DB (AES-256-GCM, same key as vault)
+- Fallback card with a deterministic gradient + domain initial when no `og:image` is available
+- Click any card to open the URL in a new browser tab
+- Right-click → Rename or Delete
+- Client-side search by title or domain
+- Tab persistence — open tabs survive app restarts (URLs saved to `localStorage`)
+
 ### Built-in Private Browser
 - Chromium-based `webview` sandboxed in a separate Electron session partition
 - Multi-tab support with address bar, back/forward/reload
-- Encrypted bookmarks (AES-GCM, stored in vault DB)
+- Encrypted bookmarks (AES-GCM, stored in vault DB); save current page via star button or sidebar form
 - Right-click → "Save to Vault" on images and videos; auto-imports and secure-deletes temp file
 - Blocks all permissions (camera, microphone, notifications, etc.)
 - Optional third-party cookie blocking (applies immediately without restart)
@@ -106,7 +116,7 @@ src/
 │   ├── features/
 │   │   ├── gallery/             # GalleryPage, grid/list, folder sidebar, toolbar, item details
 │   │   ├── viewer/              # Full-screen image/video viewer overlay
-│   │   ├── browser/             # BrowserWorkspace (webview wrapper)
+│   │   ├── browser/             # BrowserWorkspace (webview wrapper), BookmarkGalleryPage
 │   │   └── settings/            # SettingsPage (tabbed settings)
 │   └── components/ui/           # Shared Radix-based UI primitives
 └── shared/
@@ -141,7 +151,7 @@ All data is stored in Electron's `userData` directory:
 | `folders` | Nested folder tree (adjacency list, `parent_id`) |
 | `tags` | Tag name and colour |
 | `item_tags` | Many-to-many junction: items ↔ tags |
-| `bookmarks` | Encrypted browser bookmarks (title + URL) |
+| `bookmarks` | Encrypted browser bookmarks (title, URL, og:image thumbnail blob) |
 | `settings` | Key-value application settings |
 
 ---

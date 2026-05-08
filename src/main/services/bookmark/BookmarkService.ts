@@ -8,6 +8,9 @@ type BookmarkRow = {
   id: number;
   title_enc: Buffer;
   url_enc: Buffer;
+  thumbnail_enc: Buffer | null;
+  thumbnail_iv: Buffer | null;
+  thumbnail_auth_tag: Buffer | null;
   created_at: string;
   updated_at: string;
 };
@@ -79,6 +82,8 @@ const normalizeHttpUrl = (raw: string): string => {
   return parsed.toString();
 };
 
+const MAX_THUMBNAIL_BYTES = 2 * 1024 * 1024; // 2 MB
+
 const logger = getLogger('bookmark');
 
 export class BookmarkService {
@@ -96,11 +101,64 @@ export class BookmarkService {
     }
   }
 
+  private async fetchImageBuffer(imageUrl: string): Promise<Buffer | null> {
+    try {
+      const res = await fetch(imageUrl, { signal: AbortSignal.timeout(5000) });
+      if (!res.ok) return null;
+      const contentLength = res.headers.get('content-length');
+      if (contentLength && parseInt(contentLength, 10) > MAX_THUMBNAIL_BYTES) return null;
+
+      const chunks: Buffer[] = [];
+      let totalBytes = 0;
+      const reader = res.body?.getReader();
+      if (!reader) return null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        totalBytes += value.byteLength;
+        if (totalBytes > MAX_THUMBNAIL_BYTES) {
+          await reader.cancel();
+          return null;
+        }
+        chunks.push(Buffer.from(value));
+      }
+
+      return Buffer.concat(chunks);
+    } catch {
+      return null;
+    }
+  }
+
+  private async fetchOgImage(pageUrl: string): Promise<Buffer | null> {
+    try {
+      const res = await fetch(pageUrl, {
+        signal: AbortSignal.timeout(5000),
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; privateVault/1.0)' },
+      });
+      if (!res.ok) return null;
+      const html = await res.text();
+
+      const ogMatch =
+        html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
+        html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i) ??
+        html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i) ??
+        html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i);
+
+      if (!ogMatch?.[1]) return null;
+
+      const imageUrl = new URL(ogMatch[1], pageUrl).toString();
+      return this.fetchImageBuffer(imageUrl);
+    } catch {
+      return null;
+    }
+  }
+
   listBookmarks(): BookmarkSummary[] {
     const masterKey = this.getMasterKey();
     const rows = this.db
       .prepare(
-        `SELECT id, title_enc, url_enc, created_at, updated_at
+        `SELECT id, title_enc, url_enc, thumbnail_enc, thumbnail_iv, thumbnail_auth_tag, created_at, updated_at
          FROM bookmarks
          ORDER BY datetime(updated_at) DESC, id DESC`,
       )
@@ -109,12 +167,30 @@ export class BookmarkService {
     const bookmarks: BookmarkSummary[] = [];
     for (const row of rows) {
       try {
+        let thumbnailDataUrl: string | undefined;
+        if (row.thumbnail_enc && row.thumbnail_iv && row.thumbnail_auth_tag) {
+          try {
+            const decrypted = this.cryptoService.decryptBuffer(
+              {
+                iv: row.thumbnail_iv,
+                authTag: row.thumbnail_auth_tag,
+                encrypted: row.thumbnail_enc,
+              },
+              masterKey,
+            );
+            thumbnailDataUrl = `data:image/jpeg;base64,${decrypted.toString('base64')}`;
+          } catch {
+            // Corrupted thumbnail — skip silently.
+          }
+        }
+
         bookmarks.push({
           id: row.id,
           title: decryptPayload(row.title_enc, this.cryptoService, masterKey),
           url: decryptPayload(row.url_enc, this.cryptoService, masterKey),
           createdAt: row.created_at,
           updatedAt: row.updated_at,
+          thumbnailDataUrl,
         });
       } catch (error) {
         logger.warn('skipped corrupted row', {
@@ -127,7 +203,7 @@ export class BookmarkService {
     return bookmarks;
   }
 
-  createBookmark(input: CreateBookmarkInput): BookmarkSummary {
+  async createBookmark(input: CreateBookmarkInput): Promise<BookmarkSummary> {
     const masterKey = this.getMasterKey();
     const normalizedUrl = normalizeHttpUrl(input.url);
     const rawTitle = input.title?.trim();
@@ -136,16 +212,49 @@ export class BookmarkService {
     const titleEnc = encryptPayload(resolvedTitle, this.cryptoService, masterKey);
     const urlEnc = encryptPayload(normalizedUrl, this.cryptoService, masterKey);
 
+    // Resolve thumbnail buffer — three sources in priority order:
+    // 1. Pre-fetched data URL from the renderer (webview fetch, bypasses bot blocks)
+    // 2. og:image URL passed by the renderer (main process fetches it)
+    // 3. Fall back: main process fetches the page and extracts og:image itself
+    let thumbnailEnc: Buffer | null = null;
+    let thumbnailIv: Buffer | null = null;
+    let thumbnailAuthTag: Buffer | null = null;
+
+    let thumbBuf: Buffer | null = null;
+    if (input.thumbnailDataUrl) {
+      try {
+        const match = input.thumbnailDataUrl.match(/^data:[^;]+;base64,(.+)$/);
+        if (match?.[1]) thumbBuf = Buffer.from(match[1], 'base64');
+      } catch {
+        // Ignore malformed data URL.
+      }
+    } else if (input.thumbnailUrl) {
+      thumbBuf = await this.fetchImageBuffer(input.thumbnailUrl);
+    } else {
+      thumbBuf = await this.fetchOgImage(normalizedUrl);
+    }
+
+    if (thumbBuf) {
+      try {
+        const enc = this.cryptoService.encryptBuffer(thumbBuf, masterKey);
+        thumbnailEnc = enc.encrypted;
+        thumbnailIv = enc.iv;
+        thumbnailAuthTag = enc.authTag;
+      } catch {
+        // Encryption failure — save bookmark without thumbnail.
+      }
+    }
+
     const result = this.db
       .prepare(
-        `INSERT INTO bookmarks (title_enc, url_enc, created_at, updated_at)
-         VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        `INSERT INTO bookmarks (title_enc, url_enc, thumbnail_enc, thumbnail_iv, thumbnail_auth_tag, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
       )
-      .run(titleEnc, urlEnc);
+      .run(titleEnc, urlEnc, thumbnailEnc, thumbnailIv, thumbnailAuthTag);
 
     const created = this.db
       .prepare(
-        `SELECT id, title_enc, url_enc, created_at, updated_at
+        `SELECT id, title_enc, url_enc, thumbnail_enc, thumbnail_iv, thumbnail_auth_tag, created_at, updated_at
          FROM bookmarks
          WHERE id = ?`,
       )
@@ -155,12 +264,30 @@ export class BookmarkService {
       throw new Error('Failed to create bookmark.');
     }
 
+    let thumbnailDataUrl: string | undefined;
+    if (created.thumbnail_enc && created.thumbnail_iv && created.thumbnail_auth_tag) {
+      try {
+        const decrypted = this.cryptoService.decryptBuffer(
+          {
+            iv: created.thumbnail_iv,
+            authTag: created.thumbnail_auth_tag,
+            encrypted: created.thumbnail_enc,
+          },
+          masterKey,
+        );
+        thumbnailDataUrl = `data:image/jpeg;base64,${decrypted.toString('base64')}`;
+      } catch {
+        // Skip.
+      }
+    }
+
     return {
       id: created.id,
       title: decryptPayload(created.title_enc, this.cryptoService, masterKey),
       url: decryptPayload(created.url_enc, this.cryptoService, masterKey),
       createdAt: created.created_at,
       updatedAt: created.updated_at,
+      thumbnailDataUrl,
     };
   }
 

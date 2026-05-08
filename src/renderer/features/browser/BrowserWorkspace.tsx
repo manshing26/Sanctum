@@ -64,6 +64,8 @@ export type BrowserWorkspaceProps = {
   showLeftPanel?: boolean;
   showCloseButton?: boolean;
   isActive?: boolean;
+  pendingUrl?: string | null;
+  onPendingUrlConsumed?: () => void;
 };
 
 type TabWebViewProps = {
@@ -271,6 +273,8 @@ export const BrowserWorkspace = ({
   showLeftPanel,
   showCloseButton,
   isActive,
+  pendingUrl,
+  onPendingUrlConsumed,
 }: BrowserWorkspaceProps): React.JSX.Element => {
   const showPersistentLeftPanel = showLeftPanel ?? mode === 'same-window';
   const canShowCloseButton = showCloseButton ?? mode === 'legacy-window';
@@ -369,6 +373,15 @@ export const BrowserWorkspace = ({
   }, [isWorkspaceActive, leftPanelOpen, activeTab?.id, isSuspended]);
 
   useEffect(() => {
+    if (!pendingUrl) return;
+    const tab = createTab(pendingUrl);
+    setTabs((prev) => [...prev, tab]);
+    setActiveTabId(tab.id);
+    onPendingUrlConsumed?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingUrl]);
+
+  useEffect(() => {
     void window.browserAPI.listBookmarks().then((result) => {
       if (result.ok) setBookmarks(result.data);
     });
@@ -434,7 +447,13 @@ export const BrowserWorkspace = ({
       applyTabPatch(activeTab.id, { url: nextUrl, isLoading: true, hasCrashed: false });
       return;
     }
-    if (webview.getURL && webview.getURL() === nextUrl) return;
+    try {
+      if (webview.getURL && webview.getURL() === nextUrl) return;
+    } catch {
+      // Webview not yet attached to DOM — fall through to URL patch.
+      applyTabPatch(activeTab.id, { url: nextUrl, isLoading: true, hasCrashed: false });
+      return;
+    }
     if (activeTab.isLoading) {
       applyTabPatch(activeTab.id, { url: nextUrl, isLoading: true, hasCrashed: false });
       return;
@@ -620,6 +639,41 @@ export const BrowserWorkspace = ({
     if (result.ok) setBookmarks(result.data);
   };
 
+  const extractOgImageFromTab = async (tabId: string): Promise<string | undefined> => {
+    const webview = webviewRefs.current[tabId];
+    if (!webview) return undefined;
+    try {
+      const result = await webview.executeJavaScript(`(async function(){
+        const selectors = [
+          'meta[property="og:image"]',
+          'meta[property="og:image:url"]',
+          'meta[name="twitter:image"]',
+          'meta[name="twitter:image:src"]',
+        ];
+        let src = null;
+        for (const sel of selectors) {
+          const el = document.querySelector(sel);
+          if (el) { src = el.getAttribute('content'); break; }
+        }
+        if (!src) return null;
+        try {
+          const res = await fetch(src, { credentials: 'include' });
+          if (!res.ok) return null;
+          const buf = await res.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          let bin = '';
+          for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+          const mime = res.headers.get('content-type') || 'image/jpeg';
+          return 'data:' + mime + ';base64,' + btoa(bin);
+        } catch { return null; }
+      })()`);
+      if (typeof result === 'string' && result.startsWith('data:')) return result;
+      return undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
   const handleCreateBookmark = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     const normalizedInputUrl = bookmarkUrl.trim().toLowerCase();
@@ -629,7 +683,8 @@ export const BrowserWorkspace = ({
       return;
     }
 
-    const result = await window.browserAPI.createBookmark({ title: bookmarkTitle, url: bookmarkUrl });
+    const thumbnailDataUrl = activeTab ? await extractOgImageFromTab(activeTab.id) : undefined;
+    const result = await window.browserAPI.createBookmark({ title: bookmarkTitle, url: bookmarkUrl, thumbnailDataUrl });
     if (!result.ok) return;
     setBookmarkTitle('');
     setBookmarkUrl('');
@@ -647,7 +702,8 @@ export const BrowserWorkspace = ({
       return;
     }
 
-    await window.browserAPI.createBookmark({ title: activeTab.title, url: activeTab.url });
+    const thumbnailDataUrl = await extractOgImageFromTab(activeTab.id);
+    await window.browserAPI.createBookmark({ title: activeTab.title, url: activeTab.url, thumbnailDataUrl });
     toast.success('Bookmark added.');
     await refreshBookmarks();
   };
