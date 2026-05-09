@@ -43,6 +43,7 @@ import {
   type UpdatePasswordInput,
   type DeletePasswordInput,
   type GetPasswordsForDomainInput,
+  type UpdateBookmarkThumbnailInput,
 } from '../shared/ipc';
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -200,4 +201,6 @@ contextBridge.exposeInMainWorld('browserAPI', {
   updateBrowserSettings: (input: UpdateBrowserSettingsInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.updateBrowserSettings, input),
   listExtensionStartupErrors: () => ipcRenderer.invoke(IPC_CHANNELS.listExtensionStartupErrors),
+  updateBookmarkThumbnail: (input: UpdateBookmarkThumbnailInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.updateBookmarkThumbnail, input),
 });

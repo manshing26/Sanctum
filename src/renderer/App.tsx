@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { AuthScreenMode, RestoreProgress, SessionState } from '../shared/ipc';
 import { PasswordInput } from './components/ui/PasswordInput';
 import { GalleryPage } from './features/gallery/GalleryPage';
 import { SettingsPage } from './features/settings/SettingsPage';
-import { BrowserWorkspace } from './features/browser/BrowserWorkspace';
+import { BrowserWorkspace, type BrowserWorkspaceHandle } from './features/browser/BrowserWorkspace';
 import { BookmarkGalleryPage } from './features/browser/BookmarkGalleryPage';
 import { RestoreCountdownDialog } from './components/ui/RestoreCountdownDialog';
 import { PasswordManagerPage } from './features/passwords/PasswordManagerPage';
@@ -644,6 +644,7 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>('gallery');
   const [shouldMountBrowser, setShouldMountBrowser] = useState(false);
   const [pendingBrowserUrl, setPendingBrowserUrl] = useState<string | null>(null);
+  const browserRef = useRef<BrowserWorkspaceHandle>(null);
 
   const refreshSession = async (): Promise<SessionState> => {
     const state = await window.electronAPI.getSession();
@@ -764,6 +765,7 @@ export const App: React.FC = () => {
                 setPendingBrowserUrl(url);
                 setActiveTab('browser');
               }}
+              onScrapeImages={() => browserRef.current?.scrapeImagesFromActiveTab() ?? Promise.resolve([])}
             />
           </div>
         )}
@@ -777,6 +779,7 @@ export const App: React.FC = () => {
               isActive={isUnlocked && activeTab === 'browser'}
               pendingUrl={pendingBrowserUrl}
               onPendingUrlConsumed={() => setPendingBrowserUrl(null)}
+              imperativeRef={browserRef}
             />
           </div>
         )}

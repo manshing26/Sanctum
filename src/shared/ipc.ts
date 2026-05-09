@@ -8,6 +8,7 @@ export const IPC_CHANNELS = {
   listBookmarks: 'browser:bookmarks:list',
   createBookmark: 'browser:bookmarks:create',
   deleteBookmark: 'browser:bookmarks:delete',
+  updateBookmarkThumbnail: 'browser:bookmarks:update-thumbnail',
   downloadUpdate: 'browser:downloads:update',
   cancelDownload: 'browser:downloads:cancel',
   listExtensions: 'browser:extensions:list',
@@ -324,6 +325,11 @@ export type DeleteBookmarkInput = {
   id: number;
 };
 
+export type UpdateBookmarkThumbnailInput = {
+  id: number;
+  thumbnailDataUrl: string;
+};
+
 export type PasswordSummary = {
   id: string;
   domain: string;
@@ -527,6 +533,7 @@ export type BrowserAPI = {
   listBookmarks: () => Promise<OperationResult<BookmarkSummary[]>>;
   createBookmark: (input: CreateBookmarkInput) => Promise<OperationResult<BookmarkSummary>>;
   deleteBookmark: (input: DeleteBookmarkInput) => Promise<OperationResult>;
+  updateBookmarkThumbnail: (input: UpdateBookmarkThumbnailInput) => Promise<OperationResult<BookmarkSummary>>;
   onDownloadUpdate: (handler: (payload: DownloadProgress) => void) => () => void;
   cancelDownload: (id: string) => Promise<OperationResult>;
   listExtensions: () => Promise<OperationResult<ExtensionSummary[]>>;

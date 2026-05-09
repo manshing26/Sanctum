@@ -332,13 +332,16 @@ const GridCard: React.FC<{
 
 // ─── Inspector ────────────────────────────────────────────────────────────────
 
+const IconImage = () => <svg {...IconProps} width={13} height={13} viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21,15 16,10 5,21"/></svg>;
+
 const Inspector: React.FC<{
   bookmark: BookmarkSummary | null;
   onClose: () => void;
   onOpenUrl: (url: string) => void;
   onRename: (b: BookmarkSummary) => void;
   onDelete: (b: BookmarkSummary) => void;
-}> = ({ bookmark, onClose, onOpenUrl, onRename, onDelete }) => {
+  onChangeThumbnail?: (b: BookmarkSummary) => void;
+}> = ({ bookmark, onClose, onOpenUrl, onRename, onDelete, onChangeThumbnail }) => {
   if (!bookmark) return null;
   const domain = getDomain(bookmark.url);
 
@@ -389,6 +392,14 @@ const Inspector: React.FC<{
           >
             <IconOpen /> Open in browser
           </button>
+          {onChangeThumbnail && (
+            <button
+              onClick={() => onChangeThumbnail(bookmark)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: 'transparent', color: T.text, border: `1px solid ${T.line2}`, cursor: 'pointer', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', fontFamily: SANS }}
+            >
+              <IconImage /> Change thumbnail
+            </button>
+          )}
           <div style={{ display: 'flex', gap: 6 }}>
             <button
               onClick={() => onRename(bookmark)}
@@ -480,9 +491,12 @@ const RenameDialog: React.FC<{
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type BookmarkGalleryPageProps = { onOpenUrl: (url: string) => void };
+type BookmarkGalleryPageProps = {
+  onOpenUrl: (url: string) => void;
+  onScrapeImages?: () => Promise<string[]>;
+};
 
-export const BookmarkGalleryPage = ({ onOpenUrl }: BookmarkGalleryPageProps): React.JSX.Element => {
+export const BookmarkGalleryPage = ({ onOpenUrl, onScrapeImages }: BookmarkGalleryPageProps): React.JSX.Element => {
   const [bookmarks, setBookmarks]       = useState<BookmarkSummary[]>([]);
   const [isLoading, setIsLoading]       = useState(true);
   const [query, setQuery]               = useState('');
@@ -492,6 +506,9 @@ export const BookmarkGalleryPage = ({ onOpenUrl }: BookmarkGalleryPageProps): Re
   const [selected, setSelected]         = useState<BookmarkSummary | null>(null);
   const [showInspector, setShowInspector] = useState(true);
   const [renameTarget, setRenameTarget] = useState<BookmarkSummary | null>(null);
+  const [thumbPickerTarget, setThumbPickerTarget] = useState<BookmarkSummary | null>(null);
+  const [thumbPickerCandidates, setThumbPickerCandidates] = useState<string[]>([]);
+  const [thumbPickerLoading, setThumbPickerLoading] = useState(false);
 
   const load = useCallback(async () => {
     const result = await window.browserAPI.listBookmarks();
@@ -564,6 +581,26 @@ export const BookmarkGalleryPage = ({ onOpenUrl }: BookmarkGalleryPageProps): Re
   const handleSelect = (bookmark: BookmarkSummary) => {
     setSelected(bookmark);
     if (!showInspector) setShowInspector(true);
+  };
+
+  const handleChangeThumbnail = async (bookmark: BookmarkSummary): Promise<void> => {
+    if (!onScrapeImages) return;
+    setThumbPickerTarget(bookmark);
+    setThumbPickerCandidates([]);
+    setThumbPickerLoading(true);
+    const imgs = await onScrapeImages();
+    setThumbPickerCandidates(imgs);
+    setThumbPickerLoading(false);
+  };
+
+  const handlePickThumb = async (dataUrl: string): Promise<void> => {
+    if (!thumbPickerTarget) return;
+    const r = await window.browserAPI.updateBookmarkThumbnail({ id: thumbPickerTarget.id, thumbnailDataUrl: dataUrl });
+    if (!r.ok) { toast.error(r.error); return; }
+    setBookmarks((prev) => prev.map((b) => b.id === r.data.id ? r.data : b));
+    if (selected?.id === r.data.id) setSelected(r.data);
+    toast.success('Thumbnail updated.');
+    setThumbPickerTarget(null);
   };
 
   return (
@@ -657,6 +694,7 @@ export const BookmarkGalleryPage = ({ onOpenUrl }: BookmarkGalleryPageProps): Re
           onOpenUrl={onOpenUrl}
           onRename={(b) => setRenameTarget(b)}
           onDelete={(b) => void handleDelete(b)}
+          onChangeThumbnail={onScrapeImages ? (b) => void handleChangeThumbnail(b) : undefined}
         />
       ) : (
         <InspectorTab onClick={() => setShowInspector(true)} />
@@ -668,6 +706,51 @@ export const BookmarkGalleryPage = ({ onOpenUrl }: BookmarkGalleryPageProps): Re
         onClose={() => setRenameTarget(null)}
         onSave={(title) => void handleRename(title)}
       />
+
+      {/* Thumbnail picker overlay */}
+      {thumbPickerTarget && (
+        <div
+          onClick={() => setThumbPickerTarget(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: 560, maxHeight: '80vh', background: T.bg2, border: `1px solid ${T.line2}`, display: 'flex', flexDirection: 'column' }}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: `1px solid ${T.line}` }}>
+              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.accent }}>Choose thumbnail</span>
+              <button onClick={() => setThumbPickerTarget(null)} style={{ background: 'none', border: 'none', color: T.mute, cursor: 'pointer', display: 'flex', padding: 2 }}>
+                <IconX />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+              {thumbPickerLoading ? (
+                <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2, margin: 0, textAlign: 'center', padding: '20px 0' }}>Scanning page for images…</p>
+              ) : thumbPickerCandidates.length === 0 ? (
+                <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2, margin: 0, textAlign: 'center', padding: '20px 0' }}>
+                  No images found. Navigate to the page in the browser tab first.
+                </p>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 84px)', gap: 8 }}>
+                  {thumbPickerCandidates.map((src, i) => (
+                    <button
+                      key={i}
+                      onClick={() => void handlePickThumb(src)}
+                      style={{ width: 84, height: 84, padding: 0, border: `1px solid ${T.line2}`, background: T.bg, cursor: 'pointer', overflow: 'hidden', flexShrink: 0 }}
+                      title="Use this image"
+                    >
+                      <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

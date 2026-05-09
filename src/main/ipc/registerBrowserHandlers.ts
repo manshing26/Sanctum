@@ -3,6 +3,7 @@ import {
   IPC_CHANNELS,
   type CreateBookmarkInput,
   type DeleteBookmarkInput,
+  type UpdateBookmarkThumbnailInput,
   type ExtensionStartupError,
   type ExtensionSummary,
 } from '../../shared/ipc';
@@ -91,6 +92,17 @@ export const registerBrowserHandlers = ({
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to delete bookmark.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.updateBookmarkThumbnail, async (_event, input: UpdateBookmarkThumbnailInput) => {
+    try {
+      return { ok: true as const, data: await bookmarkService.updateThumbnail(input) };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to update thumbnail.',
       };
     }
   });

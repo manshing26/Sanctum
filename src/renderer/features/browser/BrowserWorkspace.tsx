@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type {
   BookmarkSummary,
@@ -57,6 +57,11 @@ export type BrowserWorkspaceProps = {
   isActive?: boolean;
   pendingUrl?: string | null;
   onPendingUrlConsumed?: () => void;
+  imperativeRef?: React.Ref<BrowserWorkspaceHandle>;
+};
+
+export type BrowserWorkspaceHandle = {
+  scrapeImagesFromActiveTab: () => Promise<string[]>;
 };
 
 type TabWebViewProps = {
@@ -306,6 +311,7 @@ export const BrowserWorkspace = ({
   isActive,
   pendingUrl,
   onPendingUrlConsumed,
+  imperativeRef,
 }: BrowserWorkspaceProps): React.JSX.Element => {
   const showPersistentLeftPanel = showLeftPanel ?? mode === 'same-window';
   const canShowCloseButton = showCloseButton ?? mode === 'legacy-window';
@@ -340,11 +346,59 @@ export const BrowserWorkspace = ({
   const [pwSaveForm, setPwSaveForm] = useState<{ username: string; password: string; label: string } | null>(null);
   const [pwSaving, setPwSaving] = useState(false);
   const webviewRefs = useRef<Record<string, WebviewTag | null>>({});
+
+  const scrapeImagesFromTab = useCallback(async (tabId: string): Promise<string[]> => {
+    const webview = webviewRefs.current[tabId];
+    // eslint-disable-next-line no-console
+    console.log('[scrape] tabId:', tabId, 'webview:', webview, 'all keys:', Object.keys(webviewRefs.current));
+    if (!webview) return [];
+    try {
+      const urls = await webview.executeJavaScript(`(function(){
+        const og=['meta[property="og:image"]','meta[property="og:image:url"]','meta[name="twitter:image"]','meta[name="twitter:image:src"]']
+          .map(s=>document.querySelector(s)?.getAttribute('content')).filter(Boolean);
+        const imgs=Array.from(document.querySelectorAll('img'))
+          .filter(i=>i.naturalWidth>=100&&i.naturalHeight>=100)
+          .map(i=>i.currentSrc||i.src).filter(Boolean);
+        return[...new Set([...og,...imgs])].slice(0,20);
+      })()`);
+      // eslint-disable-next-line no-console
+      console.log('[scrape] urls:', urls);
+      if (!Array.isArray(urls) || urls.length === 0) return [];
+      const dataUrls = await webview.executeJavaScript(`(async function(urls){
+        const results=[];
+        for(const src of urls){
+          try{
+            const res=await fetch(src,{credentials:'include'});
+            if(!res.ok)continue;
+            const blob=await res.blob();
+            const dataUrl=await new Promise((resolve,reject)=>{
+              const r=new FileReader();
+              r.onload=()=>resolve(r.result);
+              r.onerror=reject;
+              r.readAsDataURL(blob);
+            });
+            if(typeof dataUrl==='string')results.push(dataUrl);
+          }catch{}
+        }return results;
+      })(${JSON.stringify(urls)})`);
+      // eslint-disable-next-line no-console
+      console.log('[scrape] dataUrls count:', Array.isArray(dataUrls) ? dataUrls.length : dataUrls);
+      return Array.isArray(dataUrls) ? (dataUrls as string[]) : [];
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[scrape] error:', err);
+      return [];
+    }
+  }, []);
   const downloadCleanupTimers = useRef<Record<string, number>>({});
   const navigationHistoryRef = useRef<Record<string, NavigationSample[]>>({});
   const challengeWarningCooldownRef = useRef<Record<string, number>>({});
 
   const activeTab = useMemo(() => tabs.find((t) => t.id === activeTabId) ?? tabs[0], [tabs, activeTabId]);
+
+  useImperativeHandle(imperativeRef, () => ({
+    scrapeImagesFromActiveTab: () => scrapeImagesFromTab(activeTab?.id ?? ''),
+  }), [scrapeImagesFromTab, activeTab?.id]);
 
   useEffect(() => {
     const activeIndex = tabs.findIndex((t) => t.id === activeTabId);
@@ -358,7 +412,6 @@ export const BrowserWorkspace = ({
   }, [tabs, activeTabId]);
 
   useEffect(() => { if (activeTab) setAddressInput(activeTab.url || HOME_URL); }, [activeTab]);
-  useEffect(() => { if (isSuspended) webviewRefs.current = {}; }, [isSuspended]);
 
   useEffect(() => {
     if (!isWorkspaceActive || !activeTab || isSuspended) return;
@@ -1080,18 +1133,19 @@ export const BrowserWorkspace = ({
         <div style={{ minHeight: 0, minWidth: 0, flex: 1, overflow: 'hidden' }}>
           {tabs.map((tab) => (
             <div key={tab.id} style={{ display: tab.id === activeTabId ? 'flex' : 'none', position: 'relative', minHeight: 0, minWidth: 0, height: '100%', flex: 1 }}>
-              {isSuspended ? (
-                <div style={{ display: 'flex', minHeight: 0, minWidth: 0, flex: 1, alignItems: 'center', justifyContent: 'center', background: T.bg }}>
+              {isSuspended && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', minHeight: 0, minWidth: 0, flex: 1, alignItems: 'center', justifyContent: 'center', background: T.bg, zIndex: 1 }}>
                   <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2 }}>Browser suspended while vault is locked or tab is inactive.</p>
                 </div>
-              ) : (
+              )}
+              <div style={{ display: isSuspended ? 'none' : 'flex', minHeight: 0, minWidth: 0, flex: 1 }}>
                 <TabWebView
                   tab={tab}
                   onAttach={(tabId, el) => { webviewRefs.current[tabId] = el; }}
                   onStateChange={applyTabPatch}
                   onNavigateEvent={handleTabNavigate}
                 />
-              )}
+              </div>
               {tab.hasCrashed && (
                 <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(10,12,11,0.8)' }}>
                   <div style={{ pointerEvents: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, border: `1px solid ${T.line2}`, background: T.bg2, padding: '20px 28px' }}>

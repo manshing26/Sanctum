@@ -1,7 +1,7 @@
 import type { Database as SqliteDatabase } from 'better-sqlite3';
 import { CryptoService } from '../crypto/CryptoService';
 import { SessionStore } from '../../state/SessionStore';
-import type { BookmarkSummary, CreateBookmarkInput } from '../../../shared/ipc';
+import type { BookmarkSummary, CreateBookmarkInput, UpdateBookmarkThumbnailInput } from '../../../shared/ipc';
 import { getLogger } from '../../logging/logger';
 
 type BookmarkRow = {
@@ -154,6 +154,29 @@ export class BookmarkService {
     }
   }
 
+  private rowToSummary(row: BookmarkRow, masterKey: Buffer): BookmarkSummary {
+    let thumbnailDataUrl: string | undefined;
+    if (row.thumbnail_enc && row.thumbnail_iv && row.thumbnail_auth_tag) {
+      try {
+        const decrypted = this.cryptoService.decryptBuffer(
+          { iv: row.thumbnail_iv, authTag: row.thumbnail_auth_tag, encrypted: row.thumbnail_enc },
+          masterKey,
+        );
+        thumbnailDataUrl = `data:image/jpeg;base64,${decrypted.toString('base64')}`;
+      } catch {
+        // Corrupted thumbnail — skip silently.
+      }
+    }
+    return {
+      id: row.id,
+      title: decryptPayload(row.title_enc, this.cryptoService, masterKey),
+      url: decryptPayload(row.url_enc, this.cryptoService, masterKey),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      thumbnailDataUrl,
+    };
+  }
+
   listBookmarks(): BookmarkSummary[] {
     const masterKey = this.getMasterKey();
     const rows = this.db
@@ -167,31 +190,7 @@ export class BookmarkService {
     const bookmarks: BookmarkSummary[] = [];
     for (const row of rows) {
       try {
-        let thumbnailDataUrl: string | undefined;
-        if (row.thumbnail_enc && row.thumbnail_iv && row.thumbnail_auth_tag) {
-          try {
-            const decrypted = this.cryptoService.decryptBuffer(
-              {
-                iv: row.thumbnail_iv,
-                authTag: row.thumbnail_auth_tag,
-                encrypted: row.thumbnail_enc,
-              },
-              masterKey,
-            );
-            thumbnailDataUrl = `data:image/jpeg;base64,${decrypted.toString('base64')}`;
-          } catch {
-            // Corrupted thumbnail — skip silently.
-          }
-        }
-
-        bookmarks.push({
-          id: row.id,
-          title: decryptPayload(row.title_enc, this.cryptoService, masterKey),
-          url: decryptPayload(row.url_enc, this.cryptoService, masterKey),
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-          thumbnailDataUrl,
-        });
+        bookmarks.push(this.rowToSummary(row, masterKey));
       } catch (error) {
         logger.warn('skipped corrupted row', {
           id: row.id,
@@ -264,31 +263,29 @@ export class BookmarkService {
       throw new Error('Failed to create bookmark.');
     }
 
-    let thumbnailDataUrl: string | undefined;
-    if (created.thumbnail_enc && created.thumbnail_iv && created.thumbnail_auth_tag) {
-      try {
-        const decrypted = this.cryptoService.decryptBuffer(
-          {
-            iv: created.thumbnail_iv,
-            authTag: created.thumbnail_auth_tag,
-            encrypted: created.thumbnail_enc,
-          },
-          masterKey,
-        );
-        thumbnailDataUrl = `data:image/jpeg;base64,${decrypted.toString('base64')}`;
-      } catch {
-        // Skip.
-      }
-    }
+    return this.rowToSummary(created, masterKey);
+  }
 
-    return {
-      id: created.id,
-      title: decryptPayload(created.title_enc, this.cryptoService, masterKey),
-      url: decryptPayload(created.url_enc, this.cryptoService, masterKey),
-      createdAt: created.created_at,
-      updatedAt: created.updated_at,
-      thumbnailDataUrl,
-    };
+  async updateThumbnail(input: UpdateBookmarkThumbnailInput): Promise<BookmarkSummary> {
+    const masterKey = this.getMasterKey();
+    const match = input.thumbnailDataUrl.match(/^data:[^;]+;base64,(.+)$/);
+    if (!match?.[1]) throw new Error('Invalid thumbnail data URL.');
+    const thumbBuf = Buffer.from(match[1], 'base64');
+    const enc = this.cryptoService.encryptBuffer(thumbBuf, masterKey);
+
+    this.db
+      .prepare(
+        `UPDATE bookmarks SET thumbnail_enc = ?, thumbnail_iv = ?, thumbnail_auth_tag = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      )
+      .run(enc.encrypted, enc.iv, enc.authTag, input.id);
+
+    const row = this.db
+      .prepare(
+        `SELECT id, title_enc, url_enc, thumbnail_enc, thumbnail_iv, thumbnail_auth_tag, created_at, updated_at FROM bookmarks WHERE id = ?`,
+      )
+      .get(input.id) as BookmarkRow | undefined;
+    if (!row) throw new Error('Bookmark not found.');
+    return this.rowToSummary(row, masterKey);
   }
 
   deleteBookmark(id: number): void {
