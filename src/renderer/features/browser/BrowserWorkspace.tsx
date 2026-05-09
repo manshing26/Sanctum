@@ -6,6 +6,7 @@ import type {
   DownloadProgress,
   ExtensionStartupError,
   ExtensionSummary,
+  PasswordDetail,
 } from '../../../shared/ipc';
 import { DEFAULT_SEARCH_ENGINE, normalizeAddressInput } from '../../browser/utils/address';
 import {
@@ -333,6 +334,11 @@ export const BrowserWorkspace = ({
   const [extensionStartupErrors, setExtensionStartupErrors] = useState<ExtensionStartupError[]>([]);
   const [browserSettings, setBrowserSettings] = useState<BrowserSettings | null>(null);
   const [isCleaningWeb, setIsCleaningWeb] = useState(false);
+  const [pwPanelOpen, setPwPanelOpen] = useState(false);
+  const [pwPanelEntries, setPwPanelEntries] = useState<PasswordDetail[]>([]);
+  const [pwPanelLoading, setPwPanelLoading] = useState(false);
+  const [pwSaveForm, setPwSaveForm] = useState<{ username: string; password: string; label: string } | null>(null);
+  const [pwSaving, setPwSaving] = useState(false);
   const webviewRefs = useRef<Record<string, WebviewTag | null>>({});
   const downloadCleanupTimers = useRef<Record<string, number>>({});
   const navigationHistoryRef = useRef<Record<string, NavigationSample[]>>({});
@@ -531,6 +537,48 @@ export const BrowserWorkspace = ({
       console.warn('[BrowserChallengeLoop]', { tabId, host: latestHost, samples: samples.length, durationMs });
     }
   }, [browserSettings?.blockThirdPartyCookies]);
+
+  const activeDomain = useMemo(() => {
+    try { return new URL(activeTab?.url ?? '').hostname; } catch { return ''; }
+  }, [activeTab?.url]);
+
+  const openPwPanel = async (): Promise<void> => {
+    setPwPanelOpen((prev) => {
+      if (prev) return false;
+      return true;
+    });
+    if (pwPanelOpen) return;
+    setPwSaveForm(null);
+    setPwPanelLoading(true);
+    try {
+      if (!activeDomain) { setPwPanelEntries([]); return; }
+      const r = await window.electronAPI.getPasswordsForDomain({ domain: activeDomain });
+      setPwPanelEntries(r.ok ? (r.data as PasswordDetail[]) : []);
+    } finally {
+      setPwPanelLoading(false);
+    }
+  };
+
+  const handlePwSave = async (): Promise<void> => {
+    if (!pwSaveForm || !activeDomain) return;
+    setPwSaving(true);
+    try {
+      const r = await window.electronAPI.createPassword({
+        domain: activeDomain,
+        username: pwSaveForm.username,
+        password: pwSaveForm.password,
+        label: pwSaveForm.label || undefined,
+      });
+      if (!r.ok) { toast.error(r.error); return; }
+      toast.success('Password saved.');
+      setPwSaveForm(null);
+      const r2 = await window.electronAPI.getPasswordsForDomain({ domain: activeDomain });
+      setPwPanelEntries(r2.ok ? (r2.data as PasswordDetail[]) : []);
+    } finally {
+      setPwSaving(false);
+    }
+  };
+
 
   const refreshBookmarks = async (): Promise<void> => {
     const r = await window.browserAPI.listBookmarks();
@@ -776,6 +824,24 @@ export const BrowserWorkspace = ({
             </button>
           </form>
 
+          {/* Password manager toggle */}
+          <button
+            type="button"
+            onClick={() => void openPwPanel()}
+            title="Saved passwords for this domain"
+            style={{
+              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: pwPanelOpen ? T.accentGlow : 'none',
+              border: `1px solid ${pwPanelOpen ? T.accent : 'transparent'}`,
+              color: pwPanelOpen ? T.accent : T.mute,
+              cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="5.5" cy="7" r="3"/><path d="M8.5 7h4M11 7v1.5"/>
+            </svg>
+          </button>
+
           {/* Cookie mode toggle */}
           <button
             type="button"
@@ -855,6 +921,94 @@ export const BrowserWorkspace = ({
           </button>
         </div>
       </header>
+
+      {/* Password panel */}
+      {pwPanelOpen && (
+        <div style={{ borderBottom: `1px solid ${T.line2}`, background: T.bg2, padding: '12px 14px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>
+              Passwords for <span style={{ color: T.accent }}>{activeDomain || '—'}</span>
+            </span>
+            <div style={{ flex: 1 }} />
+            <button
+              type="button"
+              onClick={() => setPwSaveForm(pwSaveForm ? null : { username: '', password: '', label: '' })}
+              style={{ height: 22, padding: '0 10px', background: pwSaveForm ? 'none' : T.accent, border: `1px solid ${pwSaveForm ? T.line2 : T.accent}`, color: pwSaveForm ? T.mute : T.bg, fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+            >
+              {pwSaveForm ? 'Cancel' : '+ Save'}
+            </button>
+          </div>
+
+          {pwSaveForm && (
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                value={pwSaveForm.username}
+                onChange={(e) => setPwSaveForm((f) => f && ({ ...f, username: e.target.value }))}
+                placeholder="Username / email"
+                style={{ flex: '1 1 140px', height: 26, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 10, outline: 'none' }}
+              />
+              <input
+                type="password"
+                value={pwSaveForm.password}
+                onChange={(e) => setPwSaveForm((f) => f && ({ ...f, password: e.target.value }))}
+                placeholder="Password"
+                style={{ flex: '1 1 120px', height: 26, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 10, outline: 'none' }}
+              />
+              <input
+                type="text"
+                value={pwSaveForm.label}
+                onChange={(e) => setPwSaveForm((f) => f && ({ ...f, label: e.target.value }))}
+                placeholder="Label (optional)"
+                style={{ flex: '1 1 100px', height: 26, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 10, outline: 'none' }}
+              />
+              <button
+                type="button"
+                onClick={() => void handlePwSave()}
+                disabled={pwSaving || !pwSaveForm.username || !pwSaveForm.password}
+                style={{ height: 26, padding: '0 12px', background: T.accent, border: 'none', color: T.bg, fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!pwSaveForm.username || !pwSaveForm.password) ? 0.5 : 1 }}
+              >
+                {pwSaving ? '…' : 'Save'}
+              </button>
+            </div>
+          )}
+
+          {pwPanelLoading ? (
+            <p style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, margin: 0 }}>Loading…</p>
+          ) : pwPanelEntries.length === 0 ? (
+            <p style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, margin: 0 }}>No saved credentials for this domain.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {pwPanelEntries.map((entry) => (
+                <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', background: T.bg, border: `1px solid ${T.line}` }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ fontFamily: MONO, fontSize: 10, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                      {entry.username || <span style={{ color: T.mute2 }}>no username</span>}
+                    </span>
+                    {entry.label && <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2 }}>{entry.label}</span>}
+                  </div>
+                  <button
+                    type="button"
+                    title="Copy username"
+                    onClick={() => { void navigator.clipboard.writeText(entry.username); toast.success('Username copied.'); }}
+                    style={{ height: 22, padding: '0 8px', background: 'none', border: `1px solid ${T.accent}`, color: T.accent, fontFamily: MONO, fontSize: 9, cursor: 'pointer', flexShrink: 0 }}
+                  >
+                    Copy user
+                  </button>
+                  <button
+                    type="button"
+                    title="Copy password"
+                    onClick={() => { void navigator.clipboard.writeText(entry.password); toast.success('Password copied.'); }}
+                    style={{ height: 22, padding: '0 8px', background: T.accent, border: `1px solid ${T.accent}`, color: T.bg, fontFamily: MONO, fontSize: 9, cursor: 'pointer', flexShrink: 0 }}
+                  >
+                    Copy pw
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Legacy bookmarks/extensions panels */}
       {!showPersistentLeftPanel && legacyShowBookmarks && (

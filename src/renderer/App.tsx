@@ -7,6 +7,7 @@ import { SettingsPage } from './features/settings/SettingsPage';
 import { BrowserWorkspace } from './features/browser/BrowserWorkspace';
 import { BookmarkGalleryPage } from './features/browser/BookmarkGalleryPage';
 import { RestoreCountdownDialog } from './components/ui/RestoreCountdownDialog';
+import { PasswordManagerPage } from './features/passwords/PasswordManagerPage';
 
 const T = {
   bg: '#0a0c0b',
@@ -41,7 +42,7 @@ const getPasswordChecks = (password: string): PasswordCheck[] => [
 ];
 
 // ── Top Bar ──────────────────────────────────────────────────────────
-type AppTab = 'gallery' | 'browser' | 'settings' | 'bookmarks';
+type AppTab = 'gallery' | 'browser' | 'settings' | 'bookmarks' | 'passwords';
 
 // Inline SVG sigil — matches sanctum-gallery.html
 const SanctumSigil: React.FC = () => (
@@ -63,6 +64,7 @@ const TABS: { id: AppTab; label: string; numeral: string }[] = [
   { id: 'bookmarks', label: 'Bookmarks', numeral: 'II'  },
   { id: 'browser',   label: 'Browser',   numeral: 'III' },
   { id: 'settings',  label: 'Settings',  numeral: 'IV'  },
+  { id: 'passwords', label: 'Passwords', numeral: 'V'   },
 ];
 
 const TopBar: React.FC<{
@@ -746,6 +748,12 @@ export const App: React.FC = () => {
         {isUnlocked && activeTab === 'settings' && (
           <div className="flex min-h-0 flex-1">
             <SettingsPage />
+          </div>
+        )}
+
+        {isUnlocked && activeTab === 'passwords' && (
+          <div className="flex min-h-0 flex-1">
+            <PasswordManagerPage />
           </div>
         )}
 

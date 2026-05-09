@@ -39,6 +39,10 @@ import {
   type UpdateTagColorInput,
   type SetRatingInput,
   type SessionChangedPayload,
+  type CreatePasswordInput,
+  type UpdatePasswordInput,
+  type DeletePasswordInput,
+  type GetPasswordsForDomainInput,
 } from '../shared/ipc';
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -164,6 +168,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener(IPC_CHANNELS.restoreProgress, listener);
     };
   },
+  listPasswords: () => ipcRenderer.invoke(IPC_CHANNELS.listPasswords),
+  createPassword: (i: CreatePasswordInput) => ipcRenderer.invoke(IPC_CHANNELS.createPassword, i),
+  updatePassword: (i: UpdatePasswordInput) => ipcRenderer.invoke(IPC_CHANNELS.updatePassword, i),
+  deletePassword: (i: DeletePasswordInput) => ipcRenderer.invoke(IPC_CHANNELS.deletePassword, i),
+  getPasswordsForDomain: (i: GetPasswordsForDomainInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.getPasswordsForDomain, i),
 });
 
 contextBridge.exposeInMainWorld('browserAPI', {

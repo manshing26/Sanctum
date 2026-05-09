@@ -9,6 +9,7 @@ import { IPC_CHANNELS } from '../shared/ipc';
 import { DatabaseService } from './db/Database';
 import { registerAuthHandlers } from './ipc/registerAuthHandlers';
 import { registerBrowserHandlers } from './ipc/registerBrowserHandlers';
+import { registerPasswordHandlers } from './ipc/registerPasswordHandlers';
 import { registerFolderHandlers } from './ipc/registerFolderHandlers';
 import { registerIpcHandlers } from './ipc/registerIpcHandlers';
 import { registerMediaHandlers } from './ipc/registerMediaHandlers';
@@ -17,6 +18,7 @@ import { registerTagHandlers } from './ipc/registerTagHandlers';
 import { registerVaultHandlers } from './ipc/registerVaultHandlers';
 import { AuthService } from './services/auth/AuthService';
 import { BookmarkService } from './services/bookmark/BookmarkService';
+import { PasswordService } from './services/password/PasswordService';
 import { CryptoService } from './services/crypto/CryptoService';
 import { DownloadService } from './services/download/DownloadService';
 import { ImportService } from './services/import/ImportService';
@@ -208,6 +210,7 @@ export const bootstrapApp = (): void => {
     const folderService = new FolderService(database.getDb(), sessionStore, vaultPaths);
     const tagService = new TagService(database.getDb(), sessionStore);
     const bookmarkService = new BookmarkService(database.getDb(), cryptoService, sessionStore);
+    const passwordService = new PasswordService(database.getDb(), cryptoService, sessionStore);
     const vaultService = new VaultService(
       database.getDb(),
       cryptoService,
@@ -369,6 +372,9 @@ export const bootstrapApp = (): void => {
     });
     registerMediaHandlers({
       mediaSessionService,
+    });
+    registerPasswordHandlers({
+      passwordService,
     });
 
     const isMediaUrl = (url: string): boolean =>

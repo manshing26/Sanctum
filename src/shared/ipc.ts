@@ -65,6 +65,11 @@ export const IPC_CHANNELS = {
   updateAppearanceSettings: 'settings:update-appearance',
   getBrowserSettings: 'settings:get-browser',
   updateBrowserSettings: 'settings:update-browser',
+  listPasswords:         'passwords:list',
+  createPassword:        'passwords:create',
+  updatePassword:        'passwords:update',
+  deletePassword:        'passwords:delete',
+  getPasswordsForDomain: 'passwords:for-domain',
 } as const;
 
 export type CreateVaultPasswordInput = {
@@ -319,6 +324,34 @@ export type DeleteBookmarkInput = {
   id: number;
 };
 
+export type PasswordSummary = {
+  id: string;
+  domain: string;
+  username: string;
+  label: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PasswordDetail = PasswordSummary & {
+  password: string;
+  notes: string | null;
+};
+
+export type CreatePasswordInput = {
+  domain: string;
+  username: string;
+  password: string;
+  label?: string;
+  notes?: string;
+};
+
+export type UpdatePasswordInput = CreatePasswordInput & { id: string };
+
+export type DeletePasswordInput = { id: string };
+
+export type GetPasswordsForDomainInput = { domain: string };
+
 export type DeleteVaultItemInput = {
   itemId: string;
 };
@@ -481,6 +514,11 @@ export type ElectronAPI = {
   updateBrowserSettings: (
     input: UpdateBrowserSettingsInput,
   ) => Promise<OperationResult<BrowserSettings>>;
+  listPasswords: () => Promise<OperationResult<PasswordSummary[]>>;
+  createPassword: (i: CreatePasswordInput) => Promise<OperationResult<PasswordSummary>>;
+  updatePassword: (i: UpdatePasswordInput) => Promise<OperationResult<PasswordSummary>>;
+  deletePassword: (i: DeletePasswordInput) => Promise<OperationResult>;
+  getPasswordsForDomain: (i: GetPasswordsForDomainInput) => Promise<OperationResult<PasswordDetail[]>>;
 };
 
 export type BrowserAPI = {
