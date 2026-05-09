@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
-import { Heart, Image, Film, Play, Eye, Pencil, Star, Download, Trash2, FolderOpen } from 'lucide-react';
 import type { VaultItemSummary } from '../../../../shared/ipc';
-import { Badge } from '../../../components/ui/Badge';
-import { Skeleton } from '../../../components/ui/Skeleton';
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -10,7 +7,20 @@ import {
   ContextMenuItem,
 } from '../../../components/ui/ContextMenu';
 import { RenameItemDialog } from './RenameItemDialog';
-import { cn } from '../../../lib/utils';
+
+const T = {
+  bg: '#0a0c0b',
+  line: 'rgba(220,220,200,0.07)',
+  line2: 'rgba(220,220,200,0.12)',
+  text: '#e8e6dc',
+  mute: '#79817a',
+  mute2: '#4d524d',
+  accent: '#7c9a92',
+  accentGlow: 'rgba(124,154,146,0.15)',
+  danger: '#c36b5f',
+};
+const SERIF = "'Fraunces', Georgia, serif";
+const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace";
 
 type GalleryCardProps = {
   item: VaultItemSummary;
@@ -72,11 +82,10 @@ export const GalleryCard = ({
   isMultiSelect,
 }: GalleryCardProps): React.JSX.Element => {
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
-  const showSkeleton = item.hasThumbnail && thumbnailUrl && !imageLoaded;
   const contextTargetIds = contextTargetIdsForItem?.(item.id) ?? [item.id];
   const openViewerDisabled = isOpenViewerDisabledForItem?.(item.id) ?? contextTargetIds.length > 1;
-
   const mediaType = isVideo(item.mimeType) ? 'video' : isGif(item.mimeType) ? 'gif' : 'image';
 
   const cardContent = (
@@ -84,43 +93,51 @@ export const GalleryCard = ({
       data-gallery-item-id={item.id}
       role="button"
       tabIndex={0}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onContextMenu={() => onContextMenuOpen?.(item.id)}
-      onClick={(e) => {
-        onToggleSelect(item.id, e.metaKey || e.ctrlKey);
-      }}
+      onClick={(e) => onToggleSelect(item.id, e.metaKey || e.ctrlKey)}
       onDoubleClick={() => onOpen(item.id)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onToggleSelect(item.id);
-        }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleSelect(item.id); }
       }}
-      className={cn(
-        'group relative w-full overflow-hidden rounded-lg border bg-surface text-left transition-all duration-200',
-        isSelected
-          ? 'border-accent ring-2 ring-accent/30'
-          : 'border-border hover:border-accent/40 hover:shadow-md',
-      )}
+      style={{
+        position: 'relative',
+        width: '100%',
+        overflow: 'hidden',
+        border: isSelected
+          ? `1px solid ${T.text}`
+          : hovered
+            ? `1px solid ${T.line2}`
+            : `1px solid ${T.line}`,
+        boxShadow: isSelected ? `0 0 0 1px ${T.text}` : 'none',
+        background: '#0e100e',
+        cursor: 'pointer',
+        userSelect: 'none',
+        transition: 'border-color 0.15s',
+        borderRadius: 0,
+      }}
     >
-      {/* Thumbnail area */}
-      <div className="relative aspect-[4/3] w-full overflow-hidden bg-bg">
-        {/* Checkbox overlay - only in multi-select mode */}
+      {/* Thumbnail — 4:3 */}
+      <div style={{ position: 'relative', aspectRatio: '4/3', overflow: 'hidden', background: '#0d0f0d' }}>
+        {/* Multi-select checkbox */}
         {isMultiSelect && (
           <div
-            className={cn(
-              'absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded border transition-opacity',
-              isSelected
-                ? 'border-accent bg-accent opacity-100'
-                : 'border-text-muted/40 bg-bg/70 opacity-0 group-hover:opacity-100',
-            )}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleSelect(item.id);
+            onClick={(e) => { e.stopPropagation(); onToggleSelect(item.id); }}
+            style={{
+              position: 'absolute', top: 8, left: 8, zIndex: 10,
+              width: 16, height: 16,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: `1px solid ${isSelected ? T.accent : 'rgba(220,220,200,0.4)'}`,
+              background: isSelected ? T.accent : 'rgba(10,12,11,0.7)',
+              opacity: isSelected || hovered ? 1 : 0,
+              transition: 'opacity 0.15s',
+              cursor: 'pointer',
             }}
           >
             {isSelected && (
-              <svg className="h-3 w-3 text-accent-foreground" viewBox="0 0 12 12" fill="none">
-                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                <path d="M1.5 4.5l2 2 4-4" stroke="#0a0c0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             )}
           </div>
@@ -129,93 +146,116 @@ export const GalleryCard = ({
         {/* Favorite button */}
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleFavorite(item.id, !item.isFavorite);
+          onClick={(e) => { e.stopPropagation(); onToggleFavorite(item.id, !item.isFavorite); }}
+          title={item.isFavorite ? 'Unfavourite' : 'Favourite'}
+          style={{
+            position: 'absolute', top: 7, right: 7, zIndex: 10,
+            width: 24, height: 24,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: item.isFavorite ? T.accentGlow : 'rgba(10,12,11,0.6)',
+            border: 'none', cursor: 'pointer',
+            color: item.isFavorite ? T.accent : T.mute,
+            opacity: item.isFavorite || hovered ? 1 : 0,
+            transition: 'opacity 0.15s',
+            padding: 0,
           }}
-          className={cn(
-            'absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full transition-all',
-            item.isFavorite
-              ? 'bg-accent/20 text-accent opacity-100'
-              : 'bg-bg/60 text-text-muted opacity-0 hover:text-accent group-hover:opacity-100',
-          )}
-          aria-label={item.isFavorite ? 'Unfavorite' : 'Favorite'}
         >
-          <Heart
-            className={cn('h-4 w-4', item.isFavorite && 'fill-accent')}
-          />
+          <svg width="12" height="12" viewBox="0 0 12 12" fill={item.isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.3">
+            <path d="M6 1.2l1.35 2.74 3.02.44-2.19 2.13.52 3.01L6 8.1 3.3 9.52l.52-3.01L1.63 4.38l3.02-.44z" />
+          </svg>
         </button>
 
-        {/* Media type badge */}
-        <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1">
-          {mediaType === 'video' && (
-            <Badge variant="default" className="gap-1 bg-black/70 px-1.5 py-0.5 text-[10px] text-white backdrop-blur-sm">
-              <Film className="h-3 w-3" />
-              VIDEO
-            </Badge>
-          )}
-          {mediaType === 'gif' && (
-            <Badge variant="default" className="bg-black/70 px-1.5 py-0.5 text-[10px] text-white backdrop-blur-sm">
-              GIF
-            </Badge>
-          )}
-        </div>
+        {/* Type badge */}
+        {(mediaType === 'video' || mediaType === 'gif') && (
+          <div style={{
+            position: 'absolute', bottom: 7, left: 7, zIndex: 10,
+            padding: '2px 6px',
+            background: 'rgba(0,0,0,0.75)',
+            fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em',
+            color: T.mute,
+            display: 'flex', alignItems: 'center', gap: 4,
+          }}>
+            {mediaType === 'video' && (
+              <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="currentColor" strokeWidth="1.3">
+                <rect x="0.5" y="1" width="5" height="7" /><polyline points="5.5,2.5 8.5,1 8.5,8 5.5,6.5" />
+              </svg>
+            )}
+            {mediaType === 'video' ? 'VIDEO' : 'GIF'}
+          </div>
+        )}
 
-        {/* Duration overlay for videos */}
+        {/* Duration */}
         {item.durationSeconds !== undefined && item.durationSeconds > 0 && (
-          <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
-            <Play className="h-2.5 w-2.5 fill-current" />
+          <div style={{
+            position: 'absolute', bottom: 7, right: 7, zIndex: 10,
+            padding: '2px 6px',
+            background: 'rgba(0,0,0,0.75)',
+            fontFamily: MONO, fontSize: 9, letterSpacing: '0.04em',
+            color: T.mute,
+            display: 'flex', alignItems: 'center', gap: 3,
+          }}>
+            <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor">
+              <polygon points="1,0.5 7,4 1,7.5" />
+            </svg>
             {formatDuration(item.durationSeconds)}
           </div>
         )}
 
-        {/* Hover overlay */}
-        <div className="absolute inset-0 z-[5] bg-black/0 transition-colors duration-200 group-hover:bg-black/10" />
-
         {/* Thumbnail image */}
         {thumbnailUrl ? (
-          <>
-            {showSkeleton && (
-              <Skeleton className="absolute inset-0 rounded-none" />
-            )}
-            <img
-              src={thumbnailUrl}
-              alt={item.originalName}
-              loading="lazy"
-              onLoad={() => setImageLoaded(true)}
-              className={cn(
-                'h-full w-full object-cover transition-transform duration-300 group-hover:scale-105',
-                showSkeleton && 'invisible',
-              )}
-            />
-          </>
+          <img
+            src={thumbnailUrl}
+            alt={item.originalName}
+            loading="lazy"
+            onLoad={() => setImageLoaded(true)}
+            style={{
+              width: '100%', height: '100%', objectFit: 'cover',
+              opacity: imageLoaded ? 1 : 0,
+              transition: 'opacity 0.2s, transform 0.3s',
+              transform: hovered ? 'scale(1.03)' : 'scale(1)',
+            }}
+          />
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-text-muted">
+          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             {mediaType === 'video' ? (
-              <Film className="h-8 w-8 opacity-40" />
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={T.mute2} strokeWidth="1.2">
+                <rect x="2" y="3" width="13" height="18" /><polyline points="15,7 22,4 22,20 15,17" />
+              </svg>
             ) : (
-              <Image className="h-8 w-8 opacity-40" />
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={T.mute2} strokeWidth="1.2">
+                <rect x="2" y="2" width="20" height="20" /><circle cx="8" cy="8" r="2" />
+                <polyline points="2,17 8,11 12,15 16,12 22,17 22,22 2,22" />
+              </svg>
             )}
-            <span className="text-[10px]">No preview</span>
           </div>
         )}
+
+        {/* Hover overlay */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: hovered ? 'rgba(0,0,0,0.08)' : 'transparent',
+          transition: 'background 0.2s',
+          pointerEvents: 'none',
+        }} />
       </div>
 
-      {/* Info area */}
-      <div className="px-2.5 py-2">
-        <p className="truncate text-xs font-medium text-text-primary" title={item.originalName}>
+      {/* Info footer */}
+      <div style={{ padding: '8px 10px', borderTop: `1px solid ${T.line}` }}>
+        <p style={{
+          fontFamily: SERIF, fontSize: 13, color: T.text,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          margin: 0,
+        }} title={item.originalName}>
           {item.originalName}
         </p>
-        <div className="mt-0.5 flex items-center gap-1.5">
-          <span className="truncate text-[11px] text-text-muted">
+        <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute, letterSpacing: '0.04em' }}>
             {formatFileSize(item.size)}
             {item.width && item.height ? ` · ${item.width}×${item.height}` : ''}
           </span>
           {item.rating !== undefined && item.rating > 0 && (
-            <span className="ml-auto flex shrink-0 items-center gap-px">
-              {Array.from({ length: item.rating }, (_, i) => (
-                <Star key={i} className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
-              ))}
+            <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9, color: T.accent }}>
+              {'·'.repeat(item.rating)}
             </span>
           )}
         </div>
@@ -225,111 +265,71 @@ export const GalleryCard = ({
 
   return (
     <>
-    <ContextMenu>
-      <ContextMenuTrigger asChild>
-        {cardContent}
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem
-          disabled={openViewerDisabled}
-          onClick={() => {
-            if (openViewerDisabled) {
-              return;
-            }
-            if (onOpenViewerForIds) {
-              onOpenViewerForIds(contextTargetIds);
-              return;
-            }
-            onOpen(item.id);
-          }}
-        >
-          <Eye className="mr-2 h-4 w-4" />
-          Open in Viewer
-        </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => {
-            if (onToggleFavoriteForIds) {
-              onToggleFavoriteForIds(contextTargetIds);
-              return;
-            }
-            onToggleFavorite(item.id, !item.isFavorite);
-          }}
-        >
-          <Heart className={cn('mr-2 h-4 w-4', item.isFavorite && 'fill-accent text-accent')} />
-          {contextTargetIds.length > 1
-            ? 'Toggle Favorites'
-            : item.isFavorite
-              ? 'Remove Favorite'
-              : 'Add to Favorites'}
-        </ContextMenuItem>
-        {(onOpenMoveDialog || onOpenMoveDialogForIds) && (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{cardContent}</ContextMenuTrigger>
+        <ContextMenuContent>
           <ContextMenuItem
+            disabled={openViewerDisabled}
             onClick={() => {
-              if (onOpenMoveDialogForIds) {
-                onOpenMoveDialogForIds(contextTargetIds);
-                return;
-              }
-              if (!onOpenMoveDialog) {
-                return;
-              }
-              onOpenMoveDialog(item.id);
+              if (openViewerDisabled) return;
+              if (onOpenViewerForIds) { onOpenViewerForIds(contextTargetIds); return; }
+              onOpen(item.id);
             }}
           >
-            <FolderOpen className="mr-2 h-4 w-4" />
-            {contextTargetIds.length > 1 ? 'Move Selected...' : 'Move to Folder...'}
+            Open in Viewer
           </ContextMenuItem>
-        )}
-        {(onExport || onExportForIds) && (
           <ContextMenuItem
             onClick={() => {
-              if (onExportForIds) {
-                onExportForIds(contextTargetIds);
-                return;
-              }
-              if (!onExport) {
-                return;
-              }
-              onExport(item.id);
+              if (onToggleFavoriteForIds) { onToggleFavoriteForIds(contextTargetIds); return; }
+              onToggleFavorite(item.id, !item.isFavorite);
             }}
           >
-            <Download className="mr-2 h-4 w-4" />
-            {contextTargetIds.length > 1 ? 'Export Selected' : 'Export'}
+            {contextTargetIds.length > 1 ? 'Toggle Favourites' : item.isFavorite ? 'Remove Favourite' : 'Add to Favourites'}
           </ContextMenuItem>
-        )}
-        {onRename && contextTargetIds.length === 1 && (
-          <ContextMenuItem onClick={() => setRenameOpen(true)}>
-            <Pencil className="mr-2 h-4 w-4" />
-            Rename
-          </ContextMenuItem>
-        )}
-        {(onDelete || onDeleteForIds) && (
-          <ContextMenuItem
-            onClick={() => {
-              if (onDeleteForIds) {
-                onDeleteForIds(contextTargetIds);
-                return;
-              }
-              if (!onDelete) {
-                return;
-              }
-              onDelete(item.id);
-            }}
-            className="text-danger focus:text-danger"
-          >
-            <Trash2 className="mr-2 h-4 w-4 text-danger" />
-            {contextTargetIds.length > 1 ? 'Delete Selected' : 'Delete'}
-          </ContextMenuItem>
-        )}
-      </ContextMenuContent>
-    </ContextMenu>
-    {onRename && (
-      <RenameItemDialog
-        open={renameOpen}
-        onOpenChange={setRenameOpen}
-        currentName={item.originalName}
-        onConfirm={(newName) => onRename(item.id, newName)}
-      />
-    )}
+          {(onOpenMoveDialog || onOpenMoveDialogForIds) && (
+            <ContextMenuItem
+              onClick={() => {
+                if (onOpenMoveDialogForIds) { onOpenMoveDialogForIds(contextTargetIds); return; }
+                onOpenMoveDialog?.(item.id);
+              }}
+            >
+              {contextTargetIds.length > 1 ? 'Move Selected…' : 'Move to Folder…'}
+            </ContextMenuItem>
+          )}
+          {(onExport || onExportForIds) && (
+            <ContextMenuItem
+              onClick={() => {
+                if (onExportForIds) { onExportForIds(contextTargetIds); return; }
+                onExport?.(item.id);
+              }}
+            >
+              {contextTargetIds.length > 1 ? 'Export Selected' : 'Export'}
+            </ContextMenuItem>
+          )}
+          {onRename && contextTargetIds.length === 1 && (
+            <ContextMenuItem onClick={() => setRenameOpen(true)}>Rename</ContextMenuItem>
+          )}
+          {(onDelete || onDeleteForIds) && (
+            <ContextMenuItem
+              onClick={() => {
+                if (onDeleteForIds) { onDeleteForIds(contextTargetIds); return; }
+                onDelete?.(item.id);
+              }}
+              className="text-danger focus:text-danger"
+            >
+              {contextTargetIds.length > 1 ? 'Delete Selected' : 'Delete'}
+            </ContextMenuItem>
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
+      {onRename && (
+        <RenameItemDialog
+          open={renameOpen}
+          onOpenChange={setRenameOpen}
+          currentName={item.originalName}
+          onConfirm={(newName) => onRename(item.id, newName)}
+        />
+      )}
     </>
   );
 };

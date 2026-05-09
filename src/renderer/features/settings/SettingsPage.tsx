@@ -1,105 +1,282 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Shield,
-  HardDrive,
-  Info,
-  Trash2,
-  Palette,
-  Globe,
-  Timer,
-  Monitor,
-  KeyRound,
-  Archive,
-  ArchiveRestore,
-} from 'lucide-react';
 import { toast } from 'sonner';
-import { Button } from '../../components/ui/Button';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/Card';
-import { Switch } from '../../components/ui/Switch';
-import { Separator } from '../../components/ui/Separator';
-import { Label } from '../../components/ui/Label';
-import { Input } from '../../components/ui/Input';
-import { Alert, AlertDescription } from '../../components/ui/Alert';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '../../components/ui/Dialog';
-import { ScrollArea } from '../../components/ui/ScrollArea';
 import { RestoreCountdownDialog } from '../../components/ui/RestoreCountdownDialog';
-import { cn } from '../../lib/utils';
 import { PasswordInput } from '../../components/ui/PasswordInput';
 import type { SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgress, RestoreProgress } from '../../../shared/ipc';
 
+// ── Design tokens ────────────────────────────────────────────────────
+const T = {
+  bg:          '#0a0c0b',
+  bg2:         '#10110f',
+  line:        'rgba(220,220,200,0.07)',
+  line2:       'rgba(220,220,200,0.12)',
+  text:        '#e8e6dc',
+  mute:        '#79817a',
+  mute2:       '#4d524d',
+  accent:      '#7c9a92',
+  accentGlow:  'rgba(124,154,146,0.12)',
+  danger:      '#c36b5f',
+  dangerGlow:  'rgba(195,107,95,0.10)',
+  warn:        '#c08a5e',
+  success:     '#6a9e7f',
+};
+const MONO  = "'JetBrains Mono', ui-monospace, Menlo, monospace";
+const SERIF = "'Fraunces', Georgia, serif";
+
+// ── Nav items ────────────────────────────────────────────────────────
 type SettingsCategory = 'security' | 'appearance' | 'browser' | 'storage' | 'about';
 
-const NAV_ITEMS: { id: SettingsCategory; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { id: 'security', label: 'Security', icon: Shield },
-  { id: 'appearance', label: 'Appearance', icon: Palette },
-  { id: 'browser', label: 'Browser', icon: Globe },
-  { id: 'storage', label: 'Storage', icon: HardDrive },
-  { id: 'about', label: 'About', icon: Info },
+const NAV_ITEMS: { id: SettingsCategory; label: string; roman: string; icon: React.ReactNode }[] = [
+  {
+    id: 'security', label: 'Security', roman: 'i',
+    icon: (
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M7 1L2 3.5v4C2 10.5 4.5 13 7 13s5-2.5 5-5.5v-4L7 1z"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'appearance', label: 'Appearance', roman: 'ii',
+    icon: (
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="7" cy="7" r="5.5"/>
+        <path d="M7 1.5v11M1.5 7h11"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'browser', label: 'Browser', roman: 'iii',
+    icon: (
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1.5" y="1.5" width="11" height="11"/>
+        <line x1="1.5" y1="5" x2="12.5" y2="5"/>
+        <circle cx="4" cy="3.25" r="0.6" fill="currentColor" stroke="none"/>
+        <circle cx="6" cy="3.25" r="0.6" fill="currentColor" stroke="none"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'storage', label: 'Storage', roman: 'iv',
+    icon: (
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <ellipse cx="7" cy="4" rx="5" ry="2"/>
+        <path d="M2 4v6c0 1.1 2.24 2 5 2s5-.9 5-2V4"/>
+        <path d="M2 7c0 1.1 2.24 2 5 2s5-.9 5-2"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'about', label: 'About', roman: 'v',
+    icon: (
+      <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="7" cy="7" r="5.5"/>
+        <line x1="7" y1="6" x2="7" y2="10"/>
+        <circle cx="7" cy="4" r="0.5" fill="currentColor" stroke="none"/>
+      </svg>
+    ),
+  },
 ];
 
-// ── Reusable setting row ─────────────────────────────────────────────
-const SettingRow: React.FC<{
-  label: string;
-  description?: string;
-  children: React.ReactNode;
-}> = ({ label, description, children }) => (
-  <div className="flex items-center justify-between gap-4">
-    <div className="min-w-0 space-y-0.5">
-      <Label className="text-sm font-medium">{label}</Label>
-      {description && <p className="text-xs text-text-muted">{description}</p>}
-    </div>
-    <div className="shrink-0">{children}</div>
+// ── Shared primitives ────────────────────────────────────────────────
+const SectionHeading: React.FC<{ title: string; sub: string }> = ({ title, sub }) => (
+  <div style={{ marginBottom: 24 }}>
+    <h2 style={{ fontFamily: SERIF, fontWeight: 300, fontSize: 26, letterSpacing: '-0.02em', color: T.text, margin: '0 0 4px' }}>{title}</h2>
+    <p style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: T.mute2, margin: 0 }}>{sub}</p>
   </div>
 );
 
-// ── Select component for settings ────────────────────────────────────
-const SettingSelect: React.FC<{
+const SettingCard: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div style={{ border: `1px solid ${T.line2}`, background: T.bg2 }}>
+    {children}
+  </div>
+);
+
+const CardSection: React.FC<{ title?: string; description?: string; children?: React.ReactNode; noPad?: boolean }> = ({ title, description, children, noPad }) => (
+  <div style={{ borderBottom: `1px solid ${T.line}`, padding: noPad ? 0 : '16px 20px' }}>
+    {(title || description) && (
+      <div style={{ marginBottom: children ? 12 : 0 }}>
+        {title && <p style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.04em', color: T.text, margin: '0 0 2px' }}>{title}</p>}
+        {description && <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0, lineHeight: 1.5 }}>{description}</p>}
+      </div>
+    )}
+    {children}
+  </div>
+);
+
+const SettingRow: React.FC<{ label: string; description?: string; children: React.ReactNode; last?: boolean }> = ({ label, description, children, last }) => (
+  <div style={{
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+    padding: '12px 20px',
+    borderBottom: last ? 'none' : `1px solid ${T.line}`,
+  }}>
+    <div style={{ minWidth: 0 }}>
+      <p style={{ fontFamily: MONO, fontSize: 11, color: T.text, margin: '0 0 2px' }}>{label}</p>
+      {description && <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0, lineHeight: 1.5 }}>{description}</p>}
+    </div>
+    <div style={{ flexShrink: 0 }}>{children}</div>
+  </div>
+);
+
+const FieldLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, margin: '0 0 6px' }}>{children}</p>
+);
+
+const SanctumSelect: React.FC<{
   value: string;
-  onChange: (value: string) => void;
+  onChange: (v: string) => void;
   options: { value: string; label: string }[];
 }> = ({ value, onChange, options }) => (
   <select
     value={value}
     onChange={(e) => onChange(e.target.value)}
-    className="h-8 rounded-md border border-border bg-bg px-2 text-sm text-text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/50"
+    style={{
+      height: 30,
+      padding: '0 10px',
+      background: T.bg,
+      border: `1px solid ${T.line2}`,
+      color: T.text,
+      fontFamily: MONO,
+      fontSize: 11,
+      cursor: 'pointer',
+      outline: 'none',
+    }}
   >
-    {options.map((opt) => (
-      <option key={opt.value} value={opt.value}>
-        {opt.label}
-      </option>
+    {options.map((o) => (
+      <option key={o.value} value={o.value} style={{ background: T.bg }}>{o.label}</option>
     ))}
   </select>
 );
 
-const SettingSwitch: React.FC<{
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-  onLabel?: string;
-  offLabel?: string;
-}> = ({ checked, onCheckedChange, onLabel = 'On', offLabel = 'Off' }) => (
-  <div className="flex items-center gap-2">
-    <span
-      className={cn(
-        'inline-flex min-w-[46px] justify-center rounded-md border px-2 py-0.5 text-[11px] font-medium',
-        checked
-          ? 'border-success/40 bg-success/10 text-success'
-          : 'border-border bg-bg text-text-muted',
-      )}
-      aria-live="polite"
-    >
-      {checked ? onLabel : offLabel}
-    </span>
-    <Switch checked={checked} onCheckedChange={onCheckedChange} />
+const SanctumSwitch: React.FC<{ checked: boolean; onCheckedChange: (v: boolean) => void }> = ({ checked, onCheckedChange }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={checked}
+    onClick={() => onCheckedChange(!checked)}
+    style={{
+      width: 36, height: 20,
+      background: checked ? T.accent : T.line2,
+      border: `1px solid ${checked ? T.accent : T.line2}`,
+      position: 'relative',
+      cursor: 'pointer',
+      padding: 0,
+      transition: 'background 0.15s',
+    }}
+  >
+    <span style={{
+      position: 'absolute',
+      top: 2, left: checked ? 17 : 2,
+      width: 14, height: 14,
+      background: checked ? T.bg : T.mute,
+      transition: 'left 0.15s',
+    }} />
+  </button>
+);
+
+const SanctumInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => (
+  <input
+    {...props}
+    style={{
+      height: 32,
+      padding: '0 10px',
+      background: T.bg,
+      border: `1px solid ${T.line2}`,
+      color: T.text,
+      fontFamily: MONO,
+      fontSize: 11,
+      outline: 'none',
+      width: '100%',
+      ...props.style,
+    }}
+  />
+);
+
+const PrimaryBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { full?: boolean }> = ({ full, style, children, ...props }) => (
+  <button
+    type="button"
+    {...props}
+    style={{
+      height: 36,
+      padding: '0 18px',
+      background: props.disabled ? 'rgba(124,154,146,0.15)' : T.accent,
+      border: `1px solid ${props.disabled ? T.line2 : T.accent}`,
+      color: props.disabled ? T.mute : T.bg,
+      fontFamily: MONO,
+      fontSize: 11,
+      letterSpacing: '0.06em',
+      textTransform: 'uppercase',
+      cursor: props.disabled ? 'not-allowed' : 'pointer',
+      width: full ? '100%' : undefined,
+      ...style,
+    }}
+  >
+    {children}
+  </button>
+);
+
+const SecondaryBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({ style, children, ...props }) => (
+  <button
+    type="button"
+    {...props}
+    style={{
+      height: 32,
+      padding: '0 14px',
+      background: 'none',
+      border: `1px solid ${T.line2}`,
+      color: props.disabled ? T.mute2 : T.mute,
+      fontFamily: MONO,
+      fontSize: 11,
+      letterSpacing: '0.04em',
+      cursor: props.disabled ? 'not-allowed' : 'pointer',
+      display: 'flex', alignItems: 'center', gap: 6,
+      ...style,
+    }}
+  >
+    {children}
+  </button>
+);
+
+const DangerBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({ style, children, ...props }) => (
+  <button
+    type="button"
+    {...props}
+    style={{
+      height: 32,
+      padding: '0 14px',
+      background: T.dangerGlow,
+      border: `1px solid ${T.danger}`,
+      color: T.danger,
+      fontFamily: MONO,
+      fontSize: 11,
+      letterSpacing: '0.04em',
+      cursor: props.disabled ? 'not-allowed' : 'pointer',
+      display: 'flex', alignItems: 'center', gap: 6,
+      ...style,
+    }}
+  >
+    {children}
+  </button>
+);
+
+const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
+  <div style={{ padding: '8px 12px', background: T.dangerGlow, border: `1px solid ${T.danger}`, fontFamily: MONO, fontSize: 10, color: T.danger }}>
+    {message}
   </div>
 );
 
-// ── Change Password Card ─────────────────────────────────────────────
+const ProgressBar: React.FC<{ pct: number; label: string }> = ({ pct, label }) => (
+  <div style={{ padding: '10px 12px', border: `1px solid ${T.line2}`, background: T.bg }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+      <span style={{ fontFamily: MONO, fontSize: 10, color: T.mute }}>{label}</span>
+      <span style={{ fontFamily: MONO, fontSize: 10, color: T.mute }}>{pct}%</span>
+    </div>
+    <div style={{ height: 2, background: T.line2 }}>
+      <div style={{ height: '100%', width: `${pct}%`, background: T.accent, transition: 'width 0.2s' }} />
+    </div>
+  </div>
+);
+
+// ── Change Password ──────────────────────────────────────────────────
 const ChangePasswordCard: React.FC = () => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -113,414 +290,221 @@ const ChangePasswordCard: React.FC = () => {
 
   const passwordsMatch = newPassword === confirmPassword;
   const newPasswordValid = newPassword.length >= 8;
-  const canSubmit =
-    currentPassword.length > 0 &&
-    newPasswordValid &&
-    confirmPassword.length > 0 &&
-    passwordsMatch &&
-    !isSubmitting;
+  const canSubmit = currentPassword.length > 0 && newPasswordValid && confirmPassword.length > 0 && passwordsMatch && !isSubmitting;
 
   const stopTimer = (): void => {
-    if (timerRef.current !== null) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
+    if (timerRef.current !== null) { clearInterval(timerRef.current); timerRef.current = null; }
   };
 
-  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
-    setError(null);
-    setProgress(null);
-    setElapsedSeconds(0);
-    setIsSubmitting(true);
-
+    setError(null); setProgress(null); setElapsedSeconds(0); setIsSubmitting(true);
     startTimeRef.current = Date.now();
     timerRef.current = setInterval(() => {
       setElapsedSeconds(Math.floor((Date.now() - (startTimeRef.current ?? Date.now())) / 1000));
     }, 1000);
-
-    const unsubscribe = window.electronAPI.onChangePasswordProgress((p) => {
-      setProgress(p);
-    });
-
+    const unsubscribe = window.electronAPI.onChangePasswordProgress((p) => setProgress(p));
     try {
       const result = await window.electronAPI.changePassword({ currentPassword, newPassword });
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
+      if (!result.ok) { setError(result.error); return; }
       toast.success('Password changed successfully.');
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setProgress(null);
+      setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); setProgress(null);
     } finally {
-      unsubscribe();
-      stopTimer();
-      setIsSubmitting(false);
+      unsubscribe(); stopTimer(); setIsSubmitting(false);
     }
   };
 
-  const formatElapsed = (s: number): string => {
-    if (s < 60) return `${s}s`;
-    return `${Math.floor(s / 60)}m ${s % 60}s`;
-  };
-
-  const pct = progress && progress.total > 0
-    ? Math.round((progress.processed / progress.total) * 100)
-    : null;
+  const pct = progress && progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-sm">
-          <KeyRound className="h-4 w-4 text-text-muted" />
+    <SettingCard>
+      <div style={{ padding: '14px 20px', borderBottom: `1px solid ${T.line}` }}>
+        <p style={{ fontFamily: MONO, fontSize: 11, color: T.text, margin: '0 0 2px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke={T.mute} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="7" cy="6" r="3"/><path d="M4 9.5V13h6v-3.5"/>
+          </svg>
           Change Password
-        </CardTitle>
-        <CardDescription>
-          Re-encrypts all vault data with the new password. You will remain logged in.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-text-muted">Current password</Label>
-            <PasswordInput
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              placeholder="Enter current password"
-              autoComplete="current-password"
-              disabled={isSubmitting}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs text-text-muted">New password</Label>
-            <PasswordInput
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Enter new password"
-              autoComplete="new-password"
-              showStrength
-              error={newPassword.length > 0 && !newPasswordValid}
-              disabled={isSubmitting}
-            />
-            {newPassword.length > 0 && !newPasswordValid && (
-              <p className="text-xs text-danger">Password must be at least 8 characters.</p>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs text-text-muted">Confirm new password</Label>
-            <PasswordInput
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm new password"
-              autoComplete="new-password"
-              error={confirmPassword.length > 0 && !passwordsMatch}
-              disabled={isSubmitting}
-            />
-            {confirmPassword.length > 0 && !passwordsMatch && (
-              <p className="text-xs text-danger">Passwords do not match.</p>
-            )}
-          </div>
-
-          {isSubmitting && (
-            <div className="space-y-2 rounded-lg border border-border bg-surface p-3">
-              <div className="flex items-center justify-between text-xs text-text-muted">
-                <span>
-                  {pct !== null
-                    ? `Re-encrypting files… ${progress!.processed} / ${progress!.total}`
-                    : 'Verifying password…'}
-                </span>
-                <span className="tabular-nums">{formatElapsed(elapsedSeconds)}</span>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-border/40">
-                <div
-                  className="h-full rounded-full bg-accent transition-all duration-300"
-                  style={{ width: pct !== null ? `${pct}%` : '0%' }}
-                />
-              </div>
-              {pct !== null && (
-                <p className="text-right text-xs text-text-muted tabular-nums">{pct}%</p>
-              )}
-            </div>
+        </p>
+        <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0 }}>Re-encrypts all vault data with the new password. You will remain logged in.</p>
+      </div>
+      <form onSubmit={(e) => void handleSubmit(e)} style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <FieldLabel>Current password</FieldLabel>
+          <PasswordInput value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Enter current password" autoComplete="current-password" disabled={isSubmitting} />
+        </div>
+        <div>
+          <FieldLabel>New password</FieldLabel>
+          <PasswordInput value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" autoComplete="new-password" showStrength error={newPassword.length > 0 && !newPasswordValid} disabled={isSubmitting} />
+          {newPassword.length > 0 && !newPasswordValid && (
+            <p style={{ fontFamily: MONO, fontSize: 10, color: T.danger, marginTop: 4 }}>Minimum 8 characters.</p>
           )}
-
-          {error && (
-            <Alert variant="danger">
-              <AlertDescription className="text-xs">{error}</AlertDescription>
-            </Alert>
+        </div>
+        <div>
+          <FieldLabel>Confirm new password</FieldLabel>
+          <PasswordInput value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" autoComplete="new-password" error={confirmPassword.length > 0 && !passwordsMatch} disabled={isSubmitting} />
+          {confirmPassword.length > 0 && !passwordsMatch && (
+            <p style={{ fontFamily: MONO, fontSize: 10, color: T.danger, marginTop: 4 }}>Passwords do not match.</p>
           )}
+        </div>
 
-          <Button type="submit" size="sm" disabled={!canSubmit} className="w-full">
-            {isSubmitting ? 'Changing password…' : 'Change Password'}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+        {isSubmitting && (
+          <ProgressBar
+            pct={pct ?? 0}
+            label={pct !== null ? `Re-encrypting… ${progress!.processed} / ${progress!.total}` : `Verifying… ${elapsedSeconds}s`}
+          />
+        )}
+        {error && <ErrorBanner message={error} />}
+
+        <PrimaryBtn type="submit" disabled={!canSubmit} full>
+          {isSubmitting ? 'Changing password…' : 'Change Password'}
+        </PrimaryBtn>
+      </form>
+    </SettingCard>
   );
 };
 
-// ── Security Settings ────────────────────────────────────────────────
+// ── Security ─────────────────────────────────────────────────────────
 const SecuritySection: React.FC = () => {
   const [settings, setSettings] = useState<SecuritySettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void window.electronAPI.getSecuritySettings().then((result) => {
-      if (result.ok) setSettings(result.data);
-      setLoading(false);
-    });
+    void window.electronAPI.getSecuritySettings().then((r) => { if (r.ok) setSettings(r.data); setLoading(false); });
   }, []);
 
-  const updateSetting = async (
-    key: keyof SecuritySettings,
-    value: SecuritySettings[keyof SecuritySettings],
-  ): Promise<void> => {
-    const result = await window.electronAPI.updateSecuritySettings({ [key]: value });
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    setSettings(result.data);
+  const update = async (key: keyof SecuritySettings, value: SecuritySettings[keyof SecuritySettings]): Promise<void> => {
+    const r = await window.electronAPI.updateSecuritySettings({ [key]: value });
+    if (!r.ok) { toast.error(r.error); return; }
+    setSettings(r.data);
     toast.success('Setting updated.');
   };
 
-  if (loading || !settings) {
-    return <p className="text-sm text-text-muted">Loading...</p>;
-  }
+  if (loading || !settings) return <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute }}>Loading…</p>;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-text-primary">Security</h2>
-        <p className="text-sm text-text-muted">Configure security and privacy settings for your vault.</p>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <SectionHeading title="Security" sub="Configure security and privacy settings for your vault." />
 
-      <Card>
-        <CardContent className="space-y-5 pt-6">
-          <SettingRow
-            label="Auto-lock timeout"
-            description="Automatically lock the vault after a period of inactivity."
-          >
-            <div className="flex items-center gap-2">
-              <Timer className="h-3.5 w-3.5 text-text-muted" />
-              <SettingSelect
-                value={String(settings.autoLockMinutes)}
-                onChange={(value) => void updateSetting('autoLockMinutes', Number(value))}
-                options={[
-                  { value: '0', label: 'Off' },
-                  { value: '5', label: '5 min' },
-                  { value: '10', label: '10 min' },
-                  { value: '15', label: '15 min' },
-                  { value: '30', label: '30 min' },
-                  { value: '60', label: '60 min' },
-                ]}
-              />
-            </div>
-          </SettingRow>
-
-          <Separator />
-
-          <SettingRow
-            label="Lock on minimize"
-            description="Automatically lock the vault when the window is minimized."
-          >
-            <div className="flex items-center gap-2">
-              <Monitor className="h-3.5 w-3.5 text-text-muted" />
-              <SettingSwitch
-                checked={settings.lockOnMinimize}
-                onCheckedChange={(checked) => void updateSetting('lockOnMinimize', checked)}
-              />
-            </div>
-          </SettingRow>
-        </CardContent>
-      </Card>
+      <SettingCard>
+        <SettingRow label="Auto-lock timeout" description="Automatically lock the vault after a period of inactivity.">
+          <SanctumSelect
+            value={String(settings.autoLockMinutes)}
+            onChange={(v) => void update('autoLockMinutes', Number(v))}
+            options={[
+              { value: '0', label: 'Off' },
+              { value: '5', label: '5 min' },
+              { value: '10', label: '10 min' },
+              { value: '15', label: '15 min' },
+              { value: '30', label: '30 min' },
+              { value: '60', label: '60 min' },
+            ]}
+          />
+        </SettingRow>
+        <SettingRow label="Lock on minimize" description="Automatically lock the vault when the window is minimized." last>
+          <SanctumSwitch checked={settings.lockOnMinimize} onCheckedChange={(v) => void update('lockOnMinimize', v)} />
+        </SettingRow>
+      </SettingCard>
 
       <ChangePasswordCard />
-
     </div>
   );
 };
 
-// ── Appearance Settings ──────────────────────────────────────────────
+// ── Appearance ───────────────────────────────────────────────────────
 const AppearanceSection: React.FC = () => {
   const [settings, setSettings] = useState<AppearanceSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void window.electronAPI.getAppearanceSettings().then((result) => {
-      if (result.ok) setSettings(result.data);
-      setLoading(false);
-    });
+    void window.electronAPI.getAppearanceSettings().then((r) => { if (r.ok) setSettings(r.data); setLoading(false); });
   }, []);
 
   const update = async (patch: Partial<AppearanceSettings>): Promise<void> => {
-    const result = await window.electronAPI.updateAppearanceSettings(patch);
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    setSettings(result.data);
+    const r = await window.electronAPI.updateAppearanceSettings(patch);
+    if (!r.ok) { toast.error(r.error); return; }
+    setSettings(r.data);
     toast.success('Setting updated.');
   };
 
-  if (loading || !settings) {
-    return <p className="text-sm text-text-muted">Loading...</p>;
-  }
+  if (loading || !settings) return <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute }}>Loading…</p>;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-text-primary">Appearance</h2>
-        <p className="text-sm text-text-muted">Customize the look and feel of the gallery.</p>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <SectionHeading title="Appearance" sub="Customize the look and feel of the gallery." />
 
-      <Card>
-        <CardContent className="space-y-5 pt-6">
-          <SettingRow
-            label="Thumbnail size"
-            description="Size of thumbnail previews in the gallery grid."
-          >
-            <SettingSelect
-              value={settings.thumbnailSize}
-              onChange={(v) => void update({ thumbnailSize: v as AppearanceSettings['thumbnailSize'] })}
-              options={[
-                { value: 'small', label: 'Small' },
-                { value: 'medium', label: 'Medium' },
-                { value: 'large', label: 'Large' },
-              ]}
-            />
-          </SettingRow>
-
-          <Separator />
-
-          <SettingRow
-            label="Grid density"
-            description="Spacing between items in the gallery."
-          >
-            <SettingSelect
-              value={settings.gridDensity}
-              onChange={(v) => void update({ gridDensity: v as AppearanceSettings['gridDensity'] })}
-              options={[
-                { value: 'compact', label: 'Compact' },
-                { value: 'comfortable', label: 'Comfortable' },
-                { value: 'spacious', label: 'Spacious' },
-              ]}
-            />
-          </SettingRow>
-
-          <Separator />
-
-          <SettingRow
-            label="Default view"
-            description="Default gallery layout when opening the app."
-          >
-            <SettingSelect
-              value={settings.defaultView}
-              onChange={(v) => void update({ defaultView: v as AppearanceSettings['defaultView'] })}
-              options={[
-                { value: 'grid', label: 'Grid' },
-                { value: 'list', label: 'List' },
-              ]}
-            />
-          </SettingRow>
-        </CardContent>
-      </Card>
+      <SettingCard>
+        <SettingRow label="Thumbnail size" description="Size of thumbnail previews in the gallery grid.">
+          <SanctumSelect
+            value={settings.thumbnailSize}
+            onChange={(v) => void update({ thumbnailSize: v as AppearanceSettings['thumbnailSize'] })}
+            options={[{ value: 'small', label: 'Small' }, { value: 'medium', label: 'Medium' }, { value: 'large', label: 'Large' }]}
+          />
+        </SettingRow>
+        <SettingRow label="Grid density" description="Spacing between items in the gallery.">
+          <SanctumSelect
+            value={settings.gridDensity}
+            onChange={(v) => void update({ gridDensity: v as AppearanceSettings['gridDensity'] })}
+            options={[{ value: 'compact', label: 'Compact' }, { value: 'comfortable', label: 'Comfortable' }, { value: 'spacious', label: 'Spacious' }]}
+          />
+        </SettingRow>
+        <SettingRow label="Default view" description="Default gallery layout when opening the app." last>
+          <SanctumSelect
+            value={settings.defaultView}
+            onChange={(v) => void update({ defaultView: v as AppearanceSettings['defaultView'] })}
+            options={[{ value: 'grid', label: 'Grid' }, { value: 'list', label: 'List' }]}
+          />
+        </SettingRow>
+      </SettingCard>
     </div>
   );
 };
 
-// ── Browser Settings ─────────────────────────────────────────────────
+// ── Browser ──────────────────────────────────────────────────────────
 const BrowserSection: React.FC = () => {
   const [settings, setSettings] = useState<BrowserSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void window.electronAPI.getBrowserSettings().then((result) => {
-      if (result.ok) setSettings(result.data);
-      setLoading(false);
-    });
+    void window.electronAPI.getBrowserSettings().then((r) => { if (r.ok) setSettings(r.data); setLoading(false); });
   }, []);
 
   const update = async (patch: Partial<BrowserSettings>): Promise<void> => {
-    const result = await window.electronAPI.updateBrowserSettings(patch);
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    setSettings(result.data);
+    const r = await window.electronAPI.updateBrowserSettings(patch);
+    if (!r.ok) { toast.error(r.error); return; }
+    setSettings(r.data);
     toast.success('Setting updated.');
   };
 
-  if (loading || !settings) {
-    return <p className="text-sm text-text-muted">Loading...</p>;
-  }
+  if (loading || !settings) return <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute }}>Loading…</p>;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-text-primary">Browser</h2>
-        <p className="text-sm text-text-muted">Configure the built-in private browser.</p>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <SectionHeading title="Browser" sub="Configure the built-in private browser." />
 
-      <Card>
-        <CardContent className="space-y-5 pt-6">
-          <SettingRow
-            label="Clear data on exit"
-            description="Clear browsing data (cookies, cache, history) when closing the browser."
-          >
-            <SettingSwitch
-              checked={settings.clearOnExit}
-              onCheckedChange={(checked) => void update({ clearOnExit: checked })}
-            />
-          </SettingRow>
-
-          <Separator />
-
-          <SettingRow
-            label="Block pop-ups"
-            description="Prevent websites from opening pop-up windows."
-          >
-            <SettingSwitch
-              checked={settings.blockPopups}
-              onCheckedChange={(checked) => void update({ blockPopups: checked })}
-            />
-          </SettingRow>
-
-          <Separator />
-
-          <SettingRow
-            label="Block third-party cookies (may break some sites)"
-            description="Block cookies from domains other than the current page. Can cause login/challenge loops on anti-bot protected websites."
-          >
-            <SettingSwitch
-              checked={settings.blockThirdPartyCookies}
-              onCheckedChange={(checked) => void update({ blockThirdPartyCookies: checked })}
-            />
-          </SettingRow>
-
-          <Separator />
-
-          <SettingRow
-            label="Homepage URL"
-            description="URL to load when opening a new browser tab."
-          >
-            <Input
-              value={settings.homepage}
-              onChange={(e) => void update({ homepage: e.target.value })}
-              placeholder="about:blank"
-              className="h-8 w-48 text-xs"
-            />
-          </SettingRow>
-        </CardContent>
-      </Card>
+      <SettingCard>
+        <SettingRow label="Clear data on exit" description="Clear browsing data (cookies, cache, history) when closing the browser.">
+          <SanctumSwitch checked={settings.clearOnExit} onCheckedChange={(v) => void update({ clearOnExit: v })} />
+        </SettingRow>
+        <SettingRow label="Block pop-ups" description="Prevent websites from opening pop-up windows.">
+          <SanctumSwitch checked={settings.blockPopups} onCheckedChange={(v) => void update({ blockPopups: v })} />
+        </SettingRow>
+        <SettingRow label="Block third-party cookies" description="Block cookies from domains other than the current page. Can cause login loops on some sites.">
+          <SanctumSwitch checked={settings.blockThirdPartyCookies} onCheckedChange={(v) => void update({ blockThirdPartyCookies: v })} />
+        </SettingRow>
+        <SettingRow label="Homepage URL" description="URL to load when opening a new browser tab." last>
+          <SanctumInput
+            value={settings.homepage}
+            onChange={(e) => void update({ homepage: e.target.value })}
+            placeholder="about:blank"
+            style={{ width: 200 }}
+          />
+        </SettingRow>
+      </SettingCard>
     </div>
   );
 };
 
-// ── Backup Card ───────────────────────────────────────────────────────
+// ── Backup Card ──────────────────────────────────────────────────────
 const BackupCard: React.FC = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState<BackupProgress | null>(null);
@@ -528,86 +512,41 @@ const BackupCard: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleBackup = async (): Promise<void> => {
-    setSuccessPath(null);
-    setErrorMsg(null);
-
+    setSuccessPath(null); setErrorMsg(null);
     const outputPath = await window.electronAPI.pickBackupSavePath();
     if (!outputPath) return;
-
-    setIsRunning(true);
-    setProgress(null);
-
+    setIsRunning(true); setProgress(null);
     const unsub = window.electronAPI.onBackupProgress((p) => setProgress(p));
     try {
       const result = await window.electronAPI.backupVault({ outputPath });
-      if (result.ok) {
-        setSuccessPath(outputPath);
-      } else {
-        setErrorMsg(result.error);
-      }
-    } finally {
-      unsub();
-      setIsRunning(false);
-      setProgress(null);
-    }
+      if (result.ok) setSuccessPath(outputPath); else setErrorMsg(result.error);
+    } finally { unsub(); setIsRunning(false); setProgress(null); }
   };
 
-  const progressPct =
-    progress && progress.total > 0
-      ? Math.round((progress.processed / progress.total) * 100)
-      : 0;
+  const pct = progress && progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">Backup Vault</CardTitle>
-        <CardDescription>
-          Create an encrypted backup of your vault. Restoring requires your current password.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => void handleBackup()}
-          disabled={isRunning}
-          className="gap-1.5"
-        >
-          <Archive className="h-3.5 w-3.5" />
-          {isRunning ? 'Backing up…' : 'Create Backup'}
-        </Button>
-
-        {isRunning && progress && (
-          <div className="space-y-1">
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
-              <div
-                className="h-full rounded-full bg-accent transition-all duration-200"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-            <p className="text-xs text-text-muted">
-              Backing up {progress.processed} / {progress.total} files…
-            </p>
-          </div>
-        )}
-
-        {successPath && !isRunning && (
-          <p className="text-xs text-success break-all">
-            Backup saved to {successPath}
-          </p>
-        )}
-
-        {errorMsg && !isRunning && (
-          <Alert variant="danger">
-            <AlertDescription>{errorMsg}</AlertDescription>
-          </Alert>
-        )}
-      </CardContent>
-    </Card>
+    <SettingCard>
+      <CardSection title="Backup Vault" description="Create an encrypted backup of your vault. Restoring requires your current password.">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <SecondaryBtn onClick={() => void handleBackup()} disabled={isRunning}>
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="1.5" y="1.5" width="11" height="11"/><polyline points="4.5,7 7,9.5 9.5,7"/><line x1="7" y1="4" x2="7" y2="9.5"/>
+            </svg>
+            {isRunning ? 'Backing up…' : 'Create Backup'}
+          </SecondaryBtn>
+          {isRunning && progress && <ProgressBar pct={pct} label={`Backing up ${progress.processed} / ${progress.total} files…`} />}
+          {successPath && !isRunning && (
+            <p style={{ fontFamily: MONO, fontSize: 10, color: T.success, wordBreak: 'break-all' }}>Saved to {successPath}</p>
+          )}
+          {errorMsg && !isRunning && <ErrorBanner message={errorMsg} />}
+        </div>
+      </CardSection>
+    </SettingCard>
   );
 };
 
-// ── Restore Card ──────────────────────────────────────────────────────
+// ── Restore Card ─────────────────────────────────────────────────────
 type RestoreMode = 'replace' | 'merge';
 
 const RestoreCard: React.FC = () => {
@@ -622,131 +561,76 @@ const RestoreCard: React.FC = () => {
   const handlePickFile = async (pickedMode: RestoreMode): Promise<void> => {
     const picked = await window.electronAPI.pickRestoreFile();
     if (!picked) return;
-    setMode(pickedMode);
-    setBackupPath(picked);
-    setPassword('');
-    setErrorMsg(null);
-    setReplaced(false);
+    setMode(pickedMode); setBackupPath(picked); setPassword(''); setErrorMsg(null); setReplaced(false);
   };
 
   const handleRestore = async (): Promise<void> => {
     if (!backupPath || !password || !mode) return;
-    setErrorMsg(null);
-    setIsRunning(true);
-    setProgress(null);
-
+    setErrorMsg(null); setIsRunning(true); setProgress(null);
     const unsub = window.electronAPI.onRestoreProgress((p) => setProgress(p));
     try {
       const result = await window.electronAPI.restoreVault({ backupPath, password, mode });
-      if (result.ok) {
-        setReplaced(true);
-      } else {
-        setErrorMsg(result.error);
-      }
-    } finally {
-      unsub();
-      setIsRunning(false);
-      setProgress(null);
-    }
+      if (result.ok) setReplaced(true); else setErrorMsg(result.error);
+    } finally { unsub(); setIsRunning(false); setProgress(null); }
   };
 
-  const progressPct =
-    progress && progress.total > 0
-      ? Math.round((progress.processed / progress.total) * 100)
-      : 0;
+  const pct = progress && progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">Restore Vault</CardTitle>
-        <CardDescription>
-          Restore from a <code>.pvbackup</code> file. Requires the backup password.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => void handlePickFile('replace')}
-            disabled={isRunning}
-            className="gap-1.5"
-          >
-            <ArchiveRestore className="h-3.5 w-3.5" />
-            Replace vault…
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => void handlePickFile('merge')}
-            disabled={isRunning}
-            className="gap-1.5"
-          >
-            <ArchiveRestore className="h-3.5 w-3.5" />
-            Merge into vault…
-          </Button>
+    <SettingCard>
+      <CardSection title="Restore Vault" description="Restore from a .pvbackup file. Requires the backup password.">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <SecondaryBtn onClick={() => void handlePickFile('replace')} disabled={isRunning}>
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="1.5" y="1.5" width="11" height="11"/><polyline points="4.5,7 7,4.5 9.5,7"/><line x1="7" y1="4.5" x2="7" y2="10"/>
+              </svg>
+              Replace vault…
+            </SecondaryBtn>
+            <SecondaryBtn onClick={() => void handlePickFile('merge')} disabled={isRunning}>
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="1.5" y="1.5" width="11" height="11"/><polyline points="4.5,7 7,4.5 9.5,7"/><line x1="7" y1="4.5" x2="7" y2="10"/>
+              </svg>
+              Merge into vault…
+            </SecondaryBtn>
+          </div>
+
+          {backupPath && !replaced && (
+            <div style={{ border: `1px solid ${T.line2}`, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{backupPath}</p>
+              <div>
+                <FieldLabel>Backup password</FieldLabel>
+                <PasswordInput
+                  placeholder="Enter backup password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && password && !isRunning) void handleRestore(); }}
+                  error={!!errorMsg}
+                  disabled={isRunning}
+                />
+              </div>
+              {mode === 'replace' ? (
+                <DangerBtn onClick={() => void handleRestore()} disabled={!password || isRunning} style={{ width: '100%', justifyContent: 'center' }}>
+                  {isRunning ? 'Restoring…' : 'Confirm Replace'}
+                </DangerBtn>
+              ) : (
+                <PrimaryBtn onClick={() => void handleRestore()} disabled={!password || isRunning} full>
+                  {isRunning ? 'Restoring…' : 'Merge into Vault'}
+                </PrimaryBtn>
+              )}
+            </div>
+          )}
+
+          {isRunning && progress && <ProgressBar pct={pct} label={`Restoring ${progress.processed} / ${progress.total} files…`} />}
+          {replaced && <RestoreCountdownDialog />}
+          {errorMsg && !isRunning && <ErrorBanner message={errorMsg} />}
         </div>
-
-        {backupPath && !replaced && (
-          <div className="space-y-2 rounded-md border border-border p-3">
-            <p className="truncate text-xs text-text-muted">{backupPath}</p>
-            <div className="space-y-1">
-              <Label htmlFor="restore-password" className="text-xs">Backup password</Label>
-              <PasswordInput
-                id="restore-password"
-                placeholder="Enter backup password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && password && !isRunning) void handleRestore();
-                }}
-                error={!!errorMsg}
-                disabled={isRunning}
-              />
-            </div>
-            <Button
-              variant={mode === 'replace' ? 'danger-solid' : 'default'}
-              size="sm"
-              onClick={() => void handleRestore()}
-              disabled={!password || isRunning}
-              className="w-full"
-            >
-              {isRunning
-                ? 'Restoring…'
-                : mode === 'replace'
-                  ? 'Confirm Replace'
-                  : 'Merge into Vault'}
-            </Button>
-          </div>
-        )}
-
-        {isRunning && progress && (
-          <div className="space-y-1">
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
-              <div
-                className="h-full rounded-full bg-accent transition-all duration-200"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-            <p className="text-xs text-text-muted">
-              Restoring {progress.processed} / {progress.total} files…
-            </p>
-          </div>
-        )}
-
-        {replaced && <RestoreCountdownDialog />}
-
-        {errorMsg && !isRunning && (
-          <Alert variant="danger">
-            <AlertDescription>{errorMsg}</AlertDescription>
-          </Alert>
-        )}
-      </CardContent>
-    </Card>
+      </CardSection>
+    </SettingCard>
   );
 };
 
-// ── Storage Settings ─────────────────────────────────────────────────
+// ── Storage ──────────────────────────────────────────────────────────
 const StorageSection: React.FC = () => {
   const [showWipeDialog, setShowWipeDialog] = useState(false);
   const [isWiping, setIsWiping] = useState(false);
@@ -754,118 +638,90 @@ const StorageSection: React.FC = () => {
   const handleWipeVault = async (): Promise<void> => {
     setIsWiping(true);
     try {
-      const result = await window.electronAPI.clearAllVaultItems();
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success(`Deleted ${result.data.deleted} items from vault.`);
+      const r = await window.electronAPI.clearAllVaultItems();
+      if (!r.ok) { toast.error(r.error); return; }
+      toast.success(`Deleted ${r.data.deleted} items from vault.`);
       setShowWipeDialog(false);
-    } finally {
-      setIsWiping(false);
-    }
+    } finally { setIsWiping(false); }
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-text-primary">Storage</h2>
-        <p className="text-sm text-text-muted">Manage vault storage and data.</p>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <SectionHeading title="Storage" sub="Manage vault storage and data." />
 
       <BackupCard />
-
       <RestoreCard />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Vault Data</CardTitle>
-          <CardDescription>
-            All files are stored encrypted with AES-256-GCM in your local vault directory.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => setShowWipeDialog(true)}
-            className="gap-1.5"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
+      <SettingCard>
+        <CardSection title="Vault Data" description="All files are stored encrypted with AES-256-GCM in your local vault directory.">
+          <DangerBtn onClick={() => setShowWipeDialog(true)}>
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="2,3.5 12,3.5"/><path d="M5 3.5V2.5h4v1"/><rect x="3" y="3.5" width="8" height="9"/>
+              <line x1="5.5" y1="6" x2="5.5" y2="10"/><line x1="8.5" y1="6" x2="8.5" y2="10"/>
+            </svg>
             Delete All Vault Items
-          </Button>
-        </CardContent>
-      </Card>
+          </DangerBtn>
+        </CardSection>
+      </SettingCard>
 
-      <Dialog open={showWipeDialog} onOpenChange={setShowWipeDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete All Vault Items</DialogTitle>
-            <DialogDescription>
+      {/* Wipe confirm modal */}
+      {showWipeDialog && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.7)',
+          display: 'grid', placeItems: 'center',
+        }} onClick={() => setShowWipeDialog(false)}>
+          <div style={{
+            width: 420, background: T.bg2,
+            border: `1px solid ${T.line2}`,
+            padding: 28,
+          }} onClick={(e) => e.stopPropagation()}>
+            <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: 20, color: T.text, margin: '0 0 8px' }}>Delete All Vault Items</p>
+            <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute, margin: '0 0 24px', lineHeight: 1.6 }}>
               This will permanently delete all encrypted files, thumbnails, and metadata from your vault. This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setShowWipeDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="danger-solid"
-              onClick={() => void handleWipeVault()}
-              disabled={isWiping}
-            >
-              {isWiping ? 'Deleting...' : 'Delete Everything'}
-            </Button>
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <SecondaryBtn onClick={() => setShowWipeDialog(false)}>Cancel</SecondaryBtn>
+              <DangerBtn onClick={() => void handleWipeVault()} disabled={isWiping}>
+                {isWiping ? 'Deleting…' : 'Delete Everything'}
+              </DangerBtn>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </div>
   );
 };
 
-// ── About Section ────────────────────────────────────────────────────
+// ── About ────────────────────────────────────────────────────────────
 const AboutSection: React.FC = () => {
-  const [version, setVersion] = useState('...');
+  const [version, setVersion] = useState('…');
+  useEffect(() => { void window.electronAPI.appVersion().then(setVersion); }, []);
 
-  useEffect(() => {
-    void window.electronAPI.appVersion().then(setVersion);
-  }, []);
+  const rows: { label: string; value: string; accent?: boolean }[] = [
+    { label: 'Application', value: 'Sanctum' },
+    { label: 'Version', value: version },
+    { label: 'Encryption', value: 'AES-256-GCM', accent: true },
+    { label: 'Key Derivation', value: 'Argon2id', accent: true },
+    { label: 'Platform', value: 'Electron + React' },
+  ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-text-primary">About</h2>
-        <p className="text-sm text-text-muted">Application information.</p>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <SectionHeading title="About" sub="Application information." />
 
-      <Card>
-        <CardContent className="space-y-3 pt-6">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-text-muted">Application</span>
-            <span className="text-sm font-medium text-text-primary">privateVault</span>
+      <SettingCard>
+        {rows.map((row, i) => (
+          <div key={row.label} style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '11px 20px',
+            borderBottom: i < rows.length - 1 ? `1px solid ${T.line}` : 'none',
+          }}>
+            <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>{row.label}</span>
+            <span style={{ fontFamily: MONO, fontSize: 11, color: row.accent ? T.accent : T.text }}>{row.value}</span>
           </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-text-muted">Version</span>
-            <span className="text-sm font-medium text-text-primary">{version}</span>
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-text-muted">Encryption</span>
-            <span className="text-sm font-medium text-text-primary">AES-256-GCM</span>
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-text-muted">Key Derivation</span>
-            <span className="text-sm font-medium text-text-primary">Argon2id</span>
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-text-muted">Platform</span>
-            <span className="text-sm font-medium text-text-primary">Electron + React</span>
-          </div>
-        </CardContent>
-      </Card>
+        ))}
+      </SettingCard>
     </div>
   );
 };
@@ -875,41 +731,53 @@ export const SettingsPage: React.FC = () => {
   const [category, setCategory] = useState<SettingsCategory>('security');
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar navigation */}
-        <nav className="w-48 shrink-0 border-r border-border p-2">
-          <ul className="space-y-0.5">
-            {NAV_ITEMS.map((item) => (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => setCategory(item.id)}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
-                    category === item.id
-                      ? 'bg-accent/15 text-accent'
-                      : 'text-text-muted hover:bg-surface-hover hover:text-text-primary',
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      {/* Sidebar nav */}
+      <nav style={{
+        width: 200, flexShrink: 0,
+        borderRight: `1px solid ${T.line}`,
+        padding: '16px 0',
+        display: 'flex', flexDirection: 'column', gap: 2,
+      }}>
+        <p style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.mute2, padding: '0 16px', marginBottom: 8 }}>
+          · Settings ·
+        </p>
+        {NAV_ITEMS.map((item) => {
+          const active = category === item.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setCategory(item.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '8px 16px',
+                background: active ? T.accentGlow : 'none',
+                border: 'none',
+                borderLeft: `2px solid ${active ? T.accent : 'transparent'}`,
+                color: active ? T.accent : T.mute,
+                fontFamily: MONO, fontSize: 11,
+                cursor: 'pointer',
+                textAlign: 'left',
+                transition: 'color 0.1s',
+              }}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          );
+        })}
+      </nav>
 
-        {/* Content area */}
-        <ScrollArea className="flex-1">
-          <div className="mx-auto max-w-2xl p-6">
-            {category === 'security' && <SecuritySection />}
-            {category === 'appearance' && <AppearanceSection />}
-            {category === 'browser' && <BrowserSection />}
-            {category === 'storage' && <StorageSection />}
-            {category === 'about' && <AboutSection />}
-          </div>
-        </ScrollArea>
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
+        <div style={{ maxWidth: 600, margin: '0 auto' }}>
+          {category === 'security'   && <SecuritySection />}
+          {category === 'appearance' && <AppearanceSection />}
+          {category === 'browser'    && <BrowserSection />}
+          {category === 'storage'    && <StorageSection />}
+          {category === 'about'      && <AboutSection />}
+        </div>
       </div>
     </div>
   );

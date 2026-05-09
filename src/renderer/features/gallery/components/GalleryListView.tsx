@@ -1,9 +1,6 @@
 import React, { useState } from 'react';
-import { Heart, Image, Film, Eye, Pencil, Star, ImageOff, Download, Trash2, FolderOpen } from 'lucide-react';
 import type { VaultItemSummary } from '../../../../shared/ipc';
 import { RenameItemDialog } from './RenameItemDialog';
-import { Spinner } from '../../../components/ui/Spinner';
-import { Skeleton } from '../../../components/ui/Skeleton';
 import { useMarqueeSelection } from '../hooks/useMarqueeSelection';
 import {
   ContextMenu,
@@ -11,7 +8,20 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from '../../../components/ui/ContextMenu';
-import { cn } from '../../../lib/utils';
+
+const T = {
+  bg: '#0a0c0b',
+  line: 'rgba(220,220,200,0.07)',
+  line2: 'rgba(220,220,200,0.12)',
+  text: '#e8e6dc',
+  mute: '#79817a',
+  mute2: '#4d524d',
+  accent: '#7c9a92',
+  accentGlow: 'rgba(124,154,146,0.15)',
+  danger: '#c36b5f',
+};
+const SERIF = "'Fraunces', Georgia, serif";
+const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace";
 
 type GalleryListViewProps = {
   items: VaultItemSummary[];
@@ -58,6 +68,7 @@ const isVideo = (mimeType: string): boolean => mimeType.startsWith('video/');
 
 // ── Single list row ──────────────────────────────────────────────────
 const ListRow: React.FC<{
+  index: number;
   item: VaultItemSummary;
   thumbnailUrl?: string;
   isSelected: boolean;
@@ -78,6 +89,7 @@ const ListRow: React.FC<{
   onRename?: (itemId: string, newName: string) => void;
   isMultiSelect: boolean;
 }> = ({
+  index,
   item,
   thumbnailUrl,
   isSelected,
@@ -99,235 +111,241 @@ const ListRow: React.FC<{
   isMultiSelect,
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const contextTargetIds = contextTargetIdsForItem?.(item.id) ?? [item.id];
   const openViewerDisabled = isOpenViewerDisabledForItem?.(item.id) ?? contextTargetIds.length > 1;
+
+  const typeLabel = isVideo(item.mimeType)
+    ? 'video'
+    : (item.mimeType.split('/')[1] ?? 'file').toLowerCase();
+
+  const infoLabel = isVideo(item.mimeType) && item.durationSeconds && item.durationSeconds > 0
+    ? formatDuration(item.durationSeconds)
+    : item.width && item.height
+      ? `${item.width}×${item.height}`
+      : '—';
 
   const rowContent = (
     <div
       data-gallery-item-id={item.id}
       role="button"
       tabIndex={0}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onContextMenu={() => onContextMenuOpen?.(item.id)}
       onClick={(e) => onToggleSelect(item.id, e.metaKey || e.ctrlKey)}
       onDoubleClick={() => onOpen(item.id)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onToggleSelect(item.id);
-        }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleSelect(item.id); }
       }}
-      className={cn(
-        'group flex w-full max-w-full items-center gap-3 overflow-hidden rounded-md px-2 py-1.5 text-left transition-colors',
-        isSelected
-          ? 'bg-accent/10 ring-1 ring-accent/30'
-          : 'hover:bg-surface-hover',
-      )}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: isMultiSelect
+          ? '20px 32px 50px minmax(0,1.6fr) minmax(80px,.7fr) 70px 60px 24px'
+          : '32px 50px minmax(0,1.6fr) minmax(80px,.7fr) 70px 60px 24px',
+        alignItems: 'center',
+        gap: 8,
+        padding: '0 12px',
+        height: 40,
+        background: isSelected ? T.accentGlow : hovered ? 'rgba(220,220,200,0.03)' : 'transparent',
+        borderLeft: isSelected ? `2px solid ${T.accent}` : '2px solid transparent',
+        borderBottom: `1px solid ${T.line}`,
+        cursor: 'pointer',
+        userSelect: 'none',
+      }}
     >
-      {/* Checkbox - only in multi-select mode */}
+      {/* Checkbox */}
       {isMultiSelect && (
         <div
-          className={cn(
-            'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors',
-            isSelected
-              ? 'border-accent bg-accent'
-              : 'border-border group-hover:border-text-muted',
-          )}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleSelect(item.id);
+          onClick={(e) => { e.stopPropagation(); onToggleSelect(item.id); }}
+          style={{
+            width: 14, height: 14,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: `1px solid ${isSelected ? T.accent : T.mute2}`,
+            background: isSelected ? T.accent : 'transparent',
+            flexShrink: 0, cursor: 'pointer',
           }}
         >
           {isSelected && (
-            <svg className="h-2.5 w-2.5 text-accent-foreground" viewBox="0 0 12 12" fill="none">
-              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+              <path d="M1.5 4.5l2 2 4-4" stroke="#0a0c0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           )}
         </div>
       )}
 
+      {/* Index */}
+      <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, textAlign: 'right', paddingRight: 4 }}>
+        {String(index + 1).padStart(2, '0')}
+      </span>
+
       {/* Thumbnail */}
-      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded bg-bg">
+      <div style={{ width: 44, height: 32, flexShrink: 0, overflow: 'hidden', background: '#0e100e', position: 'relative' }}>
         {thumbnailUrl ? (
-          <>
-            {!imageLoaded && <Skeleton className="absolute inset-0 rounded-none" />}
-            <img
-              src={thumbnailUrl}
-              alt={item.originalName}
-              loading="lazy"
-              onLoad={() => setImageLoaded(true)}
-              className={cn('h-full w-full object-cover', !imageLoaded && 'invisible')}
-            />
-          </>
+          <img
+            src={thumbnailUrl}
+            alt={item.originalName}
+            loading="lazy"
+            onLoad={() => setImageLoaded(true)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: imageLoaded ? 1 : 0, transition: 'opacity 0.2s' }}
+          />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-text-muted">
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {isVideo(item.mimeType) ? (
-              <Film className="h-4 w-4 opacity-40" />
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={T.mute2} strokeWidth="1.3">
+                <rect x="1" y="2" width="8" height="10" /><polyline points="9,4.5 13,3 13,11 9,9.5" />
+              </svg>
             ) : (
-              <Image className="h-4 w-4 opacity-40" />
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={T.mute2} strokeWidth="1.3">
+                <rect x="1" y="1" width="12" height="12" /><circle cx="5" cy="5" r="1.5" />
+                <polyline points="1,10 4,7 7,9 10,7 13,9 13,13 1,13" />
+              </svg>
             )}
           </div>
         )}
       </div>
 
-      {/* Filename */}
-      <span className="block min-w-0 flex-1 truncate text-xs font-medium text-text-primary">
-        {item.originalName}
-      </span>
+      {/* Name + type */}
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: SERIF, fontSize: 13, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {item.originalName}
+        </div>
+        <div style={{ fontFamily: MONO, fontSize: 9, color: T.mute, letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 1 }}>
+          {typeLabel}
+        </div>
+      </div>
 
-      {/* Type */}
-      <span className="hidden w-20 shrink-0 truncate text-[11px] text-text-muted sm:block">
-        {isVideo(item.mimeType) ? 'Video' : item.mimeType.split('/')[1]?.toUpperCase() ?? 'File'}
+      {/* Folder */}
+      <span style={{ fontFamily: MONO, fontSize: 10, color: T.mute2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {item.folderId != null ? '—' : 'root'}
       </span>
 
       {/* Size */}
-      <span className="w-16 shrink-0 text-right text-[11px] text-text-muted">
+      <span style={{ fontFamily: MONO, fontSize: 10, color: T.mute, textAlign: 'right' }}>
         {formatFileSize(item.size)}
       </span>
 
-      {/* Dimensions / Duration */}
-      <span className="hidden w-20 shrink-0 text-right text-[11px] text-text-muted md:block">
-        {isVideo(item.mimeType) && item.durationSeconds !== undefined && item.durationSeconds > 0
-          ? formatDuration(item.durationSeconds)
-          : item.width && item.height
-            ? `${item.width}×${item.height}`
-            : '—'}
-      </span>
-
-      {/* Rating */}
-      <span className="hidden w-16 shrink-0 lg:flex items-center justify-end gap-px">
-        {item.rating !== undefined && item.rating > 0 ? (
-          Array.from({ length: item.rating }, (_, i) => (
-            <Star key={i} className="h-2.5 w-2.5 fill-yellow-400 text-yellow-400" />
-          ))
-        ) : (
-          <span className="text-[11px] text-text-muted">—</span>
-        )}
+      {/* Info */}
+      <span style={{ fontFamily: MONO, fontSize: 10, color: T.mute2, textAlign: 'right' }}>
+        {infoLabel}
       </span>
 
       {/* Favorite */}
       <button
         type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleFavorite(item.id, !item.isFavorite);
+        onClick={(e) => { e.stopPropagation(); onToggleFavorite(item.id, !item.isFavorite); }}
+        title={item.isFavorite ? 'Unfavourite' : 'Favourite'}
+        style={{
+          width: 20, height: 20,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: item.isFavorite ? T.accent : T.mute2,
+          opacity: item.isFavorite || hovered ? 1 : 0,
+          transition: 'opacity 0.15s',
+          padding: 0, flexShrink: 0,
         }}
-        className={cn(
-          'flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors',
-          item.isFavorite
-            ? 'text-accent'
-            : 'text-text-muted opacity-0 hover:text-accent group-hover:opacity-100',
-        )}
-        aria-label={item.isFavorite ? 'Unfavorite' : 'Favorite'}
       >
-        <Heart className={cn('h-3.5 w-3.5', item.isFavorite && 'fill-accent')} />
+        <svg width="11" height="11" viewBox="0 0 11 11" fill={item.isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.3">
+          <path d="M5.5 1.2l1.2 2.4 2.65.39-1.92 1.87.45 2.64L5.5 7.2 3.12 8.5l.45-2.64L1.65 3.99l2.65-.39z" />
+        </svg>
       </button>
     </div>
   );
 
   return (
     <>
-    <ContextMenu>
-      <ContextMenuTrigger asChild>{rowContent}</ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem
-          disabled={openViewerDisabled}
-          onClick={() => {
-            if (openViewerDisabled) {
-              return;
-            }
-            if (onOpenViewerForIds) {
-              onOpenViewerForIds(contextTargetIds);
-              return;
-            }
-            onOpen(item.id);
-          }}
-        >
-          <Eye className="mr-2 h-4 w-4" />
-          Open in Viewer
-        </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => {
-            if (onToggleFavoriteForIds) {
-              onToggleFavoriteForIds(contextTargetIds);
-              return;
-            }
-            onToggleFavorite(item.id, !item.isFavorite);
-          }}
-        >
-          <Heart className={cn('mr-2 h-4 w-4', item.isFavorite && 'fill-accent text-accent')} />
-          {contextTargetIds.length > 1
-            ? 'Toggle Favorites'
-            : item.isFavorite
-              ? 'Remove Favorite'
-              : 'Add to Favorites'}
-        </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => {
-            if (onOpenMoveDialogForIds) {
-              onOpenMoveDialogForIds(contextTargetIds);
-              return;
-            }
-            onOpenMoveDialog(item.id);
-          }}
-        >
-          <FolderOpen className="mr-2 h-4 w-4" />
-          {contextTargetIds.length > 1 ? 'Move Selected...' : 'Move to Folder...'}
-        </ContextMenuItem>
-        {(onExport || onExportForIds) && (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{rowContent}</ContextMenuTrigger>
+        <ContextMenuContent>
           <ContextMenuItem
+            disabled={openViewerDisabled}
             onClick={() => {
-              if (onExportForIds) {
-                onExportForIds(contextTargetIds);
-                return;
-              }
-              if (!onExport) {
-                return;
-              }
-              onExport(item.id);
+              if (openViewerDisabled) return;
+              if (onOpenViewerForIds) { onOpenViewerForIds(contextTargetIds); return; }
+              onOpen(item.id);
             }}
           >
-            <Download className="mr-2 h-4 w-4" />
-            {contextTargetIds.length > 1 ? 'Export Selected' : 'Export'}
+            Open in Viewer
           </ContextMenuItem>
-        )}
-        {onRename && contextTargetIds.length === 1 && (
-          <ContextMenuItem onClick={() => setRenameOpen(true)}>
-            <Pencil className="mr-2 h-4 w-4" />
-            Rename
-          </ContextMenuItem>
-        )}
-        {(onDelete || onDeleteForIds) && (
           <ContextMenuItem
             onClick={() => {
-              if (onDeleteForIds) {
-                onDeleteForIds(contextTargetIds);
-                return;
-              }
-              if (!onDelete) {
-                return;
-              }
-              onDelete(item.id);
+              if (onToggleFavoriteForIds) { onToggleFavoriteForIds(contextTargetIds); return; }
+              onToggleFavorite(item.id, !item.isFavorite);
             }}
-            className="text-danger focus:text-danger"
           >
-            <Trash2 className="mr-2 h-4 w-4 text-danger" />
-            {contextTargetIds.length > 1 ? 'Delete Selected' : 'Delete'}
+            {contextTargetIds.length > 1 ? 'Toggle Favourites' : item.isFavorite ? 'Remove Favourite' : 'Add to Favourites'}
           </ContextMenuItem>
-        )}
-      </ContextMenuContent>
-    </ContextMenu>
-    {onRename && (
-      <RenameItemDialog
-        open={renameOpen}
-        onOpenChange={setRenameOpen}
-        currentName={item.originalName}
-        onConfirm={(newName) => onRename(item.id, newName)}
-      />
-    )}
+          <ContextMenuItem
+            onClick={() => {
+              if (onOpenMoveDialogForIds) { onOpenMoveDialogForIds(contextTargetIds); return; }
+              onOpenMoveDialog(item.id);
+            }}
+          >
+            {contextTargetIds.length > 1 ? 'Move Selected…' : 'Move to Folder…'}
+          </ContextMenuItem>
+          {(onExport || onExportForIds) && (
+            <ContextMenuItem
+              onClick={() => {
+                if (onExportForIds) { onExportForIds(contextTargetIds); return; }
+                onExport?.(item.id);
+              }}
+            >
+              {contextTargetIds.length > 1 ? 'Export Selected' : 'Export'}
+            </ContextMenuItem>
+          )}
+          {onRename && contextTargetIds.length === 1 && (
+            <ContextMenuItem onClick={() => setRenameOpen(true)}>Rename</ContextMenuItem>
+          )}
+          {(onDelete || onDeleteForIds) && (
+            <ContextMenuItem
+              onClick={() => {
+                if (onDeleteForIds) { onDeleteForIds(contextTargetIds); return; }
+                onDelete?.(item.id);
+              }}
+              className="text-danger focus:text-danger"
+            >
+              {contextTargetIds.length > 1 ? 'Delete Selected' : 'Delete'}
+            </ContextMenuItem>
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
+      {onRename && (
+        <RenameItemDialog
+          open={renameOpen}
+          onOpenChange={setRenameOpen}
+          currentName={item.originalName}
+          onConfirm={(newName) => onRename(item.id, newName)}
+        />
+      )}
     </>
   );
 };
+
+// ── Column header ────────────────────────────────────────────────────
+const ListHeader: React.FC<{ isMultiSelect: boolean }> = ({ isMultiSelect }) => (
+  <div style={{
+    display: 'grid',
+    gridTemplateColumns: isMultiSelect
+      ? '20px 32px 50px minmax(0,1.6fr) minmax(80px,.7fr) 70px 60px 24px'
+      : '32px 50px minmax(0,1.6fr) minmax(80px,.7fr) 70px 60px 24px',
+    alignItems: 'center',
+    gap: 8,
+    padding: '0 12px',
+    height: 28,
+    borderBottom: `1px solid ${T.line2}`,
+    marginBottom: 0,
+  }}>
+    {isMultiSelect && <span />}
+    <span style={{ fontFamily: MONO, fontSize: 8, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>№</span>
+    <span />
+    <span style={{ fontFamily: MONO, fontSize: 8, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Name</span>
+    <span style={{ fontFamily: MONO, fontSize: 8, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Folder</span>
+    <span style={{ fontFamily: MONO, fontSize: 8, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>Size</span>
+    <span style={{ fontFamily: MONO, fontSize: 8, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>Info</span>
+    <span />
+  </div>
+);
 
 // ── Main list view ───────────────────────────────────────────────────
 export const GalleryListView = ({
@@ -368,9 +386,16 @@ export const GalleryListView = ({
 
   if (items.length === 0 && !isLoadingMore) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-16">
-        <ImageOff className="h-10 w-10 text-text-muted opacity-40" />
-        <p className="text-sm text-text-muted">No items match current filters</p>
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        gap: 12, padding: '64px 0',
+        border: `1px dashed ${T.line2}`,
+      }}>
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke={T.mute2} strokeWidth="1.2">
+          <rect x="3" y="3" width="30" height="30" /><line x1="3" y1="12" x2="33" y2="12" />
+          <line x1="12" y1="12" x2="12" y2="33" /><line x1="16" y1="20" x2="26" y2="20" /><line x1="16" y1="25" x2="23" y2="25" />
+        </svg>
+        <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute, letterSpacing: '0.06em' }}>No objects match current filters</p>
       </div>
     );
   }
@@ -379,24 +404,14 @@ export const GalleryListView = ({
     <div
       ref={containerRef}
       onMouseDown={onMouseDown}
-      className="relative min-h-full w-full max-w-full select-none space-y-1 overflow-x-hidden"
+      style={{ position: 'relative', minHeight: '100%', userSelect: 'none' }}
     >
-      {/* Header row */}
-      <div className="flex items-center gap-3 px-2 py-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
-        {isMultiSelect && <span className="w-4 shrink-0" />}
-        <span className="w-10 shrink-0" />
-        <span className="min-w-0 flex-1">Name</span>
-        <span className="hidden w-20 shrink-0 sm:block">Type</span>
-        <span className="w-16 shrink-0 text-right">Size</span>
-        <span className="hidden w-20 shrink-0 text-right md:block">Info</span>
-        <span className="hidden w-16 shrink-0 text-right lg:block">Rating</span>
-        <span className="w-6 shrink-0" />
-      </div>
+      <ListHeader isMultiSelect={isMultiSelect} />
 
-      {/* Rows */}
-      {items.map((item) => (
+      {items.map((item, idx) => (
         <ListRow
           key={item.id}
+          index={idx}
           item={item}
           thumbnailUrl={thumbnails[item.id]}
           isSelected={selectedItemIds.includes(item.id)}
@@ -420,16 +435,41 @@ export const GalleryListView = ({
       ))}
 
       {hasMore && (
-        <div ref={sentinelRef} className="flex justify-center py-4">
-          {isLoadingMore && <Spinner size="sm" />}
+        <div ref={sentinelRef} style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
+          {isLoadingMore && (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke={T.mute2} strokeWidth="1.5"
+              style={{ animation: 'spin 1s linear infinite' }}
+            >
+              <path d="M14 8A6 6 0 1 1 8 2" />
+            </svg>
+          )}
         </div>
       )}
+
+      {/* Footer */}
+      {!hasMore && items.length > 0 && (
+        <div style={{ padding: '20px 12px', display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, letterSpacing: '0.1em' }}>
+            · end of cabinet · {items.length} {items.length === 1 ? 'object' : 'objects'} ·
+          </span>
+          <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, letterSpacing: '0.1em', fontStyle: 'italic' }}>
+            silentium · sigillum
+          </span>
+        </div>
+      )}
+
       {isSelecting && overlayStyle && (
         <div
-          className="pointer-events-none absolute z-20 rounded-md border border-accent/80 bg-accent/20"
-          style={overlayStyle}
+          style={{
+            ...overlayStyle,
+            position: 'absolute', zIndex: 20, pointerEvents: 'none',
+            border: `1px solid ${T.accent}`,
+            background: T.accentGlow,
+          }}
         />
       )}
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 };

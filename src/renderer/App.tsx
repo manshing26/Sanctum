@@ -1,19 +1,29 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Lock, Globe, Settings, Shield, AlertTriangle, Loader2, Images, BookMarked } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AuthScreenMode, RestoreProgress, SessionState } from '../shared/ipc';
-import { Button } from './components/ui/Button';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './components/ui/Card';
-import { Label } from './components/ui/Label';
 import { PasswordInput } from './components/ui/PasswordInput';
-import { Alert, AlertDescription } from './components/ui/Alert';
-import { Spinner } from './components/ui/Spinner';
-import { Tooltip, TooltipTrigger, TooltipContent } from './components/ui/Tooltip';
 import { GalleryPage } from './features/gallery/GalleryPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { BrowserWorkspace } from './features/browser/BrowserWorkspace';
 import { BookmarkGalleryPage } from './features/browser/BookmarkGalleryPage';
 import { RestoreCountdownDialog } from './components/ui/RestoreCountdownDialog';
+
+const T = {
+  bg: '#0a0c0b',
+  bg2: '#10110f',
+  line: 'rgba(220,220,200,0.07)',
+  line2: 'rgba(220,220,200,0.12)',
+  text: '#e8e6dc',
+  mute: '#79817a',
+  mute2: '#4d524d',
+  accent: '#7c9a92',
+  accentGlow: 'rgba(124,154,146,0.15)',
+  danger: '#c36b5f',
+  warn: '#c08a5e',
+  success: '#6a9e7f',
+};
+const SERIF = "'Fraunces', Georgia, serif";
+const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace";
 
 const PASSWORD_MIN_LENGTH = 12;
 
@@ -33,100 +43,178 @@ const getPasswordChecks = (password: string): PasswordCheck[] => [
 // ── Top Bar ──────────────────────────────────────────────────────────
 type AppTab = 'gallery' | 'browser' | 'settings' | 'bookmarks';
 
+// Inline SVG sigil — matches sanctum-gallery.html
+const SanctumSigil: React.FC = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2 L3 6 L3 12 Q3 18 12 22 Q21 18 21 12 L21 6 Z"/>
+    <path d="M12 7 L12 17 M9 11 L15 11"/>
+  </svg>
+);
+
+const LockIcon: React.FC = () => (
+  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="5" y="11" width="14" height="10" rx="1"/>
+    <path d="M8 11 L8 7 Q8 3 12 3 Q16 3 16 7 L16 11"/>
+  </svg>
+);
+
+const TABS: { id: AppTab; label: string; numeral: string }[] = [
+  { id: 'gallery',   label: 'Gallery',   numeral: 'I'   },
+  { id: 'bookmarks', label: 'Bookmarks', numeral: 'II'  },
+  { id: 'browser',   label: 'Browser',   numeral: 'III' },
+  { id: 'settings',  label: 'Settings',  numeral: 'IV'  },
+];
+
 const TopBar: React.FC<{
   activeTab: AppTab;
   onSelectTab: (tab: AppTab) => void;
   onLockVault: () => void;
   isUnlocked: boolean;
 }> = ({ activeTab, onSelectTab, onLockVault, isUnlocked }) => (
-  <header className="grid grid-cols-[1fr_auto_1fr] items-center border-b border-border px-6 py-3">
-    <div className="flex items-center gap-3">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/15">
-        <Shield className="h-4 w-4 text-accent" />
-      </div>
+  <header style={{
+    display: 'grid',
+    gridTemplateColumns: 'auto 1fr auto',
+    alignItems: 'center',
+    gap: 24,
+    padding: '14px 24px',
+    borderBottom: '1px solid rgba(220,220,200,0.07)',
+    background: '#0a0c0b',
+    WebkitAppRegion: 'drag',
+  } as React.CSSProperties}>
+    {/* Brand */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#7c9a92', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      <SanctumSigil />
       <div>
-        <p className="text-sm font-semibold text-text-primary">privateVault</p>
-        <p className="text-xs text-text-muted">Encrypted media vault</p>
+        <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.32em', textTransform: 'uppercase', color: '#e8e6dc' }}>Sanctum</div>
+        <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#79817a', marginTop: 2, fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>Cabinet</div>
       </div>
     </div>
 
-    <div className="justify-self-center">
-      {isUnlocked && (
-        <Button
-          variant="danger-solid"
-          size="sm"
-          onClick={onLockVault}
-          className="gap-1.5 px-4 font-semibold shadow-soft"
-          aria-label="Lock vault"
-        >
-          <Lock className="h-3.5 w-3.5" />
-          Lock Vault
-        </Button>
-      )}
-    </div>
+    {/* Tab nav */}
+    <nav style={{ display: 'flex', justifyContent: 'center', gap: 24, WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      {TABS.map((tab) => {
+        const active = activeTab === tab.id;
+        return (
+          <button
+            key={tab.id}
+            onClick={() => isUnlocked && onSelectTab(tab.id)}
+            disabled={!isUnlocked}
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 6,
+              background: 'none',
+              border: 'none',
+              borderBottom: active ? '1px solid #7c9a92' : '1px solid transparent',
+              paddingBottom: 6,
+              cursor: isUnlocked ? 'pointer' : 'default',
+              color: active ? '#e8e6dc' : '#79817a',
+              fontSize: 9,
+              letterSpacing: '0.24em',
+              textTransform: 'uppercase',
+              opacity: isUnlocked ? 1 : 0.4,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 8, color: active ? '#7c9a92' : '#4d524d' }}>
+              {tab.numeral}
+            </span>
+            {tab.label}
+          </button>
+        );
+      })}
+    </nav>
 
-    <div className="flex items-center justify-self-end gap-2">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant={activeTab === 'gallery' ? 'default' : 'ghost'}
-            size="icon"
-            onClick={() => onSelectTab('gallery')}
-            disabled={!isUnlocked}
-            aria-label="Open gallery tab"
-          >
-            <Images className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Gallery</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant={activeTab === 'bookmarks' ? 'default' : 'ghost'}
-            size="icon"
-            onClick={() => onSelectTab('bookmarks')}
-            disabled={!isUnlocked}
-            aria-label="Open bookmarks tab"
-          >
-            <BookMarked className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Bookmarks</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant={activeTab === 'browser' ? 'default' : 'ghost'}
-            size="icon"
-            onClick={() => onSelectTab('browser')}
-            disabled={!isUnlocked}
-            aria-label="Open browser tab"
-          >
-            <Globe className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Browser</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant={activeTab === 'settings' ? 'default' : 'ghost'}
-            size="icon"
-            onClick={() => onSelectTab('settings')}
-            disabled={!isUnlocked}
-            aria-label="Open settings tab"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Settings</TooltipContent>
-      </Tooltip>
+    {/* Right: status + lock */}
+    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 14, WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+      {isUnlocked && (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: '#7c9a92', fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="#7c9a92" stroke="none"><circle cx="12" cy="12" r="5"/></svg>
+          unlocked
+        </span>
+      )}
+      <button
+        onClick={onLockVault}
+        disabled={!isUnlocked}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '7px 14px',
+          background: 'transparent',
+          color: '#e8e6dc',
+          border: '1px solid rgba(220,220,200,0.12)',
+          cursor: isUnlocked ? 'pointer' : 'default',
+          fontSize: 10,
+          letterSpacing: '0.2em',
+          textTransform: 'uppercase',
+          fontFamily: 'inherit',
+          opacity: isUnlocked ? 1 : 0.4,
+        }}
+      >
+        <LockIcon /> Lock
+      </button>
     </div>
   </header>
 );
 
-// ── Restore from Backup (inline, used on both auth screens) ──────────
+// ── Shared auth field styles ─────────────────────────────────────────
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontFamily: MONO,
+  fontSize: 9,
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  color: T.mute,
+  marginBottom: 6,
+};
+
+const primaryBtn = (disabled = false): React.CSSProperties => ({
+  width: '100%',
+  height: 36,
+  background: disabled ? T.mute2 : T.accent,
+  border: 'none',
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  color: '#0a0c0b',
+  fontFamily: MONO,
+  fontSize: 11,
+  fontWeight: 500,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  borderRadius: 0,
+  opacity: disabled ? 0.55 : 1,
+  transition: 'opacity 0.15s',
+});
+
+const ghostBtn = (disabled = false): React.CSSProperties => ({
+  height: 32,
+  padding: '0 14px',
+  background: 'none',
+  border: `1px solid ${T.line2}`,
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  color: T.mute,
+  fontFamily: MONO,
+  fontSize: 10,
+  letterSpacing: '0.08em',
+  borderRadius: 0,
+  opacity: disabled ? 0.5 : 1,
+});
+
+const SpinSvg: React.FC = () => (
+  <>
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5"
+      style={{ animation: 'auth-spin 0.9s linear infinite', flexShrink: 0 }}>
+      <path d="M12 7A5 5 0 1 1 7 2" />
+    </svg>
+    <style>{`@keyframes auth-spin { from{transform:rotate(0deg)}to{transform:rotate(360deg)} }`}</style>
+  </>
+);
+
+// ── Restore from Backup ──────────────────────────────────────────────
 const RestoreFromBackupSection: React.FC = () => {
   const [backupPath, setBackupPath] = useState<string | null>(null);
   const [password, setPassword] = useState('');
@@ -150,16 +238,9 @@ const RestoreFromBackupSection: React.FC = () => {
     setProgress(null);
     const unsub = window.electronAPI.onRestoreProgress((p) => setProgress(p));
     try {
-      const result = await window.electronAPI.restoreVault({
-        backupPath,
-        password,
-        mode: 'replace',
-      });
-      if (result.ok) {
-        setRestored(true);
-      } else {
-        setErrorMsg(result.error);
-      }
+      const result = await window.electronAPI.restoreVault({ backupPath, password, mode: 'replace' });
+      if (result.ok) setRestored(true);
+      else setErrorMsg(result.error);
     } finally {
       unsub();
       setIsRunning(false);
@@ -167,21 +248,18 @@ const RestoreFromBackupSection: React.FC = () => {
     }
   };
 
-  const progressPct =
-    progress && progress.total > 0
-      ? Math.round((progress.processed / progress.total) * 100)
-      : 0;
+  const progressPct = progress && progress.total > 0
+    ? Math.round((progress.processed / progress.total) * 100)
+    : 0;
 
-  if (restored) {
-    return <RestoreCountdownDialog />;
-  }
+  if (restored) return <RestoreCountdownDialog />;
 
   if (!backupPath) {
     return (
       <button
         type="button"
         onClick={() => void handlePickFile()}
-        className="text-xs text-text-muted underline-offset-2 hover:text-accent hover:underline"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: MONO, fontSize: 10, color: T.mute2, letterSpacing: '0.06em', padding: 0 }}
       >
         Restore from backup…
       </button>
@@ -189,69 +267,83 @@ const RestoreFromBackupSection: React.FC = () => {
   }
 
   return (
-    <div className="space-y-2 rounded-md border border-border p-3">
-      <p className="truncate text-xs text-text-muted">{backupPath}</p>
+    <div style={{ border: `1px solid ${T.line2}`, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
+        {backupPath}
+      </p>
+
       {errorMsg && (
-        <Alert variant="danger">
-          <AlertDescription>{errorMsg}</AlertDescription>
-        </Alert>
+        <div style={{ border: `1px solid ${T.danger}`, padding: '8px 10px', background: 'rgba(195,107,95,0.08)' }}>
+          <p style={{ fontFamily: MONO, fontSize: 10, color: T.danger, margin: 0 }}>{errorMsg}</p>
+        </div>
       )}
-      <div className="space-y-1">
-        <Label htmlFor="restore-pw" className="text-xs">Backup password</Label>
+
+      <div>
+        <label htmlFor="restore-pw" style={labelStyle}>Backup password</label>
         <PasswordInput
           id="restore-pw"
           placeholder="Enter backup password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && password && !isRunning) void handleRestore();
-          }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && password && !isRunning) void handleRestore(); }}
           error={!!errorMsg}
           disabled={isRunning}
           autoFocus
         />
       </div>
+
       {isRunning && progress && (
-        <div className="space-y-1">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-hover">
-            <div
-              className="h-full rounded-full bg-accent transition-all duration-200"
-              style={{ width: `${progressPct}%` }}
-            />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <div style={{ height: 2, width: '100%', background: T.line2 }}>
+            <div style={{ height: '100%', background: T.accent, width: `${progressPct}%`, transition: 'width 0.2s' }} />
           </div>
-          <p className="text-xs text-text-muted">
+          <p style={{ fontFamily: MONO, fontSize: 9, color: T.mute, margin: 0 }}>
             Restoring {progress.processed} / {progress.total} files…
           </p>
         </div>
       )}
-      <div className="flex gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          type="button"
           onClick={() => { setBackupPath(null); setErrorMsg(null); }}
           disabled={isRunning}
+          style={ghostBtn(isRunning)}
         >
           Cancel
-        </Button>
-        <Button
-          size="sm"
+        </button>
+        <button
+          type="button"
           onClick={() => void handleRestore()}
           disabled={!password || isRunning}
-          className="flex-1"
+          style={{ ...primaryBtn(!password || isRunning), flex: 1 }}
         >
-          {isRunning ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Restoring…
-            </>
-          ) : (
-            'Restore Vault'
-          )}
-        </Button>
+          {isRunning ? <><SpinSvg />Restoring…</> : 'Restore Vault'}
+        </button>
       </div>
     </div>
   );
 };
+
+// ── Auth page shell ──────────────────────────────────────────────────
+const AuthMain: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div style={{
+    position: 'relative',
+    flex: 1,
+    display: 'grid',
+    placeItems: 'center',
+    overflow: 'hidden',
+    // radial accent glow at centre + bg-2
+    background: `radial-gradient(circle at 50% 42%, rgba(124,154,146,0.09), transparent 28%), ${T.bg2}`,
+  }}>
+    {/* Inset hairline frame */}
+    <div style={{
+      position: 'absolute', inset: 24, pointerEvents: 'none',
+      border: `1px solid ${T.line}`,
+    }} />
+    {children}
+  </div>
+);
 
 // ── Unlock Screen ────────────────────────────────────────────────────
 const UnlockScreen: React.FC<{
@@ -263,59 +355,121 @@ const UnlockScreen: React.FC<{
   const canSubmit = password.length > 0 && !isBusy;
 
   return (
-    <div className="flex flex-1 items-center justify-center p-6">
-      <Card className="w-full max-w-md">
-        <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-accent/15">
-            <Lock className="h-6 w-6 text-accent" />
+    <AuthMain>
+      <section style={{
+        position: 'relative',
+        width: 'min(560px, calc(100vw - 48px))',
+        border: `1px solid ${T.line2}`,
+        // slight accent tint matching reference: color-mix approximated
+        background: 'color-mix(in srgb, #0a0c0b 88%, #7c9a92 12%)' as string,
+      }}>
+        {/* Header: 2-col — seal icon | title */}
+        <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', borderBottom: `1px solid ${T.line}` }}>
+          <div style={{
+            display: 'grid', placeItems: 'center',
+            borderRight: `1px solid ${T.line}`,
+            color: T.accent,
+          }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="5" y="11" width="14" height="10" /><path d="M8 11 L8 7 Q8 3 12 3 Q16 3 16 7 L16 11" />
+            </svg>
           </div>
-          <CardTitle>Unlock Vault</CardTitle>
-          <CardDescription>
-            Enter your vault password to access encrypted storage.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (canSubmit) void onUnlock(password);
-            }}
-          >
+          <div style={{ padding: '22px 24px 20px' }}>
+            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.accent, marginBottom: 10 }}>
+              · Sealed cabinet ·
+            </div>
+            <h1 style={{
+              margin: 0,
+              fontFamily: SERIF,
+              fontSize: 'clamp(36px, 5vw, 58px)',
+              fontWeight: 300,
+              lineHeight: 0.96,
+              letterSpacing: '-0.02em',
+              color: T.text,
+            }}>
+              Unlock Sanctum
+            </h1>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: 24 }}>
+          {/* Notice row */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr auto',
+            gap: 16, alignItems: 'start',
+            paddingBottom: 22,
+            borderBottom: `1px solid ${T.line}`,
+          }}>
+            <div>
+              <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
+                Private media vault
+              </div>
+              <p style={{ margin: '8px 0 0', maxWidth: '38ch', color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
+                Enter the cabinet passphrase to restore Gallery, Bookmarks, Browser history, and saved references on this device.
+              </p>
+            </div>
+            <div style={{ fontFamily: MONO, fontSize: 10, lineHeight: 1.8, textAlign: 'right', color: T.mute2 }}>
+              aes-256-gcm<br />local keychain<br />zero cloud read
+            </div>
+          </div>
+
+          <form onSubmit={(e) => { e.preventDefault(); if (canSubmit) void onUnlock(password); }}>
             {error && (
-              <Alert variant="danger">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
+              <div style={{ marginTop: 16, border: `1px solid ${T.danger}`, padding: '9px 12px', background: 'rgba(195,107,95,0.08)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke={T.danger} strokeWidth="1.4" style={{ flexShrink: 0 }}>
+                  <path d="M6.5 1L12 11.5H1z" /><line x1="6.5" y1="5" x2="6.5" y2="8" /><circle cx="6.5" cy="9.5" r="0.5" fill={T.danger} />
+                </svg>
+                <p style={{ fontFamily: MONO, fontSize: 10, color: T.danger, margin: 0 }}>{error}</p>
+              </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="unlock-password">Password</Label>
-              <PasswordInput
-                id="unlock-password"
-                placeholder="Enter vault password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                error={!!error}
-                autoFocus
-              />
-            </div>
+            <label htmlFor="unlock-password" style={{ display: 'block', margin: '22px 0 8px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
+              Passphrase
+            </label>
+            <PasswordInput
+              id="unlock-password"
+              placeholder="enter vault passphrase"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              error={!!error}
+              autoFocus
+            />
 
-            <Button type="submit" disabled={!canSubmit} className="w-full">
-              {isBusy ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Unlocking...
-                </>
-              ) : (
-                'Unlock Vault'
-              )}
-            </Button>
+            <div style={{ marginTop: 14 }}>
+              <button type="submit" disabled={!canSubmit} style={primaryBtn(!canSubmit)}>
+                {isBusy ? <><SpinSvg />Unlocking…</> : 'Unlock Cabinet'}
+              </button>
+            </div>
           </form>
 
-        </CardContent>
-      </Card>
-    </div>
+          {/* Hint footer */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, marginTop: 18, fontFamily: MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute2 }}>
+            <span>passphrase required</span>
+            <span>silentium · sigillum</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Status toast */}
+      <div style={{
+        position: 'absolute', right: 24, bottom: 24,
+        width: 'min(360px, calc(100vw - 48px))',
+        display: 'grid', gridTemplateColumns: 'auto 1fr',
+        alignItems: 'center', gap: 14,
+        padding: '14px 16px',
+        border: `1px solid ${T.line2}`,
+        background: T.bg,
+      }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.warn} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" /><path d="M12 8 L12 12 M12 16 L12 16" />
+        </svg>
+        <div>
+          <strong style={{ display: 'block', fontSize: 13, fontWeight: 600, color: T.text }}>Cabinet locked</strong>
+          <span style={{ display: 'block', marginTop: 4, fontFamily: MONO, fontSize: 11, color: T.mute }}>Awaiting local passphrase.</span>
+        </div>
+      </div>
+    </AuthMain>
   );
 };
 
@@ -334,62 +488,93 @@ const CreateAccountScreen: React.FC<{
   const canSubmit = passwordValid && passwordsMatch && confirmPassword.length > 0 && !isBusy;
 
   return (
-    <div className="flex flex-1 items-center justify-center p-6">
-      <Card className="w-full max-w-md">
-        <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-accent/15">
-            <Shield className="h-6 w-6 text-accent" />
+    <AuthMain>
+      <section style={{
+        position: 'relative',
+        width: 'min(560px, calc(100vw - 48px))',
+        border: `1px solid ${T.line2}`,
+        background: 'color-mix(in srgb, #0a0c0b 88%, #7c9a92 12%)' as string,
+      }}>
+        {/* Header: seal icon | title */}
+        <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr', borderBottom: `1px solid ${T.line}` }}>
+          <div style={{ display: 'grid', placeItems: 'center', borderRight: `1px solid ${T.line}`, color: T.accent }}>
+            <SanctumSigil />
           </div>
-          <CardTitle>Create Vault Password</CardTitle>
-          <CardDescription>
-            Set a strong password to protect your encrypted vault.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (canSubmit) void onCreate(password);
-            }}
-          >
+          <div style={{ padding: '22px 24px 20px' }}>
+            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.accent, marginBottom: 10 }}>
+              · New cabinet ·
+            </div>
+            <h1 style={{
+              margin: 0,
+              fontFamily: SERIF,
+              fontSize: 'clamp(36px, 5vw, 58px)',
+              fontWeight: 300,
+              lineHeight: 0.96,
+              letterSpacing: '-0.02em',
+              color: T.text,
+            }}>
+              Initialise Sanctum
+            </h1>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: 24 }}>
+          {/* Notice row */}
+          <div style={{
+            display: 'grid', gridTemplateColumns: '1fr auto',
+            gap: 16, alignItems: 'start',
+            paddingBottom: 22,
+            borderBottom: `1px solid ${T.line}`,
+          }}>
+            <div>
+              <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
+                Create passphrase
+              </div>
+              <p style={{ margin: '8px 0 0', maxWidth: '38ch', color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
+                Set a strong passphrase to seal your vault. It cannot be recovered if lost — choose something memorable.
+              </p>
+            </div>
+            <div style={{ fontFamily: MONO, fontSize: 10, lineHeight: 1.8, textAlign: 'right', color: T.mute2 }}>
+              aes-256-gcm<br />local keychain<br />zero cloud read
+            </div>
+          </div>
+
+          <form onSubmit={(e) => { e.preventDefault(); if (canSubmit) void onCreate(password); }}>
             {error && (
-              <Alert variant="danger">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
+              <div style={{ marginTop: 16, border: `1px solid ${T.danger}`, padding: '9px 12px', background: 'rgba(195,107,95,0.08)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke={T.danger} strokeWidth="1.4" style={{ flexShrink: 0 }}>
+                  <path d="M6.5 1L12 11.5H1z" /><line x1="6.5" y1="5" x2="6.5" y2="8" /><circle cx="6.5" cy="9.5" r="0.5" fill={T.danger} />
+                </svg>
+                <p style={{ fontFamily: MONO, fontSize: 10, color: T.danger, margin: 0 }}>{error}</p>
+              </div>
             )}
 
-            <Alert variant="warning">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                Your password cannot be recovered if lost. Choose something memorable.
-              </AlertDescription>
-            </Alert>
+            <label htmlFor="create-password" style={{ display: 'block', margin: '22px 0 8px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
+              Passphrase
+            </label>
+            <PasswordInput
+              id="create-password"
+              placeholder="create a strong passphrase"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              showStrength
+              autoFocus
+            />
 
-            <div className="space-y-2">
-              <Label htmlFor="create-password">Password</Label>
-              <PasswordInput
-                id="create-password"
-                placeholder="Create a strong password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                showStrength
-                autoFocus
-              />
-            </div>
-
-            {/* Password requirements */}
+            {/* Requirement checklist */}
             {password.length > 0 && (
-              <div className="space-y-1">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 10 }}>
                 {checks.map((check) => (
-                  <div key={check.label} className="flex items-center gap-2 text-xs">
-                    <div
-                      className={`h-1.5 w-1.5 rounded-full ${
-                        check.met ? 'bg-success' : 'bg-border'
-                      }`}
-                    />
-                    <span className={check.met ? 'text-text-muted' : 'text-text-muted/60'}>
+                  <div key={check.label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                      {check.met ? (
+                        <><circle cx="5" cy="5" r="4.5" fill={T.success} /><path d="M2.5 5l1.8 1.8 3.2-3.2" stroke="#0a0c0b" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></>
+                      ) : (
+                        <circle cx="5" cy="5" r="4.5" stroke={T.line2} />
+                      )}
+                    </svg>
+                    <span style={{ fontFamily: MONO, fontSize: 9, color: check.met ? T.mute : T.mute2, letterSpacing: '0.04em' }}>
                       {check.label}
                     </span>
                   </div>
@@ -397,48 +582,53 @@ const CreateAccountScreen: React.FC<{
               </div>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm Password</Label>
-              <PasswordInput
-                id="confirm-password"
-                placeholder="Confirm your password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                error={confirmPassword.length > 0 && !passwordsMatch}
-              />
-              {confirmPassword.length > 0 && !passwordsMatch && (
-                <p className="text-xs text-danger">Passwords do not match.</p>
-              )}
-            </div>
+            <label htmlFor="confirm-password" style={{ display: 'block', margin: '18px 0 8px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
+              Confirm passphrase
+            </label>
+            <PasswordInput
+              id="confirm-password"
+              placeholder="confirm your passphrase"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              error={confirmPassword.length > 0 && !passwordsMatch}
+            />
+            {confirmPassword.length > 0 && !passwordsMatch && (
+              <p style={{ fontFamily: MONO, fontSize: 9, color: T.danger, marginTop: 5, marginBottom: 0 }}>
+                Passphrases do not match.
+              </p>
+            )}
 
-            <Button type="submit" disabled={!canSubmit} className="w-full">
-              {isBusy ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Creating vault...
-                </>
-              ) : (
-                'Create Vault'
-              )}
-            </Button>
+            <div style={{ marginTop: 14 }}>
+              <button type="submit" disabled={!canSubmit} style={primaryBtn(!canSubmit)}>
+                {isBusy ? <><SpinSvg />Sealing vault…</> : 'Initialise Vault'}
+              </button>
+            </div>
           </form>
 
-          <div className="mt-4 flex justify-center">
+          {/* Hint footer */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, marginTop: 18, fontFamily: MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute2 }}>
             <RestoreFromBackupSection />
+            <span>silentium · sigillum</span>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </section>
+    </AuthMain>
   );
 };
 
 // ── Loading Screen ───────────────────────────────────────────────────
 const LoadingScreen: React.FC = () => (
-  <div className="flex flex-1 items-center justify-center">
-    <div className="flex flex-col items-center gap-3">
-      <Spinner size="lg" />
-      <p className="text-sm text-text-muted">Loading vault...</p>
+  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: T.bg }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke={T.accent} strokeWidth="1.5"
+        style={{ animation: 'auth-spin 0.9s linear infinite' }}>
+        <path d="M16 9A7 7 0 1 1 9 2" />
+      </svg>
+      <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2, letterSpacing: '0.1em', margin: 0 }}>
+        Loading vault…
+      </p>
     </div>
+    <style>{`@keyframes auth-spin { from{transform:rotate(0deg)}to{transform:rotate(360deg)} }`}</style>
   </div>
 );
 
@@ -536,7 +726,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-bg text-text-primary">
+    <div className="flex h-screen flex-col" style={{ background: '#0a0c0b', color: '#e8e6dc' }}>
       <TopBar
         activeTab={activeTab}
         onSelectTab={setActiveTab}

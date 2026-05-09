@@ -43,4 +43,11 @@ export const rendererRules: Required<ModuleOptions>['rules'] = [
       },
     },
   },
+  {
+    test: /\.(woff|woff2|eot|ttf|otf)$/,
+    type: 'asset/resource',
+    generator: {
+      filename: 'fonts/[name][ext]',
+    },
+  },
 ];

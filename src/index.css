@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* Bundled fonts — loaded offline, no network required */
+@import "@fontsource/fraunces/300.css";
+@import "@fontsource/fraunces/300-italic.css";
+@import "@fontsource/fraunces/400.css";
+@import "@fontsource/fraunces/400-italic.css";
+@import "@fontsource/fraunces/500.css";
+@import "@fontsource/fraunces/600.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
 :root {
   color-scheme: dark;
 
@@ -203,6 +213,14 @@
 
   .animate-scale-out {
     animation: scale-out 150ms ease-in;
+  }
+
+  /* Hide scrollbars globally — browser webview excluded via selector specificity */
+  *:not(webview)::-webkit-scrollbar {
+    display: none;
+  }
+  *:not(webview) {
+    scrollbar-width: none;
   }
 
   /* Scrollbar styling */

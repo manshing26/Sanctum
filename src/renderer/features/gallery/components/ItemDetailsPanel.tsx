@@ -1,26 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Eye,
-  Trash2,
-  Heart,
-  Pencil,
-  Check,
-  X,
-  Hash,
-  FileType,
-  HardDrive,
-  Maximize2,
-  Clock,
-  Info,
-} from 'lucide-react';
 import type { SecuritySettings, TagSummary, VaultItemSummary } from '../../../../shared/ipc';
-import { Button } from '../../../components/ui/Button';
-import { Input } from '../../../components/ui/Input';
-import { Separator } from '../../../components/ui/Separator';
-import { ScrollArea } from '../../../components/ui/ScrollArea';
 import { Sheet, SheetContent, SheetTitle } from '../../../components/ui/Sheet';
 import { StarRating } from '../../../components/ui/StarRating';
-import { cn } from '../../../lib/utils';
+
+const T = {
+  bg: '#0a0c0b',
+  line: 'rgba(220,220,200,0.07)',
+  line2: 'rgba(220,220,200,0.12)',
+  text: '#e8e6dc',
+  mute: '#79817a',
+  mute2: '#4d524d',
+  accent: '#7c9a92',
+  accentGlow: 'rgba(124,154,146,0.15)',
+  danger: '#c36b5f',
+};
+const SERIF = "'Fraunces', Georgia, serif";
+const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace";
 
 const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
@@ -43,10 +38,34 @@ type ItemDetailsPanelProps = {
   selectedCount: number;
 };
 
-// ── Inline details content (used both in sidebar and sheet) ──────────
-const DetailsContent: React.FC<
-  Omit<ItemDetailsPanelProps, 'selectedCount'> & { selectedCount: number }
-> = ({
+const actionBtn = (variant: 'default' | 'ghost' | 'danger'): React.CSSProperties => ({
+  height: 28, padding: '0 12px',
+  background: variant === 'default' ? T.accent : variant === 'danger' ? T.danger : 'none',
+  border: variant === 'ghost' ? `1px solid ${T.line2}` : 'none',
+  cursor: 'pointer',
+  color: variant === 'ghost' ? T.mute : '#0a0c0b',
+  fontFamily: MONO, fontSize: 10,
+  letterSpacing: '0.06em', textTransform: 'uppercase' as const,
+  borderRadius: 0,
+});
+
+const iconBtn = (): React.CSSProperties => ({
+  width: 28, height: 28,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  background: 'none', border: `1px solid ${T.line2}`,
+  cursor: 'pointer', color: T.mute, padding: 0, borderRadius: 0,
+  flexShrink: 0,
+});
+
+const fieldRow = (label: string, value: React.ReactNode, mono = false): React.ReactNode => (
+  <div key={label} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 6, alignItems: 'start' }}>
+    <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, paddingTop: 1 }}>{label}</span>
+    <span style={{ fontFamily: mono ? MONO : 'inherit', fontSize: mono ? 10 : 12, color: T.text, wordBreak: 'break-all' }}>{value}</span>
+  </div>
+);
+
+// ── Inline details content ────────────────────────────────────────────
+const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
   item,
   tags,
   onToggleTag,
@@ -80,173 +99,155 @@ const DetailsContent: React.FC<
 
   if (!item) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-12 text-text-muted">
-        <Info className="h-8 w-8 opacity-40" />
-        <p className="text-sm">Select an item to see details</p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '48px 0', color: T.mute }}>
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="1.2" opacity={0.4}>
+          <rect x="3" y="3" width="12" height="12" /><rect x="17" y="3" width="12" height="12" />
+          <rect x="3" y="17" width="12" height="12" /><rect x="17" y="17" width="12" height="12" />
+        </svg>
+        <p style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: T.mute2 }}>Select an object to inspect</p>
       </div>
     );
   }
 
   if (selectedCount > 1) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-12 text-text-muted">
-        <Info className="h-8 w-8 opacity-40" />
-        <p className="text-sm">{selectedCount} items selected</p>
-        <p className="text-xs">Select a single item for details</p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '48px 0' }}>
+        <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2 }}>{selectedCount} objects selected</p>
+        <p style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, opacity: 0.7 }}>Select a single object for details</p>
       </div>
     );
   }
 
+  const isVid = item.mimeType.startsWith('video/');
+
   return (
-    <div className="space-y-4">
-      {/* Name + rename */}
-      <div>
-        {isRenaming ? (
-          <div className="space-y-1">
-            <div className="flex items-center gap-1">
-              <Input
-                value={baseDraft}
-                onChange={(e) => setBaseDraft(e.target.value)}
-                className="h-8 min-w-0 flex-1 text-sm"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const newName = buildName();
-                    if (newName && newName !== item.originalName) onRenameItem(item.id, newName);
-                    setIsRenaming(false);
-                  }
-                  if (e.key === 'Escape') {
-                    const { base, ext } = splitName(item.originalName);
-                    setBaseDraft(base);
-                    setExtDraft(ext);
-                    setIsRenaming(false);
-                  }
-                }}
-              />
-              <div className="flex h-8 w-16 shrink-0 items-center rounded-lg border border-border bg-bg px-1.5 text-sm text-text-muted focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25">
-                <span className="select-none text-text-muted/60">.</span>
-                <input
-                  value={extDraft}
-                  onChange={(e) => setExtDraft(e.target.value.replace(/^\.+/, ''))}
-                  placeholder="ext"
-                  className="w-full min-w-0 bg-transparent text-xs text-text-primary outline-none placeholder:text-text-muted/50"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const newName = buildName();
-                      if (newName && newName !== item.originalName) onRenameItem(item.id, newName);
-                      setIsRenaming(false);
-                    }
-                    if (e.key === 'Escape') {
-                      const { base, ext } = splitName(item.originalName);
-                      setBaseDraft(base);
-                      setExtDraft(ext);
-                      setIsRenaming(false);
-                    }
-                  }}
-                />
-              </div>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => {
-                  const newName = buildName();
-                  if (newName && newName !== item.originalName) onRenameItem(item.id, newName);
-                  setIsRenaming(false);
-                }}
-                disabled={!baseDraft.trim() || buildName() === item.originalName}
-              >
-                <Check className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => {
-                  const { base, ext } = splitName(item.originalName);
-                  setBaseDraft(base);
-                  setExtDraft(ext);
-                  setIsRenaming(false);
-                }}
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_1.75rem] items-center gap-2">
-            <p className="min-w-0 flex-1 truncate text-sm font-medium text-text-primary">{item.originalName}</p>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="shrink-0"
-              onClick={() => setIsRenaming(true)}
-              aria-label="Rename"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* Action buttons */}
-      <div className="grid grid-cols-[minmax(0,1fr)_2.25rem_2.25rem] items-center gap-2">
-        <Button size="sm" onClick={() => onOpenItem(item.id)} className="min-w-0 flex-1 gap-1.5">
-          <Eye className="h-3.5 w-3.5" />
-          Open
-        </Button>
-        <Button
-          variant={item.isFavorite ? 'default' : 'secondary'}
-          size="icon"
-          className="shrink-0"
-          onClick={() => onToggleFavorite(item.id, !item.isFavorite)}
-          aria-label={item.isFavorite ? 'Unfavorite' : 'Favorite'}
-        >
-          <Heart className={cn('h-4 w-4', item.isFavorite && 'fill-current')} />
-        </Button>
-        <Button
-          variant="danger"
-          size="icon"
-          className="shrink-0"
-          onClick={() => onDeleteItem(item.id)}
-          aria-label="Delete"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-
-      <Separator />
-
-      {/* Metadata */}
-      <div className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Info</h3>
-        <div className="space-y-1.5">
-          <MetadataRow icon={FileType} label="Type" value={item.mimeType} />
-          <MetadataRow icon={HardDrive} label="Size" value={formatFileSize(item.size)} />
-          {item.width && item.height && (
-            <MetadataRow icon={Maximize2} label="Dimensions" value={`${item.width} × ${item.height}`} />
-          )}
-          {item.durationSeconds !== undefined && item.durationSeconds > 0 && (
-            <MetadataRow icon={Clock} label="Duration" value={`${item.durationSeconds.toFixed(1)}s`} />
+    <div style={{ padding: '16px 14px' }}>
+      {/* Thumbnail preview */}
+      <div style={{ aspectRatio: '4/3', marginBottom: 14, overflow: 'hidden', background: '#0d0f0d', border: `1px solid ${T.line}` }}>
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {isVid ? (
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke={T.mute2} strokeWidth="1.2">
+              <rect x="2" y="3" width="16" height="22" /><polyline points="18,7 26,4 26,24 18,21" />
+            </svg>
+          ) : (
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke={T.mute2} strokeWidth="1.2">
+              <rect x="2" y="2" width="24" height="24" /><circle cx="9" cy="9" r="3" />
+              <polyline points="2,19 8,13 13,18 18,14 26,19 26,26 2,26" />
+            </svg>
           )}
         </div>
       </div>
 
-      <Separator />
-
-      {/* Rating */}
-      <div className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Rating</h3>
-        <StarRating
-          value={item.rating}
-          onChange={(rating) => onSetRating(item.id, rating)}
-        />
+      {/* Name / rename */}
+      <div style={{ marginBottom: 14 }}>
+        {isRenaming ? (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              autoFocus
+              value={baseDraft}
+              onChange={(e) => setBaseDraft(e.target.value)}
+              style={{
+                flex: 1, minWidth: 80, height: 26,
+                background: 'transparent', border: `1px solid ${T.accent}`,
+                color: T.text, fontFamily: MONO, fontSize: 11,
+                padding: '0 6px', outline: 'none', borderRadius: 0,
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { const n = buildName(); if (n && n !== item.originalName) onRenameItem(item.id, n); setIsRenaming(false); }
+                if (e.key === 'Escape') { const { base, ext } = splitName(item.originalName); setBaseDraft(base); setExtDraft(ext); setIsRenaming(false); }
+              }}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', height: 26, border: `1px solid ${T.line2}`, padding: '0 4px', gap: 2 }}>
+              <span style={{ fontFamily: MONO, fontSize: 10, color: T.mute2 }}>.</span>
+              <input
+                value={extDraft}
+                onChange={(e) => setExtDraft(e.target.value.replace(/^\.+/, ''))}
+                placeholder="ext"
+                style={{ width: 32, background: 'transparent', border: 'none', color: T.text, fontFamily: MONO, fontSize: 10, outline: 'none' }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { const n = buildName(); if (n && n !== item.originalName) onRenameItem(item.id, n); setIsRenaming(false); }
+                  if (e.key === 'Escape') { const { base, ext } = splitName(item.originalName); setBaseDraft(base); setExtDraft(ext); setIsRenaming(false); }
+                }}
+              />
+            </div>
+            <button type="button" disabled={!baseDraft.trim() || buildName() === item.originalName}
+              onClick={() => { const n = buildName(); if (n && n !== item.originalName) onRenameItem(item.id, n); setIsRenaming(false); }}
+              style={{ ...iconBtn(), borderColor: T.accent, color: T.accent }}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M1.5 5l2.5 2.5 5-5" />
+              </svg>
+            </button>
+            <button type="button" onClick={() => { const { base, ext } = splitName(item.originalName); setBaseDraft(base); setExtDraft(ext); setIsRenaming(false); }} style={iconBtn()}>
+              <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <line x1="1" y1="1" x2="8" y2="8" /><line x1="8" y1="1" x2="1" y2="8" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <p style={{ flex: 1, minWidth: 0, fontFamily: SERIF, fontSize: 16, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
+              {item.originalName}
+            </p>
+            <button type="button" onClick={() => setIsRenaming(true)} title="Rename" style={iconBtn()}>
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.3">
+                <path d="M7 1.5l2.5 2.5-6 6H1v-2.5z" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
 
-      <Separator />
+      {/* Actions */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        <button type="button" onClick={() => onOpenItem(item.id)} style={{ ...actionBtn('default'), flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.4">
+            <circle cx="5.5" cy="5.5" r="4.5" /><circle cx="5.5" cy="5.5" r="1.8" />
+          </svg>
+          Open
+        </button>
+        <button type="button"
+          onClick={() => onToggleFavorite(item.id, !item.isFavorite)}
+          title={item.isFavorite ? 'Unfavourite' : 'Favourite'}
+          style={{ ...iconBtn(), background: item.isFavorite ? T.accentGlow : 'none', borderColor: item.isFavorite ? T.accent : T.line2, color: item.isFavorite ? T.accent : T.mute }}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill={item.isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.3">
+            <path d="M6 1.2l1.35 2.74 3.02.44-2.19 2.13.52 3.01L6 8.1 3.3 9.52l.52-3.01L1.63 4.38l3.02-.44z" />
+          </svg>
+        </button>
+        <button type="button" onClick={() => onDeleteItem(item.id)} title="Delete" style={{ ...iconBtn(), borderColor: T.danger, color: T.danger }}>
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.3">
+            <polyline points="1.5,2.5 9.5,2.5" /><path d="M3 2.5V1.5h5v1" /><rect x="2" y="2.5" width="7" height="8" />
+          </svg>
+        </button>
+      </div>
+
+      <div style={{ borderTop: `1px solid ${T.line}`, marginBottom: 14 }} />
+
+      {/* Metadata fields */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 10 }}>· Info ·</div>
+        {fieldRow('Type', item.mimeType, true)}
+        {fieldRow('Size', formatFileSize(item.size), true)}
+        {item.width && item.height && fieldRow('Dimensions', `${item.width} × ${item.height}`, true)}
+        {item.durationSeconds !== undefined && item.durationSeconds > 0 && fieldRow('Duration', `${item.durationSeconds.toFixed(1)}s`, true)}
+        {fieldRow('Cipher', <span style={{ color: T.accent, fontFamily: MONO, fontSize: 10 }}>aes-256-gcm</span>)}
+      </div>
+
+      <div style={{ borderTop: `1px solid ${T.line}`, marginBottom: 14 }} />
+
+      {/* Rating */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Rating ·</div>
+        <StarRating value={item.rating} onChange={(rating) => onSetRating(item.id, rating)} />
+      </div>
+
+      <div style={{ borderTop: `1px solid ${T.line}`, marginBottom: 14 }} />
 
       {/* Tags */}
-      <div className="space-y-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Tags</h3>
-        <div className="flex flex-wrap gap-1.5">
+      <div>
+        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Tags ·</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {tags.map((tag) => {
             const assigned = Boolean(item.tagIds?.includes(tag.id));
             return (
@@ -254,28 +255,30 @@ const DetailsContent: React.FC<
                 key={tag.id}
                 type="button"
                 onClick={() => onToggleTag(item.id, tag.id, assigned)}
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors',
-                  assigned
-                    ? 'border-accent bg-accent/15 text-accent'
-                    : 'border-border text-text-muted hover:border-accent/40',
-                )}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  padding: '3px 8px',
+                  background: assigned ? T.accentGlow : 'none',
+                  border: `1px solid ${assigned ? T.accent : T.line2}`,
+                  cursor: 'pointer',
+                  color: assigned ? T.accent : T.mute,
+                  fontFamily: MONO, fontSize: 10, borderRadius: 0,
+                }}
               >
-                {tag.color ? (
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: tag.color }}
-                  />
-                ) : (
-                  <Hash className="h-3 w-3" />
+                {tag.color && (
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: tag.color, flexShrink: 0 }} />
                 )}
                 {tag.name}
-                {assigned && <X className="h-3 w-3 opacity-60" />}
+                {assigned && (
+                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.4">
+                    <line x1="1" y1="1" x2="7" y2="7" /><line x1="7" y1="1" x2="1" y2="7" />
+                  </svg>
+                )}
               </button>
             );
           })}
           {tags.length === 0 && (
-            <p className="text-xs text-text-muted">No tags available</p>
+            <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2 }}>No tags available</p>
           )}
         </div>
       </div>
@@ -283,29 +286,11 @@ const DetailsContent: React.FC<
   );
 };
 
-// ── Metadata row helper ──────────────────────────────────────────────
-const MetadataRow: React.FC<{
-  icon: React.FC<{ className?: string }>;
-  label: string;
-  value: string;
-}> = ({ icon: Icon, label, value }) => (
-  <div className="flex items-center gap-2 text-xs">
-    <Icon className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-    <span className="shrink-0 text-text-muted">{label}</span>
-    <span className="ml-auto truncate text-text-primary">{value}</span>
-  </div>
-);
-
-// ── Inline panel (for wide screens) ─────────────────────────────────
+// ── Inline sidebar ────────────────────────────────────────────────────
 export const ItemDetailsSidebar: React.FC<ItemDetailsPanelProps> = (props) => (
-  <aside className="flex h-full flex-col rounded-lg border border-border bg-surface">
-    <div className="border-b border-border px-3 py-2">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-text-muted">Details</h2>
-    </div>
-    <ScrollArea className="flex-1 px-3 py-3">
-      <DetailsContent {...props} />
-    </ScrollArea>
-  </aside>
+  <div style={{ height: '100%', overflowY: 'auto', background: T.bg }}>
+    <DetailsContent {...props} />
+  </div>
 );
 
 // ── Sheet panel (for smaller screens) ────────────────────────────────
@@ -314,17 +299,17 @@ export const ItemDetailsSheet: React.FC<
 > = ({ open, onOpenChange, ...props }) => (
   <Sheet open={open} onOpenChange={onOpenChange}>
     <SheetContent side="right" className="w-80 p-0">
-      <div className="border-b border-border px-4 py-3">
-        <SheetTitle className="text-xs font-semibold uppercase tracking-wider text-text-muted">
-          Details
+      <div style={{ borderBottom: `1px solid ${T.line}`, padding: '10px 14px' }}>
+        <SheetTitle style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2 }}>
+          Inspector
         </SheetTitle>
       </div>
-      <ScrollArea className="h-[calc(100vh-52px)] px-4 py-3">
+      <div style={{ height: 'calc(100vh - 44px)', overflowY: 'auto' }}>
         <DetailsContent {...props} />
-      </ScrollArea>
+      </div>
     </SheetContent>
   </Sheet>
 );
 
-// ── Legacy export for backward compatibility ─────────────────────────
+// Legacy export
 export const ItemDetailsPanel = ItemDetailsSidebar;

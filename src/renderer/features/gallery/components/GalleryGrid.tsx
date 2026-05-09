@@ -1,9 +1,15 @@
 import React from 'react';
-import { ImageOff } from 'lucide-react';
 import type { VaultItemSummary } from '../../../../shared/ipc';
 import { GalleryCard } from './GalleryCard';
-import { Spinner } from '../../../components/ui/Spinner';
 import { useMarqueeSelection } from '../hooks/useMarqueeSelection';
+
+const T = {
+  line2: 'rgba(220,220,200,0.12)',
+  mute2: '#4d524d',
+  accent: '#7c9a92',
+  accentGlow: 'rgba(124,154,146,0.15)',
+};
+const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace";
 
 type GalleryGridProps = {
   items: VaultItemSummary[];
@@ -71,9 +77,16 @@ export const GalleryGrid = ({
 
   if (items.length === 0 && !isLoadingMore) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border py-16">
-        <ImageOff className="h-10 w-10 text-text-muted opacity-40" />
-        <p className="text-sm text-text-muted">No items match current filters</p>
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        gap: 12, padding: '64px 0',
+        border: `1px dashed ${T.line2}`,
+      }}>
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke={T.mute2} strokeWidth="1.2">
+          <rect x="3" y="3" width="12" height="12" /><rect x="21" y="3" width="12" height="12" />
+          <rect x="3" y="21" width="12" height="12" /><rect x="21" y="21" width="12" height="12" />
+        </svg>
+        <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute2, letterSpacing: '0.06em' }}>No objects match current filters</p>
       </div>
     );
   }
@@ -82,48 +95,63 @@ export const GalleryGrid = ({
     <div
       ref={containerRef}
       onMouseDown={onMouseDown}
-      className="relative min-h-full select-none space-y-4"
+      style={{ position: 'relative', minHeight: '100%', userSelect: 'none' }}
     >
-      <div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-          {items.map((item) => (
-            <GalleryCard
-              key={item.id}
-              item={item}
-              thumbnailUrl={thumbnails[item.id]}
-              isSelected={selectedItemIds.includes(item.id)}
-              onToggleSelect={onToggleSelect}
-              onOpen={onOpenItem}
-              onToggleFavorite={onToggleFavorite}
-              onContextMenuOpen={onContextMenuOpen}
-              contextTargetIdsForItem={contextTargetIdsForItem}
-              onOpenViewerForIds={onOpenViewerForIds}
-              onToggleFavoriteForIds={onToggleFavoriteForIds}
-              onOpenMoveDialogForIds={onOpenMoveDialogForIds}
-              onExportForIds={onExportForIds}
-              onDeleteForIds={onDeleteForIds}
-              isOpenViewerDisabledForItem={isOpenViewerDisabledForItem}
-              onOpenMoveDialog={onOpenMoveDialog}
-              onExport={onExportItem}
-              onDelete={onDeleteItem}
-              onRename={onRenameItem}
-              isMultiSelect={isMultiSelect}
-            />
-          ))}
-        </div>
-        {isSelecting && overlayStyle && (
-          <div
-            className="pointer-events-none absolute z-20 rounded-md border border-accent/80 bg-accent/20"
-            style={overlayStyle}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+        gap: 20,
+      }}>
+        {items.map((item) => (
+          <GalleryCard
+            key={item.id}
+            item={item}
+            thumbnailUrl={thumbnails[item.id]}
+            isSelected={selectedItemIds.includes(item.id)}
+            onToggleSelect={onToggleSelect}
+            onOpen={onOpenItem}
+            onToggleFavorite={onToggleFavorite}
+            onContextMenuOpen={onContextMenuOpen}
+            contextTargetIdsForItem={contextTargetIdsForItem}
+            onOpenViewerForIds={onOpenViewerForIds}
+            onToggleFavoriteForIds={onToggleFavoriteForIds}
+            onOpenMoveDialogForIds={onOpenMoveDialogForIds}
+            onExportForIds={onExportForIds}
+            onDeleteForIds={onDeleteForIds}
+            isOpenViewerDisabledForItem={isOpenViewerDisabledForItem}
+            onOpenMoveDialog={onOpenMoveDialog}
+            onExport={onExportItem}
+            onDelete={onDeleteItem}
+            onRename={onRenameItem}
+            isMultiSelect={isMultiSelect}
           />
-        )}
+        ))}
       </div>
 
+      {isSelecting && overlayStyle && (
+        <div
+          style={{
+            ...overlayStyle,
+            position: 'absolute', zIndex: 20, pointerEvents: 'none',
+            border: `1px solid ${T.accent}`,
+            background: T.accentGlow,
+          }}
+        />
+      )}
+
       {hasMore && (
-        <div ref={sentinelRef} className="flex justify-center py-4">
-          {isLoadingMore && <Spinner size="sm" />}
+        <div ref={sentinelRef} style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
+          {isLoadingMore && (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke={T.mute2} strokeWidth="1.5"
+              style={{ animation: 'spin 1s linear infinite' }}
+            >
+              <path d="M14 8A6 6 0 1 1 8 2" />
+            </svg>
+          )}
         </div>
       )}
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 };
