@@ -68,7 +68,10 @@ type GalleryToolbarProps = {
   onToggleSidebar: () => void;
   itemCount: number;
   selectedFolderName: string | null;
-  selectedViewScope: 'all' | 'video' | 'image' | 'root' | 'folder';
+  selectedViewScope: 'all' | 'video' | 'image' | 'root' | 'folder' | 'bookmark';
+  isBookmarkScope?: boolean;
+  onExportBookmarks?: () => void;
+  onImportBookmarks?: () => void;
   // Tag filter bar props (inlined)
   tags: TagSummary[];
   selectedTagIds: number[];
@@ -118,6 +121,9 @@ export const GalleryToolbar = ({
   itemCount,
   selectedFolderName,
   selectedViewScope,
+  isBookmarkScope,
+  onExportBookmarks,
+  onImportBookmarks,
   tags,
   selectedTagIds,
   onToggleTagFilter,
@@ -134,7 +140,8 @@ export const GalleryToolbar = ({
     selectedFolderName ??
     (selectedViewScope === 'video' ? 'Video' :
      selectedViewScope === 'image' ? 'Images' :
-     selectedViewScope === 'root' ? 'Root' : 'Gallery');
+     selectedViewScope === 'root' ? 'Root' :
+     selectedViewScope === 'bookmark' ? 'Bookmarks' : 'Gallery');
 
   const currentSortLabel = SORT_OPTIONS.find((o) => o.value === sort)?.label ?? 'Sort';
 
@@ -296,17 +303,19 @@ export const GalleryToolbar = ({
           )}
         </div>
 
-        {/* Favorites filter */}
-        <button
-          type="button"
-          onClick={onToggleFavoritesOnly}
-          title={showFavoritesOnly ? 'Show all' : 'Favourites only'}
-          style={iconBtn(showFavoritesOnly)}
-        >
-          <svg width="13" height="13" viewBox="0 0 13 13" fill={showFavoritesOnly ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.4">
-            <path d="M6.5 1.5l1.4 2.8 3.1.45-2.25 2.2.53 3.1L6.5 8.5l-2.78 1.55.53-3.1L2 4.75l3.1-.45z" />
-          </svg>
-        </button>
+        {/* Favorites filter — hidden for bookmark scope (no is_favorite on bookmarks) */}
+        {!isBookmarkScope && (
+          <button
+            type="button"
+            onClick={onToggleFavoritesOnly}
+            title={showFavoritesOnly ? 'Show all' : 'Favourites only'}
+            style={iconBtn(showFavoritesOnly)}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill={showFavoritesOnly ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.4">
+              <path d="M6.5 1.5l1.4 2.8 3.1.45-2.25 2.2.53 3.1L6.5 8.5l-2.78 1.55.53-3.1L2 4.75l3.1-.45z" />
+            </svg>
+          </button>
+        )}
 
         {/* Refresh */}
         <button
@@ -323,7 +332,61 @@ export const GalleryToolbar = ({
           </svg>
         </button>
 
-        {/* Import button */}
+        {/* Export bookmarks — always visible */}
+        <button
+          type="button"
+          onClick={onExportBookmarks}
+          disabled={isBusy}
+          title="Export bookmarks"
+          style={{
+            height: 28, padding: '0 10px',
+            background: 'none',
+            border: `1px solid ${T.line2}`,
+            cursor: 'pointer',
+            color: T.mute,
+            fontFamily: MONO, fontSize: 10,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            display: 'flex', alignItems: 'center', gap: 6,
+            flexShrink: 0,
+            opacity: isBusy ? 0.6 : 1,
+            borderRadius: 0,
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <polyline points="5.5,8 5.5,1" /><polyline points="2,4 5.5,1 9,4" /><line x1="1" y1="10" x2="10" y2="10" />
+          </svg>
+          Export
+        </button>
+
+        {/* Import bookmarks — always visible */}
+        <button
+          type="button"
+          onClick={onImportBookmarks}
+          disabled={isBusy}
+          title="Import bookmarks"
+          style={{
+            height: 28, padding: '0 10px',
+            background: 'none',
+            border: `1px solid ${T.line2}`,
+            cursor: 'pointer',
+            color: T.mute,
+            fontFamily: MONO, fontSize: 10,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            display: 'flex', alignItems: 'center', gap: 6,
+            flexShrink: 0,
+            opacity: isBusy ? 0.6 : 1,
+            borderRadius: 0,
+          }}
+        >
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <polyline points="5.5,1 5.5,8" /><polyline points="2,5 5.5,8.5 9,5" /><line x1="1" y1="10" x2="10" y2="10" />
+          </svg>
+          Bookmarks
+        </button>
+
+        {/* Import files — always visible */}
         <button
           type="button"
           onClick={onOpenImportSettings}
@@ -373,11 +436,13 @@ export const GalleryToolbar = ({
                 </svg>
               </button>
 
-              <button type="button" onClick={onToggleFavoriteSelected} title={allSelectedFavorite ? 'Unfavourite' : 'Favourite'} style={iconBtn(allSelectedFavorite)}>
-                <svg width="13" height="13" viewBox="0 0 13 13" fill={allSelectedFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.4">
-                  <path d="M6.5 1.5l1.4 2.8 3.1.45-2.25 2.2.53 3.1L6.5 8.5l-2.78 1.55.53-3.1L2 4.75l3.1-.45z" />
-                </svg>
-              </button>
+              {!isBookmarkScope && (
+                <button type="button" onClick={onToggleFavoriteSelected} title={allSelectedFavorite ? 'Unfavourite' : 'Favourite'} style={iconBtn(allSelectedFavorite)}>
+                  <svg width="13" height="13" viewBox="0 0 13 13" fill={allSelectedFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.4">
+                    <path d="M6.5 1.5l1.4 2.8 3.1.45-2.25 2.2.53 3.1L6.5 8.5l-2.78 1.55.53-3.1L2 4.75l3.1-.45z" />
+                  </svg>
+                </button>
+              )}
 
               <button type="button" onClick={onExportSelected} title="Export selected" style={iconBtn()}>
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4">

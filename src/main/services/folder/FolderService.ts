@@ -226,12 +226,15 @@ export class FolderService {
     const placeholders = folderIds.map(() => '?').join(', ');
 
     if (deleteItems) {
-      // Collect encrypted filenames for all items in the subtree.
+      // Collect encrypted filenames for all file items in the subtree.
       const itemRows = this.db
         .prepare(
-          `SELECT id, encrypted_filename FROM vault_items WHERE folder_id IN (${placeholders})`
+          `SELECT vi.vault_object_id, vi.encrypted_filename
+           FROM vault_items vi
+           INNER JOIN vault_objects vo ON vo.id = vi.vault_object_id
+           WHERE vo.folder_id IN (${placeholders})`,
         )
-        .all(...folderIds) as Array<{ id: string; encrypted_filename: string }>;
+        .all(...folderIds) as Array<{ vault_object_id: string; encrypted_filename: string }>;
 
       // Delete encrypted files from disk (best-effort).
       await Promise.all(
@@ -245,17 +248,16 @@ export class FolderService {
         }),
       );
 
-      // Remove item_tags and vault_items rows for the subtree.
+      // Deleting vault_objects cascades to vault_items and object_tags.
       if (itemRows.length > 0) {
         const itemPlaceholders = itemRows.map(() => '?').join(', ');
-        const itemIds = itemRows.map((r) => r.id);
-        this.db.prepare(`DELETE FROM item_tags WHERE item_id IN (${itemPlaceholders})`).run(...itemIds);
-        this.db.prepare(`DELETE FROM vault_items WHERE id IN (${itemPlaceholders})`).run(...itemIds);
+        const itemIds = itemRows.map((r) => r.vault_object_id);
+        this.db.prepare(`DELETE FROM vault_objects WHERE id IN (${itemPlaceholders})`).run(...itemIds);
       }
     } else {
-      // Move items in the subtree back to root (NULL folder).
+      // Move all objects (files + bookmarks) in the subtree back to root (NULL folder).
       this.db
-        .prepare(`UPDATE vault_items SET folder_id = NULL WHERE folder_id IN (${placeholders})`)
+        .prepare(`UPDATE vault_objects SET folder_id = NULL WHERE folder_id IN (${placeholders})`)
         .run(...folderIds);
     }
 
@@ -270,7 +272,7 @@ export class FolderService {
     }
 
     const result = this.db
-      .prepare('UPDATE vault_items SET folder_id = ? WHERE id = ?')
+      .prepare(`UPDATE vault_objects SET folder_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND type = 'file'`)
       .run(input.folderId, input.itemId);
 
     if (result.changes === 0) {
@@ -285,13 +287,11 @@ export class FolderService {
       this.ensureFolderExists(input.folderId);
     }
 
-    if (input.itemIds.length === 0) {
-      return;
-    }
+    if (input.itemIds.length === 0) return;
 
     const placeholders = input.itemIds.map(() => '?').join(', ');
     this.db
-      .prepare(`UPDATE vault_items SET folder_id = ? WHERE id IN (${placeholders})`)
+      .prepare(`UPDATE vault_objects SET folder_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders}) AND type = 'file'`)
       .run(input.folderId, ...input.itemIds);
   }
 

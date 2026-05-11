@@ -6,6 +6,7 @@ import type {
   DownloadProgress,
   ExtensionStartupError,
   ExtensionSummary,
+  FolderNode,
   PasswordDetail,
 } from '../../../shared/ipc';
 import { DEFAULT_SEARCH_ENGINE, normalizeAddressInput } from '../../browser/utils/address';
@@ -36,7 +37,8 @@ const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace";
 
 // ── Types ────────────────────────────────────────────────────────────
 const BROWSER_PARTITION = 'persist:privatevault-browser';
-const HOME_URL = 'https://duckduckgo.com/';
+const HOME_URL = 'sanctum://newtab';
+const isNewTab = (url: string): boolean => url === HOME_URL || url === '' || url === 'about:blank';
 
 type BrowserTab = {
   id: string;
@@ -84,7 +86,7 @@ const isHttps = (url: string): boolean => {
 
 const createTab = (url = HOME_URL): BrowserTab => ({
   id: `tab_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-  url, title: 'New Tab', isLoading: true, canGoBack: false, canGoForward: false, hasCrashed: false,
+  url, title: 'New Tab', isLoading: !isNewTab(url), canGoBack: false, canGoForward: false, hasCrashed: false,
 });
 
 const TAB_PERSIST_KEY = 'pv_browser_tabs';
@@ -294,11 +296,174 @@ const TabWebView = ({ tab, onAttach, onStateChange, onNavigateEvent }: TabWebVie
             webviewRef.current = next;
             onAttach(tab.id, next);
           }}
-          src={tab.url}
+          src={tab.url || undefined}
           partition={BROWSER_PARTITION}
           style={{ display: 'flex', width: '100%', height: '100%', backgroundColor: T.bg }}
         />
       </div>
+    </div>
+  );
+};
+
+// ── NewTabPage ───────────────────────────────────────────────────────
+const SERIF = "'Fraunces', Georgia, serif";
+
+const NewTabPage: React.FC<{
+  bookmarks: BookmarkSummary[];
+  folders: FolderNode[];
+  onNavigate: (url: string) => void;
+}> = ({ bookmarks, folders, onNavigate }) => {
+  const [query, setQuery] = React.useState('');
+  const [selectedFolderId, setSelectedFolderId] = React.useState<number | null | 'all'>('all');
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    setTimeout(() => inputRef.current?.focus(), 80);
+  }, []);
+
+  const handleSearch = (e: React.FormEvent): void => {
+    e.preventDefault();
+    if (!query.trim()) return;
+    const normalized = normalizeAddressInput(query.trim(), DEFAULT_SEARCH_ENGINE);
+    if (normalized.ok) onNavigate(normalized.url);
+  };
+
+  // Build folder lookup map
+  const folderMap = React.useMemo((): Map<number, string> => {
+    const map = new Map<number, string>();
+    const walk = (nodes: FolderNode[]): void => { for (const n of nodes) { map.set(n.id, n.name); walk(n.children); } };
+    walk(folders);
+    return map;
+  }, [folders]);
+
+  // Folders that actually have bookmarks
+  const usedFolderIds = React.useMemo(() => {
+    const ids = new Set<number>();
+    for (const bm of bookmarks) { if (bm.folderId !== null && bm.folderId !== undefined) ids.add(bm.folderId); }
+    return ids;
+  }, [bookmarks]);
+
+  const visibleBookmarks = React.useMemo(() => {
+    if (selectedFolderId === 'all') return bookmarks.slice(0, 24);
+    if (selectedFolderId === null) return bookmarks.filter((b) => b.folderId === null).slice(0, 24);
+    return bookmarks.filter((b) => b.folderId === selectedFolderId).slice(0, 24);
+  }, [bookmarks, selectedFolderId]);
+
+  const folderTabs: Array<{ id: number | null | 'all'; label: string }> = [
+    { id: 'all', label: 'All' },
+    ...Array.from(usedFolderIds).map((id) => ({ id, label: folderMap.get(id) ?? `Folder ${id}` })),
+  ];
+  if (bookmarks.some((b) => b.folderId === null || b.folderId === undefined)) {
+    folderTabs.push({ id: null, label: 'Unfiled' });
+  }
+
+  const tabBtn = (active: boolean): React.CSSProperties => ({
+    background: 'none', border: 'none', borderBottom: active ? `1px solid ${T.accent}` : '1px solid transparent',
+    cursor: 'pointer', color: active ? T.accent : T.mute,
+    fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
+    padding: '4px 10px', paddingBottom: 8, flexShrink: 0,
+  });
+
+  return (
+    <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', background: T.bg, overflowY: 'auto', padding: '0 24px 48px' }}>
+      {/* Brand */}
+      <div style={{ marginTop: 72, marginBottom: 40, textAlign: 'center' }}>
+        <div style={{ fontFamily: SERIF, fontSize: 36, fontWeight: 300, letterSpacing: '0.18em', color: T.text }}>Sanctum</div>
+        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.32em', textTransform: 'uppercase', color: T.mute, marginTop: 8 }}>private vault · browser</div>
+      </div>
+
+      {/* Search bar */}
+      <form onSubmit={handleSearch} style={{ width: '100%', maxWidth: 560, marginBottom: 56 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', height: 46, border: `1px solid ${T.line2}`, background: T.bg2 }}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={T.mute} strokeWidth="1.4" strokeLinecap="round">
+            <circle cx="6" cy="6" r="4"/><line x1="9.5" y1="9.5" x2="13" y2="13"/>
+          </svg>
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search or enter address…"
+            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: T.text, fontFamily: MONO, fontSize: 12, letterSpacing: '0.02em' }}
+          />
+          {query && (
+            <button type="submit" style={{ background: T.accent, border: 'none', color: T.bg, fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '4px 10px', cursor: 'pointer' }}>
+              Go
+            </button>
+          )}
+        </div>
+      </form>
+
+      {/* Bookmarks */}
+      {bookmarks.length > 0 && (
+        <div style={{ width: '100%', maxWidth: 760 }}>
+          {/* Folder filter tabs */}
+          {folderTabs.length > 1 && (
+            <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${T.line}`, marginBottom: 20, overflowX: 'auto' }}>
+              {folderTabs.map((ft) => (
+                <button
+                  key={String(ft.id)}
+                  type="button"
+                  onClick={() => setSelectedFolderId(ft.id)}
+                  style={tabBtn(selectedFolderId === ft.id)}
+                >
+                  {ft.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {visibleBookmarks.length === 0 ? (
+            <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2 }}>No bookmarks in this folder.</p>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 12 }}>
+              {visibleBookmarks.map((bm) => {
+                const domain = (() => { try { return new URL(bm.url).hostname.replace(/^www\./, ''); } catch { return bm.url; } })();
+                const grad = (() => {
+                  let h = 0;
+                  for (let i = 0; i < domain.length; i++) h = domain.charCodeAt(i) + ((h << 5) - h);
+                  const hue = Math.abs(h) % 360;
+                  return `linear-gradient(135deg,hsl(${hue},28%,18%),hsl(${(hue+48)%360},22%,12%))`;
+                })();
+                return (
+                  <button
+                    key={bm.id}
+                    type="button"
+                    onClick={() => onNavigate(bm.url)}
+                    title={bm.url}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+                  >
+                    <div style={{ width: '100%', aspectRatio: '4/3', overflow: 'hidden', border: `1px solid ${T.line2}`, marginBottom: 6 }}>
+                      {bm.thumbnailDataUrl
+                        ? <img src={bm.thumbnailDataUrl} alt={bm.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        : <div style={{ width: '100%', height: '100%', background: grad, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ fontFamily: MONO, fontSize: 18, color: 'rgba(232,230,220,0.4)' }}>{domain.charAt(0).toUpperCase()}</span>
+                          </div>
+                      }
+                    </div>
+                    <div style={{ fontFamily: MONO, fontSize: 10, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bm.title}</div>
+                    <div style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{domain}</div>
+                    {bm.tags.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
+                        {bm.tags.slice(0, 3).map((tag) => (
+                          <span key={tag.id} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 3,
+                            padding: '1px 4px',
+                            border: `1px solid ${T.line2}`,
+                            fontFamily: MONO, fontSize: 8, color: T.mute,
+                          }}>
+                            {tag.color && <span style={{ width: 4, height: 4, borderRadius: '50%', background: tag.color, flexShrink: 0 }} />}
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -327,6 +492,7 @@ export const BrowserWorkspace = ({
   const [libraryTab, setLibraryTab] = useState<'bookmarks' | 'extensions'>('bookmarks');
   const [leftPanelOpen, setLeftPanelOpen] = useState(false);
   const [bookmarks, setBookmarks] = useState<BookmarkSummary[]>([]);
+  const [folders, setFolders] = useState<FolderNode[]>([]);
   const [showBookmarkForm, setShowBookmarkForm] = useState(false);
   const [bookmarkTitle, setBookmarkTitle] = useState('');
   const [bookmarkUrl, setBookmarkUrl] = useState('');
@@ -349,8 +515,6 @@ export const BrowserWorkspace = ({
 
   const scrapeImagesFromTab = useCallback(async (tabId: string): Promise<string[]> => {
     const webview = webviewRefs.current[tabId];
-    // eslint-disable-next-line no-console
-    console.log('[scrape] tabId:', tabId, 'webview:', webview, 'all keys:', Object.keys(webviewRefs.current));
     if (!webview) return [];
     try {
       const urls = await webview.executeJavaScript(`(function(){
@@ -361,8 +525,6 @@ export const BrowserWorkspace = ({
           .map(i=>i.currentSrc||i.src).filter(Boolean);
         return[...new Set([...og,...imgs])].slice(0,20);
       })()`);
-      // eslint-disable-next-line no-console
-      console.log('[scrape] urls:', urls);
       if (!Array.isArray(urls) || urls.length === 0) return [];
       const dataUrls = await webview.executeJavaScript(`(async function(urls){
         const results=[];
@@ -381,14 +543,8 @@ export const BrowserWorkspace = ({
           }catch{}
         }return results;
       })(${JSON.stringify(urls)})`);
-      // eslint-disable-next-line no-console
-      console.log('[scrape] dataUrls count:', Array.isArray(dataUrls) ? dataUrls.length : dataUrls);
       return Array.isArray(dataUrls) ? (dataUrls as string[]) : [];
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[scrape] error:', err);
-      return [];
-    }
+    } catch { return []; }
   }, []);
   const downloadCleanupTimers = useRef<Record<string, number>>({});
   const navigationHistoryRef = useRef<Record<string, NavigationSample[]>>({});
@@ -411,7 +567,7 @@ export const BrowserWorkspace = ({
     if (!tabs.some((t) => t.id === activeTabId)) setActiveTabId(tabs[0].id);
   }, [tabs, activeTabId]);
 
-  useEffect(() => { if (activeTab) setAddressInput(activeTab.url || HOME_URL); }, [activeTab]);
+  useEffect(() => { if (activeTab) setAddressInput(isNewTab(activeTab.url) ? '' : (activeTab.url || '')); }, [activeTab]);
 
   useEffect(() => {
     if (!isWorkspaceActive || !activeTab || isSuspended) return;
@@ -436,6 +592,7 @@ export const BrowserWorkspace = ({
 
   useEffect(() => {
     void window.browserAPI.listBookmarks().then((r) => { if (r.ok) setBookmarks(r.data); });
+    void window.browserAPI.listFoldersTree().then((r) => { if (r.ok) setFolders(r.data); });
   }, []);
 
   useEffect(() => {
@@ -477,6 +634,7 @@ export const BrowserWorkspace = ({
 
   const loadInActiveTab = (nextUrl: string): void => {
     if (!activeTab) return;
+    if (isNewTab(nextUrl)) { applyTabPatch(activeTab.id, { url: HOME_URL, isLoading: false, title: 'New Tab' }); return; }
     const webview = webviewRefs.current[activeTab.id];
     if (!webview) { applyTabPatch(activeTab.id, { url: nextUrl, isLoading: true, hasCrashed: false }); return; }
     try { if (webview.getURL && webview.getURL() === nextUrl) return; } catch {
@@ -676,7 +834,7 @@ export const BrowserWorkspace = ({
     await refreshBookmarks();
   };
 
-  const handleDeleteBookmark = async (id: number): Promise<void> => {
+  const handleDeleteBookmark = async (id: string): Promise<void> => {
     await window.browserAPI.deleteBookmark({ id });
     await refreshBookmarks();
   };
@@ -1138,6 +1296,9 @@ export const BrowserWorkspace = ({
                   <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2 }}>Browser suspended while vault is locked or tab is inactive.</p>
                 </div>
               )}
+              {!isSuspended && isNewTab(tab.url) ? (
+                <NewTabPage bookmarks={bookmarks} folders={folders} onNavigate={loadInActiveTab} />
+              ) : (
               <div style={{ display: isSuspended ? 'none' : 'flex', minHeight: 0, minWidth: 0, flex: 1 }}>
                 <TabWebView
                   tab={tab}
@@ -1146,6 +1307,7 @@ export const BrowserWorkspace = ({
                   onNavigateEvent={handleTabNavigate}
                 />
               </div>
+              )}
               {tab.hasCrashed && (
                 <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(10,12,11,0.8)' }}>
                   <div style={{ pointerEvents: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, border: `1px solid ${T.line2}`, background: T.bg2, padding: '20px 28px' }}>

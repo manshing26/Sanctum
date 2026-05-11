@@ -66,8 +66,12 @@ export class BackupService {
       // Add manifest.
       const manifest = JSON.stringify({
         createdAt: new Date().toISOString(),
+        schemaVersion: 3,
         itemCount,
-        version: 1,
+        tables: [
+          'vault_objects', 'vault_items', 'bookmarks', 'object_tags',
+          'folders', 'tags', 'passwords', 'schema_meta',
+        ],
       }, null, 2);
       archive.append(manifest, { name: 'backup_manifest.json' });
 

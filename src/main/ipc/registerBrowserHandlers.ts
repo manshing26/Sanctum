@@ -4,6 +4,13 @@ import {
   type CreateBookmarkInput,
   type DeleteBookmarkInput,
   type UpdateBookmarkThumbnailInput,
+  type AssignBookmarkFolderInput,
+  type AssignBookmarksFolderInput,
+  type AssignBookmarkTagInput,
+  type UnassignBookmarkTagInput,
+  type AssignBookmarksTagInput,
+  type UnassignBookmarksTagInput,
+  type ImportBookmarksInput,
   type ExtensionStartupError,
   type ExtensionSummary,
 } from '../../shared/ipc';
@@ -147,6 +154,84 @@ export const registerBrowserHandlers = ({
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to list extension startup errors.',
       };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.renameBookmark, (_event, input: { id: string; title: string }) => {
+    try {
+      return { ok: true as const, data: bookmarkService.renameBookmark(input.id, input.title) };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to rename bookmark.' };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.assignBookmarkFolder, (_event, input: AssignBookmarkFolderInput) => {
+    try {
+      bookmarkService.assignBookmarkFolder(input);
+      return { ok: true as const };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to assign folder.' };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.assignBookmarksFolder, (_event, input: AssignBookmarksFolderInput) => {
+    try {
+      bookmarkService.assignBookmarksFolder(input);
+      return { ok: true as const };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to assign folder.' };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.assignBookmarkTag, (_event, input: AssignBookmarkTagInput) => {
+    try {
+      bookmarkService.assignBookmarkTag(input);
+      return { ok: true as const };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to assign tag.' };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.unassignBookmarkTag, (_event, input: UnassignBookmarkTagInput) => {
+    try {
+      bookmarkService.unassignBookmarkTag(input);
+      return { ok: true as const };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to unassign tag.' };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.assignBookmarksTag, (_event, input: AssignBookmarksTagInput) => {
+    try {
+      bookmarkService.assignBookmarksTag(input);
+      return { ok: true as const };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to assign tags.' };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.unassignBookmarksTag, (_event, input: UnassignBookmarksTagInput) => {
+    try {
+      bookmarkService.unassignBookmarksTag(input);
+      return { ok: true as const };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to unassign tags.' };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.exportBookmarks, (_event, input?: { ids?: string[] }) => {
+    try {
+      return { ok: true as const, data: bookmarkService.exportBookmarks(input?.ids) };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to export bookmarks.' };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.importBookmarks, async (_event, input: ImportBookmarksInput) => {
+    try {
+      return { ok: true as const, data: await bookmarkService.importBookmarks(input.html) };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to import bookmarks.' };
     }
   });
 

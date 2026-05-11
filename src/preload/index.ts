@@ -44,6 +44,13 @@ import {
   type DeletePasswordInput,
   type GetPasswordsForDomainInput,
   type UpdateBookmarkThumbnailInput,
+  type AssignBookmarkFolderInput,
+  type AssignBookmarksFolderInput,
+  type AssignBookmarkTagInput,
+  type UnassignBookmarkTagInput,
+  type AssignBookmarksTagInput,
+  type UnassignBookmarksTagInput,
+  type ImportBookmarksInput,
 } from '../shared/ipc';
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -175,6 +182,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deletePassword: (i: DeletePasswordInput) => ipcRenderer.invoke(IPC_CHANNELS.deletePassword, i),
   getPasswordsForDomain: (i: GetPasswordsForDomainInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.getPasswordsForDomain, i),
+  assignBookmarkFolder: (input: AssignBookmarkFolderInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.assignBookmarkFolder, input),
+  assignBookmarksFolder: (input: AssignBookmarksFolderInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.assignBookmarksFolder, input),
+  assignBookmarkTag: (input: AssignBookmarkTagInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.assignBookmarkTag, input),
+  unassignBookmarkTag: (input: UnassignBookmarkTagInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.unassignBookmarkTag, input),
+  assignBookmarksTag: (input: AssignBookmarksTagInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.assignBookmarksTag, input),
+  unassignBookmarksTag: (input: UnassignBookmarksTagInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.unassignBookmarksTag, input),
+  exportBookmarks: () => ipcRenderer.invoke(IPC_CHANNELS.exportBookmarks),
+  importBookmarks: (input: ImportBookmarksInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.importBookmarks, input),
+  renameBookmark: (input: { id: number; title: string }) =>
+    ipcRenderer.invoke(IPC_CHANNELS.renameBookmark, input),
+  listBookmarks: () => ipcRenderer.invoke(IPC_CHANNELS.listBookmarks),
+  deleteBookmark: (input: DeleteBookmarkInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.deleteBookmark, input),
+  updateBookmarkThumbnail: (input: UpdateBookmarkThumbnailInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.updateBookmarkThumbnail, input),
 });
 
 contextBridge.exposeInMainWorld('browserAPI', {
@@ -203,4 +232,6 @@ contextBridge.exposeInMainWorld('browserAPI', {
   listExtensionStartupErrors: () => ipcRenderer.invoke(IPC_CHANNELS.listExtensionStartupErrors),
   updateBookmarkThumbnail: (input: UpdateBookmarkThumbnailInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.updateBookmarkThumbnail, input),
+  listFoldersTree: () => ipcRenderer.invoke(IPC_CHANNELS.listFoldersTree),
+  listTags: () => ipcRenderer.invoke(IPC_CHANNELS.listTags),
 });

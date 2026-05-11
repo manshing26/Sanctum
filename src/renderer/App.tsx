@@ -2,10 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { AuthScreenMode, RestoreProgress, SessionState } from '../shared/ipc';
 import { PasswordInput } from './components/ui/PasswordInput';
-import { GalleryPage } from './features/gallery/GalleryPage';
+import { VaultPage } from './features/gallery/VaultPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { BrowserWorkspace, type BrowserWorkspaceHandle } from './features/browser/BrowserWorkspace';
-import { BookmarkGalleryPage } from './features/browser/BookmarkGalleryPage';
 import { RestoreCountdownDialog } from './components/ui/RestoreCountdownDialog';
 import { PasswordManagerPage } from './features/passwords/PasswordManagerPage';
 
@@ -42,7 +41,7 @@ const getPasswordChecks = (password: string): PasswordCheck[] => [
 ];
 
 // ── Top Bar ──────────────────────────────────────────────────────────
-type AppTab = 'gallery' | 'browser' | 'settings' | 'bookmarks' | 'passwords';
+type AppTab = 'gallery' | 'browser' | 'settings' | 'passwords';
 
 // Inline SVG sigil — matches sanctum-gallery.html
 const SanctumSigil: React.FC = () => (
@@ -60,11 +59,10 @@ const LockIcon: React.FC = () => (
 );
 
 const TABS: { id: AppTab; label: string; numeral: string }[] = [
-  { id: 'gallery',   label: 'Gallery',   numeral: 'I'   },
-  { id: 'bookmarks', label: 'Bookmarks', numeral: 'II'  },
-  { id: 'browser',   label: 'Browser',   numeral: 'III' },
-  { id: 'settings',  label: 'Settings',  numeral: 'IV'  },
-  { id: 'passwords', label: 'Passwords', numeral: 'V'   },
+  { id: 'gallery',   label: 'Vault',     numeral: 'I'   },
+  { id: 'browser',   label: 'Browser',   numeral: 'II'  },
+  { id: 'settings',  label: 'Settings',  numeral: 'III' },
+  { id: 'passwords', label: 'Passwords', numeral: 'IV'  },
 ];
 
 const TopBar: React.FC<{
@@ -742,7 +740,14 @@ export const App: React.FC = () => {
 
         {isUnlocked && activeTab === 'gallery' && (
           <div className="flex min-h-0 flex-1">
-            <GalleryPage onMessage={(msg) => toast.info(msg)} />
+            <VaultPage
+              onMessage={(msg: string) => toast.info(msg)}
+              onOpenUrlInBrowser={(url) => {
+                setPendingBrowserUrl(url);
+                setActiveTab('browser');
+              }}
+              onScrapeImages={() => browserRef.current?.scrapeImagesFromActiveTab() ?? Promise.resolve([])}
+            />
           </div>
         )}
 
@@ -755,18 +760,6 @@ export const App: React.FC = () => {
         {isUnlocked && activeTab === 'passwords' && (
           <div className="flex min-h-0 flex-1">
             <PasswordManagerPage />
-          </div>
-        )}
-
-        {isUnlocked && activeTab === 'bookmarks' && (
-          <div className="flex min-h-0 flex-1">
-            <BookmarkGalleryPage
-              onOpenUrl={(url) => {
-                setPendingBrowserUrl(url);
-                setActiveTab('browser');
-              }}
-              onScrapeImages={() => browserRef.current?.scrapeImagesFromActiveTab() ?? Promise.resolve([])}
-            />
           </div>
         )}
 

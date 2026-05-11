@@ -23,13 +23,14 @@ const SERIF = "'Fraunces', Georgia, serif";
 
 type FolderSidebarProps = {
   folders: FolderNode[];
-  selectedViewScope: 'all' | 'video' | 'image' | 'root' | 'folder';
+  selectedViewScope: 'all' | 'video' | 'image' | 'root' | 'folder' | 'bookmark';
   selectedFolderId: number | null;
   onSelectAllItems: () => void;
   onSelectVideo: () => void;
   onSelectImage: () => void;
   onSelectRoot: () => void;
   onSelectFolder: (folderId: number) => void;
+  onSelectBookmarks?: () => void;
   newFolderName: string;
   onNewFolderNameChange: (value: string) => void;
   newFolderParentId: number | null;
@@ -80,7 +81,7 @@ const scopeRow = (
 
 const FolderTreeNode: React.FC<{
   folder: FolderNode;
-  selectedViewScope: 'all' | 'video' | 'image' | 'root' | 'folder';
+  selectedViewScope: 'all' | 'video' | 'image' | 'root' | 'folder' | 'bookmark';
   selectedFolderId: number | null;
   onSelectFolder: (folderId: number) => void;
   onDeleteFolder: (folderId: number) => void;
@@ -182,6 +183,7 @@ export const FolderSidebar = ({
   onSelectImage,
   onSelectRoot,
   onSelectFolder,
+  onSelectBookmarks,
   newFolderName,
   onNewFolderNameChange,
   newFolderParentId,
@@ -220,6 +222,11 @@ export const FolderSidebar = ({
       <path d="M6 1L11 4v7H1V4z" />
     </svg>
   );
+  const iconBookmarks = (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <path d="M2 1h8v10L6 8.5 2 11V1z" />
+    </svg>
+  );
 
   return (
     <aside style={{ display: 'flex', flexDirection: 'column', height: '100%', background: T.bg, overflowY: 'auto' }}>
@@ -242,6 +249,7 @@ export const FolderSidebar = ({
         {scopeRow('All Objects', selectedViewScope === 'all', onSelectAllItems, iconAllItems)}
         {scopeRow('Video', selectedViewScope === 'video', onSelectVideo, iconVideo)}
         {scopeRow('Images', selectedViewScope === 'image', onSelectImage, iconImage)}
+        {onSelectBookmarks && scopeRow('Bookmarks', selectedViewScope === 'bookmark', onSelectBookmarks, iconBookmarks)}
       </div>
 
       {/* Folders section */}

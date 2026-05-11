@@ -17,13 +17,14 @@ A privacy-first, local-only media vault with a built-in private browser. All fil
 - **Export** — decrypt selected files to any directory
 - **Media viewer** — full-screen image and video viewer with keyboard navigation
 - **Grid and list views** — configurable thumbnail size and grid density
-- **Folders** — nested folder tree with drag-and-drop move, create, rename, delete
-- **Tags** — colour-coded tags; multi-tag filtering
+- **Folders** — nested folder tree with create, rename, delete; files and bookmarks share the same folder tree
+- **Tags** — colour-coded tags; multi-tag filtering; tags work across both files and bookmarks
 - **Ratings** — 1–5 star rating per item
 - **Favourites** — mark/filter by favourite
 - **Search** — full-text search across filename, tags, and folder path
 - **Thumbnail generation** — automatic thumbnails via `sharp` (images) and `ffmpeg` (video first-frame)
 - **Marquee selection** — click-drag to select multiple items in the gallery
+- **Mixed gallery view** — files and bookmarks appear together in "All Objects" and folder views
 
 ### Backup & Restore
 - **Backup** — creates a `.pvbackup` zip (encrypted DB + all `.enc` files + manifest); requires vault to be unlocked
@@ -31,13 +32,16 @@ A privacy-first, local-only media vault with a built-in private browser. All fil
 - **Merge restore** — imports backup items into live vault under a new root folder named `Restored YYYY-MM-DD`; preserves tags, ratings, and favourites; skips items whose UUID already exists; forces clean restart
 
 ### Bookmark Gallery
-- Dedicated full-page tab showing saved bookmarks as a Netflix-style thumbnail grid
-- Thumbnails fetched automatically from each site's Open Graph (`og:image`) meta tag at save time — fetched inside the browser session to bypass bot-blocking
+- Dedicated full-page tab showing saved bookmarks as a thumbnail grid or list
+- Thumbnails fetched automatically from each site's Open Graph (`og:image`) meta tag at save time — fetched inside the browser session to bypass bot-blocking; can be replaced manually via an image picker that scrapes the live tab
 - Encrypted and stored as BLOBs in the vault DB (AES-256-GCM, same key as vault)
 - Fallback card with a deterministic gradient + domain initial when no `og:image` is available
 - Click any card to open the URL in a new browser tab
-- Right-click → Rename or Delete
-- Client-side search by title or domain
+- Inspector panel — rename, assign folder, assign tags, change thumbnail
+- Multi-select — bulk delete, bulk move to folder
+- Export to Netscape HTML bookmark file (all bookmarks, or selected only); import from browser-exported HTML
+- Bookmarks appear alongside files in "All Objects" and folder views in the vault gallery
+- Client-side search by title or domain; tag filtering
 - Tab persistence — open tabs survive app restarts (URLs saved to `localStorage`)
 
 ### Built-in Private Browser
@@ -141,18 +145,25 @@ All data is stored in Electron's `userData` directory:
     └── temp/                # Temporary files used during restore/verify
 ```
 
-### Database Tables
+### Database Schema (v3)
+
+Files and bookmarks share a parent `vault_objects` table so they can be organised under the same folder tree, tagged with the same tags, and sorted together in the gallery.
 
 | Table | Purpose |
 |---|---|
 | `auth_state` | Argon2id password verifier, failed attempts, lockout timestamp |
 | `vault_config` | KDF salt and Argon2id parameters |
-| `vault_items` | Per-item metadata: encrypted filename, mime type, dimensions, thumbnail (enc), IV, auth tag, folder_id, is_favorite, rating, content_hash |
-| `folders` | Nested folder tree (adjacency list, `parent_id`) |
+| `vault_objects` | Parent row for every gallery object — holds `type` (`file`/`bookmark`), `folder_id`, `is_favorite`, `rating`, `created_at`, `updated_at` |
+| `vault_items` | File-specific metadata: encrypted filename, mime type, dimensions, thumbnail blob (enc), IV, auth tag, content hash — FK → `vault_objects` |
+| `bookmarks` | Bookmark-specific data: encrypted title, URL, og:image thumbnail blob — FK → `vault_objects` |
+| `folders` | Nested folder tree (adjacency list, `parent_id`); shared by files and bookmarks |
 | `tags` | Tag name and colour |
-| `item_tags` | Many-to-many junction: items ↔ tags |
-| `bookmarks` | Encrypted browser bookmarks (title, URL, og:image thumbnail blob) |
+| `object_tags` | Many-to-many junction: `vault_objects` ↔ `tags` (replaces old `item_tags`/`bookmark_tags`) |
+| `passwords` | Encrypted saved passwords |
+| `schema_meta` | Internal version key (`schema_version`) |
 | `settings` | Key-value application settings |
+
+Automatic migration from v2 (flat `vault_items` + separate `bookmarks`) to v3 runs at startup inside a single transaction.
 
 ---
 
@@ -164,11 +175,12 @@ A `.pvbackup` file is a ZIP archive:
 privatevault.db          # Full database snapshot (WAL checkpointed before backup)
 vault/version.json       # Version marker
 vault/files/*.enc        # All encrypted item files
-backup_manifest.json     # { createdAt, itemCount, version }
+backup_manifest.json     # { createdAt, schemaVersion, itemCount, tables }
 ```
 
 - **Replace restore** requires the password active when the backup was created
-- **Merge restore** also requires the backup password; existing items (matched by UUID) are skipped
+- **Merge restore** also requires the backup password; existing items (matched by UUID) are skipped; items placed in a new root folder `Restored YYYY-MM-DD`
+- Backups include a `schemaVersion` field; v2 and v3 backups are both supported for merge restore
 
 ---
 

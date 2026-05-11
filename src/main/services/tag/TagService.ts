@@ -115,7 +115,8 @@ export class TagService {
   deleteTag(tagId: number): void {
     this.ensureUnlocked();
     this.getTag(tagId);
-    this.db.prepare('DELETE FROM item_tags WHERE tag_id = ?').run(tagId);
+    // object_tags has ON DELETE CASCADE from tags, but explicit delete is safer
+    this.db.prepare('DELETE FROM object_tags WHERE tag_id = ?').run(tagId);
     this.db.prepare('DELETE FROM tags WHERE id = ?').run(tagId);
   }
 
@@ -124,47 +125,39 @@ export class TagService {
     this.getTag(input.tagId);
 
     const itemExists = this.db
-      .prepare('SELECT 1 FROM vault_items WHERE id = ?')
+      .prepare("SELECT 1 FROM vault_objects WHERE id = ? AND type = 'file'")
       .get(input.itemId) as { 1: number } | undefined;
-    if (!itemExists) {
-      throw new Error('Item not found.');
-    }
+    if (!itemExists) throw new Error('Item not found.');
 
     this.db
-      .prepare('INSERT OR IGNORE INTO item_tags (item_id, tag_id) VALUES (?, ?)')
+      .prepare('INSERT OR IGNORE INTO object_tags (object_id, tag_id) VALUES (?, ?)')
       .run(input.itemId, input.tagId);
   }
 
   unassignItemTag(input: UnassignItemTagInput): void {
     this.ensureUnlocked();
-    this.db.prepare('DELETE FROM item_tags WHERE item_id = ? AND tag_id = ?').run(input.itemId, input.tagId);
+    this.db.prepare('DELETE FROM object_tags WHERE object_id = ? AND tag_id = ?').run(input.itemId, input.tagId);
   }
 
   assignItemsTag(input: AssignItemsTagInput): void {
     this.ensureUnlocked();
     this.getTag(input.tagId);
-    if (input.itemIds.length === 0) {
-      return;
-    }
+    if (input.itemIds.length === 0) return;
 
-    const statement = this.db.prepare('INSERT OR IGNORE INTO item_tags (item_id, tag_id) VALUES (?, ?)');
+    const statement = this.db.prepare('INSERT OR IGNORE INTO object_tags (object_id, tag_id) VALUES (?, ?)');
     const transaction = this.db.transaction((itemIds: string[]) => {
-      for (const itemId of itemIds) {
-        statement.run(itemId, input.tagId);
-      }
+      for (const itemId of itemIds) statement.run(itemId, input.tagId);
     });
     transaction(input.itemIds);
   }
 
   unassignItemsTag(input: UnassignItemsTagInput): void {
     this.ensureUnlocked();
-    if (input.itemIds.length === 0) {
-      return;
-    }
+    if (input.itemIds.length === 0) return;
 
     const placeholders = input.itemIds.map(() => '?').join(', ');
     this.db
-      .prepare(`DELETE FROM item_tags WHERE tag_id = ? AND item_id IN (${placeholders})`)
+      .prepare(`DELETE FROM object_tags WHERE tag_id = ? AND object_id IN (${placeholders})`)
       .run(input.tagId, ...input.itemIds);
   }
 }

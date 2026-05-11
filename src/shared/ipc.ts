@@ -9,6 +9,15 @@ export const IPC_CHANNELS = {
   createBookmark: 'browser:bookmarks:create',
   deleteBookmark: 'browser:bookmarks:delete',
   updateBookmarkThumbnail: 'browser:bookmarks:update-thumbnail',
+  assignBookmarkFolder:  'vault:bookmarks:assign-folder',
+  assignBookmarksFolder: 'vault:bookmarks:assign-folders',
+  assignBookmarkTag:     'vault:bookmarks:assign-tag',
+  unassignBookmarkTag:   'vault:bookmarks:unassign-tag',
+  assignBookmarksTag:    'vault:bookmarks:assign-tags-bulk',
+  unassignBookmarksTag:  'vault:bookmarks:unassign-tags-bulk',
+  exportBookmarks:       'vault:bookmarks:export',
+  importBookmarks:       'vault:bookmarks:import',
+  renameBookmark:        'vault:bookmarks:rename',
   downloadUpdate: 'browser:downloads:update',
   cancelDownload: 'browser:downloads:cancel',
   listExtensions: 'browser:extensions:list',
@@ -306,9 +315,11 @@ export type UnassignItemsTagInput = {
 };
 
 export type BookmarkSummary = {
-  id: number;
+  id: string;
   title: string;
   url: string;
+  folderId: number | null;
+  tags: TagSummary[];
   createdAt: string;
   updatedAt: string;
   thumbnailDataUrl?: string;
@@ -317,17 +328,58 @@ export type BookmarkSummary = {
 export type CreateBookmarkInput = {
   title?: string;
   url: string;
+  folderId?: number | null;
   thumbnailUrl?: string;
   thumbnailDataUrl?: string;
 };
 
 export type DeleteBookmarkInput = {
-  id: number;
+  id: string;
 };
 
 export type UpdateBookmarkThumbnailInput = {
-  id: number;
+  id: string;
   thumbnailDataUrl: string;
+};
+
+export type AssignBookmarkFolderInput = {
+  bookmarkId: string;
+  folderId: number | null;
+};
+
+export type AssignBookmarksFolderInput = {
+  bookmarkIds: string[];
+  folderId: number | null;
+};
+
+export type AssignBookmarkTagInput = {
+  bookmarkId: string;
+  tagId: number;
+};
+
+export type UnassignBookmarkTagInput = {
+  bookmarkId: string;
+  tagId: number;
+};
+
+export type AssignBookmarksTagInput = {
+  bookmarkIds: string[];
+  tagId: number;
+};
+
+export type UnassignBookmarksTagInput = {
+  bookmarkIds: string[];
+  tagId: number;
+};
+
+export type ImportBookmarksInput = {
+  html: string;
+};
+
+export type ImportBookmarksResult = {
+  added: number;
+  skipped: number;
+  errors: string[];
 };
 
 export type PasswordSummary = {
@@ -525,6 +577,18 @@ export type ElectronAPI = {
   updatePassword: (i: UpdatePasswordInput) => Promise<OperationResult<PasswordSummary>>;
   deletePassword: (i: DeletePasswordInput) => Promise<OperationResult>;
   getPasswordsForDomain: (i: GetPasswordsForDomainInput) => Promise<OperationResult<PasswordDetail[]>>;
+  assignBookmarkFolder: (input: AssignBookmarkFolderInput) => Promise<OperationResult>;
+  assignBookmarksFolder: (input: AssignBookmarksFolderInput) => Promise<OperationResult>;
+  assignBookmarkTag: (input: AssignBookmarkTagInput) => Promise<OperationResult>;
+  unassignBookmarkTag: (input: UnassignBookmarkTagInput) => Promise<OperationResult>;
+  assignBookmarksTag: (input: AssignBookmarksTagInput) => Promise<OperationResult>;
+  unassignBookmarksTag: (input: UnassignBookmarksTagInput) => Promise<OperationResult>;
+  exportBookmarks: (input?: { ids?: string[] }) => Promise<OperationResult<string>>;
+  importBookmarks: (input: ImportBookmarksInput) => Promise<OperationResult<ImportBookmarksResult>>;
+  renameBookmark: (input: { id: string; title: string }) => Promise<OperationResult<BookmarkSummary>>;
+  listBookmarks: () => Promise<OperationResult<BookmarkSummary[]>>;
+  deleteBookmark: (input: DeleteBookmarkInput) => Promise<OperationResult>;
+  updateBookmarkThumbnail: (input: UpdateBookmarkThumbnailInput) => Promise<OperationResult<BookmarkSummary>>;
 };
 
 export type BrowserAPI = {
@@ -541,6 +605,8 @@ export type BrowserAPI = {
   getBrowserSettings: () => Promise<OperationResult<BrowserSettings>>;
   updateBrowserSettings: (input: UpdateBrowserSettingsInput) => Promise<OperationResult<BrowserSettings>>;
   listExtensionStartupErrors: () => Promise<OperationResult<ExtensionStartupError[]>>;
+  listFoldersTree: () => Promise<OperationResult<FolderNode[]>>;
+  listTags: () => Promise<OperationResult<TagSummary[]>>;
 };
 
 export type AuthScreenMode = 'login' | 'create-account' | 'loading';

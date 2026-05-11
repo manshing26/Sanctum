@@ -16,55 +16,28 @@ import type {
 const getMimeType = (filename: string): string => {
   const ext = path.extname(filename).toLowerCase();
   switch (ext) {
-    case '.jpg':
-    case '.jpeg':
-      return 'image/jpeg';
-    case '.png':
-      return 'image/png';
-    case '.gif':
-      return 'image/gif';
-    case '.webp':
-      return 'image/webp';
-    case '.mp4':
-      return 'video/mp4';
-    case '.webm':
-      return 'video/webm';
-    case '.mkv':
-      return 'video/x-matroska';
-    case '.mov':
-      return 'video/quicktime';
-    case '.heic':
-      return 'image/heic';
-    default:
-      return 'application/octet-stream';
+    case '.jpg': case '.jpeg': return 'image/jpeg';
+    case '.png': return 'image/png';
+    case '.gif': return 'image/gif';
+    case '.webp': return 'image/webp';
+    case '.mp4': return 'video/mp4';
+    case '.webm': return 'video/webm';
+    case '.mkv': return 'video/x-matroska';
+    case '.mov': return 'video/quicktime';
+    case '.heic': return 'image/heic';
+    default: return 'application/octet-stream';
   }
 };
 
-type EncryptedPayload = {
-  iv: string;
-  authTag: string;
-  data: string;
-};
+type EncryptedPayload = { iv: string; authTag: string; data: string };
+type MediaMetadata = { width?: number; height?: number; durationSeconds?: number };
+type ThumbnailInput = { mimeType: string; data: Buffer };
 
-type MediaMetadata = {
-  width?: number;
-  height?: number;
-  durationSeconds?: number;
-};
+type FolderRow = { id: number; name: string; parent_id: number | null };
 
-type ThumbnailInput = {
-  mimeType: string;
-  data: Buffer;
-};
-
-type FolderRow = {
-  id: number;
-  name: string;
-  parent_id: number | null;
-};
-
+// Row returned by queries that JOIN vault_items + vault_objects
 type ItemRow = {
-  id: string;
+  vault_object_id: string;
   original_filename_enc: Buffer;
   created_at: string;
   file_size: number;
@@ -79,7 +52,7 @@ type ItemRow = {
 };
 
 type MediaItemRow = {
-  id: string;
+  vault_object_id: string;
   encrypted_filename: string;
   mime_type: string;
   file_size: number;
@@ -89,22 +62,30 @@ type MediaItemRow = {
 };
 
 type ExportItemRow = {
-  id: string;
+  vault_object_id: string;
   encrypted_filename: string;
   original_filename_enc: Buffer;
   iv: Buffer;
   auth_tag: Buffer;
 };
 
+const ITEM_SELECT = `
+  SELECT vi.vault_object_id, vi.original_filename_enc, vi.file_size, vi.mime_type,
+         vi.media_width, vi.media_height, vi.media_duration_seconds, vi.thumbnail_enc,
+         vo.created_at, vo.is_favorite, vo.rating, vo.folder_id
+  FROM vault_items vi
+  INNER JOIN vault_objects vo ON vo.id = vi.vault_object_id
+`;
+
 const SORT_TO_ORDER_BY: Record<ListItemsQueryInput['sort'], string> = {
-  newest: 'datetime(created_at) DESC, id DESC',
-  oldest: 'datetime(created_at) ASC, id ASC',
-  name_asc: 'datetime(created_at) DESC, id DESC',
-  rating_desc: 'COALESCE(rating, 0) DESC, datetime(created_at) DESC, id DESC',
-  rating_asc: 'COALESCE(rating, 0) ASC, datetime(created_at) ASC, id ASC',
-  name_desc: 'datetime(created_at) DESC, id DESC',
-  size_desc: 'file_size DESC, id DESC',
-  size_asc: 'file_size ASC, id ASC',
+  newest:      'datetime(vo.created_at) DESC, vo.id DESC',
+  oldest:      'datetime(vo.created_at) ASC,  vo.id ASC',
+  name_asc:    'datetime(vo.created_at) DESC, vo.id DESC',
+  name_desc:   'datetime(vo.created_at) DESC, vo.id DESC',
+  rating_desc: "COALESCE(vo.rating, 0) DESC, datetime(vo.created_at) DESC, vo.id DESC",
+  rating_asc:  "COALESCE(vo.rating, 0) ASC,  datetime(vo.created_at) ASC,  vo.id ASC",
+  size_desc:   'vi.file_size DESC, vo.id DESC',
+  size_asc:    'vi.file_size ASC,  vo.id ASC',
 };
 
 const logger = getLogger('vault');
@@ -161,73 +142,54 @@ export class VaultService {
     while (counter < Number.MAX_SAFE_INTEGER) {
       const suffix = counter === 0 ? '' : ` (${counter + 1})`;
       const candidate = path.join(targetDir, `${base}${suffix}${ext}`);
-      try {
-        await fs.access(candidate);
-        counter += 1;
-      } catch {
-        return candidate;
-      }
+      try { await fs.access(candidate); counter += 1; } catch { return candidate; }
     }
-
     throw new Error('Unable to resolve a unique export path.');
   }
 
   private resolveFolderPath(folderId: number | null, folderById: Map<number, FolderRow>): string | undefined {
-    if (folderId === null) {
-      return undefined;
-    }
-
+    if (folderId === null) return undefined;
     const parts: string[] = [];
     let cursor: number | null = folderId;
     while (cursor !== null) {
       const folder = folderById.get(cursor);
-      if (!folder) {
-        break;
-      }
-
+      if (!folder) break;
       parts.unshift(folder.name);
       cursor = folder.parent_id;
     }
-
     return parts.length > 0 ? parts.join('/') : undefined;
   }
 
   private mapRowsToItems(rows: ItemRow[]): VaultItemSummary[] {
-    const folderRows = this.db
-      .prepare('SELECT id, name, parent_id FROM folders')
-      .all() as FolderRow[];
+    const folderRows = this.db.prepare('SELECT id, name, parent_id FROM folders').all() as FolderRow[];
     const folderById = new Map(folderRows.map((row) => [row.id, row]));
 
-    const itemIds = rows.map((row) => row.id);
+    const itemIds = rows.map((row) => row.vault_object_id);
     const tagsByItemId = new Map<string, Array<{ id: number; name: string }>>();
     if (itemIds.length > 0) {
       const placeholders = itemIds.map(() => '?').join(', ');
       const tagRows = this.db
         .prepare(
-          `SELECT it.item_id, t.id AS tag_id, t.name AS tag_name
-           FROM item_tags it
-           INNER JOIN tags t ON t.id = it.tag_id
-           WHERE it.item_id IN (${placeholders})
-           ORDER BY t.name COLLATE NOCASE`
+          `SELECT ot.object_id, t.id AS tag_id, t.name AS tag_name
+           FROM object_tags ot
+           INNER JOIN tags t ON t.id = ot.tag_id
+           WHERE ot.object_id IN (${placeholders})
+           ORDER BY t.name COLLATE NOCASE`,
         )
-        .all(...itemIds) as Array<{
-        item_id: string;
-        tag_id: number;
-        tag_name: string;
-      }>;
+        .all(...itemIds) as Array<{ object_id: string; tag_id: number; tag_name: string }>;
 
       for (const tagRow of tagRows) {
-        const existing = tagsByItemId.get(tagRow.item_id) ?? [];
+        const existing = tagsByItemId.get(tagRow.object_id) ?? [];
         existing.push({ id: tagRow.tag_id, name: tagRow.tag_name });
-        tagsByItemId.set(tagRow.item_id, existing);
+        tagsByItemId.set(tagRow.object_id, existing);
       }
     }
 
     return rows.map((row) => {
-      const itemTags = tagsByItemId.get(row.id) ?? [];
+      const itemTags = tagsByItemId.get(row.vault_object_id) ?? [];
       const isVideo = row.mime_type.startsWith('video/');
       return {
-        id: row.id,
+        id: row.vault_object_id,
         originalName: this.decryptOriginalName(row.original_filename_enc),
         createdAt: row.created_at,
         size: row.file_size,
@@ -254,12 +216,8 @@ export class VaultService {
     overrideName?: string,
   ): Promise<VaultItemSummary> {
     if (folderId !== null && folderId !== undefined) {
-      const folderExists = this.db
-        .prepare('SELECT 1 FROM folders WHERE id = ?')
-        .get(folderId) as { 1: number } | undefined;
-      if (!folderExists) {
-        throw new Error('Folder not found.');
-      }
+      const folderExists = this.db.prepare('SELECT 1 FROM folders WHERE id = ?').get(folderId) as { 1: number } | undefined;
+      if (!folderExists) throw new Error('Folder not found.');
     }
 
     const key = this.sessionStore.getMasterKey();
@@ -277,7 +235,6 @@ export class VaultService {
       Buffer.from(overrideName ?? path.basename(sourcePath), 'utf8'),
       key,
     );
-
     const originalFilenameEnc = Buffer.from(
       JSON.stringify({
         iv: originalNamePayload.iv.toString('base64'),
@@ -288,54 +245,37 @@ export class VaultService {
     );
 
     const mimeType = getMimeType(sourcePath);
-    const sanitizedDurationSeconds =
-      mimeType.startsWith('video/') ? metadata.durationSeconds : undefined;
-    const encryptedThumbnail = thumbnail
-      ? this.cryptoService.encryptBuffer(thumbnail.data, key)
-      : undefined;
+    const sanitizedDurationSeconds = mimeType.startsWith('video/') ? metadata.durationSeconds : undefined;
+    const encryptedThumbnail = thumbnail ? this.cryptoService.encryptBuffer(thumbnail.data, key) : undefined;
 
-    this.db
-      .prepare(
+    const tx = this.db.transaction(() => {
+      this.db.prepare(
+        `INSERT INTO vault_objects (id, type, folder_id, is_favorite, rating, created_at, updated_at)
+         VALUES (?, 'file', ?, 0, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      ).run(itemId, folderId ?? null);
+
+      this.db.prepare(
         `INSERT INTO vault_items (
-           id,
-           encrypted_filename,
-           original_filename_enc,
-           mime_type,
-           file_size,
-           folder_id,
-           media_width,
-           media_height,
-           media_duration_seconds,
-           thumbnail_mime_type,
-           thumbnail_enc,
-           thumbnail_iv,
-           thumbnail_auth_tag,
-           content_hash,
-           iv,
-           auth_tag
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        itemId,
-        encryptedFilename,
-        originalFilenameEnc,
-        mimeType,
-        fileBuffer.byteLength,
-        folderId ?? null,
-        metadata.width ?? null,
-        metadata.height ?? null,
-        sanitizedDurationSeconds ?? null,
+           vault_object_id, encrypted_filename, original_filename_enc, mime_type, file_size,
+           media_width, media_height, media_duration_seconds,
+           thumbnail_mime_type, thumbnail_enc, thumbnail_iv, thumbnail_auth_tag,
+           content_hash, iv, auth_tag
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        itemId, encryptedFilename, originalFilenameEnc, mimeType, fileBuffer.byteLength,
+        metadata.width ?? null, metadata.height ?? null, sanitizedDurationSeconds ?? null,
         thumbnail?.mimeType ?? null,
         encryptedThumbnail?.encrypted ?? null,
         encryptedThumbnail?.iv ?? null,
         encryptedThumbnail?.authTag ?? null,
         contentHash,
-        encryptedFile.iv,
-        encryptedFile.authTag,
+        encryptedFile.iv, encryptedFile.authTag,
       );
+    });
+    tx();
 
     const created = this.db
-      .prepare('SELECT created_at FROM vault_items WHERE id = ?')
+      .prepare('SELECT created_at FROM vault_objects WHERE id = ?')
       .get(itemId) as { created_at: string };
 
     return {
@@ -356,12 +296,7 @@ export class VaultService {
   listItems(limit = 50): VaultItemSummary[] {
     this.ensureUnlocked();
     const rows = this.db
-      .prepare(
-        `SELECT id, original_filename_enc, created_at, file_size, mime_type, is_favorite, rating, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
-         FROM vault_items
-         ORDER BY datetime(created_at) DESC
-         LIMIT ?`
-      )
+      .prepare(`${ITEM_SELECT} ORDER BY datetime(vo.created_at) DESC LIMIT ?`)
       .all(limit) as ItemRow[];
     return this.mapRowsToItems(rows);
   }
@@ -373,51 +308,27 @@ export class VaultService {
     const offset = Math.max(0, input.offset || 0);
     const needsNameSort = sort === 'name_asc' || sort === 'name_desc';
 
-    const totalRow = this.db.prepare('SELECT COUNT(1) AS total FROM vault_items').get() as {
-      total: number;
-    };
+    const totalRow = this.db
+      .prepare("SELECT COUNT(1) AS total FROM vault_objects WHERE type = 'file'")
+      .get() as { total: number };
     const total = totalRow.total;
 
     if (needsNameSort) {
-      const allRows = this.db
-        .prepare(
-          `SELECT id, original_filename_enc, created_at, file_size, mime_type, is_favorite, rating, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
-           FROM vault_items`
-        )
-        .all() as ItemRow[];
-
+      const allRows = this.db.prepare(`${ITEM_SELECT}`).all() as ItemRow[];
       const allItems = this.mapRowsToItems(allRows).sort((a, b) => {
-        const compared = a.originalName.localeCompare(b.originalName, undefined, {
-          sensitivity: 'base',
-        });
+        const compared = a.originalName.localeCompare(b.originalName, undefined, { sensitivity: 'base' });
         return sort === 'name_asc' ? compared : -compared;
       });
-
       const items = allItems.slice(offset, offset + limit);
-      return {
-        items,
-        total,
-        hasMore: offset + items.length < total,
-      };
+      return { items, total, hasMore: offset + items.length < total };
     }
 
     const orderBy = SORT_TO_ORDER_BY[sort];
     const rows = this.db
-      .prepare(
-        `SELECT id, original_filename_enc, created_at, file_size, mime_type, is_favorite, rating, folder_id, media_width, media_height, media_duration_seconds, thumbnail_enc
-         FROM vault_items
-         ORDER BY ${orderBy}
-         LIMIT ?
-         OFFSET ?`
-      )
+      .prepare(`${ITEM_SELECT} ORDER BY ${orderBy} LIMIT ? OFFSET ?`)
       .all(limit, offset) as ItemRow[];
-
     const items = this.mapRowsToItems(rows);
-    return {
-      items,
-      total,
-      hasMore: offset + items.length < total,
-    };
+    return { items, total, hasMore: offset + items.length < total };
   }
 
   getItemThumbnail(itemId: string): ItemThumbnail {
@@ -425,72 +336,48 @@ export class VaultService {
     const row = this.db
       .prepare(
         `SELECT thumbnail_mime_type, thumbnail_enc, thumbnail_iv, thumbnail_auth_tag
-         FROM vault_items
-         WHERE id = ?`
+         FROM vault_items WHERE vault_object_id = ?`,
       )
-      .get(itemId) as
-      | {
-          thumbnail_mime_type: string | null;
-          thumbnail_enc: Buffer | null;
-          thumbnail_iv: Buffer | null;
-          thumbnail_auth_tag: Buffer | null;
-        }
-      | undefined;
+      .get(itemId) as {
+        thumbnail_mime_type: string | null;
+        thumbnail_enc: Buffer | null;
+        thumbnail_iv: Buffer | null;
+        thumbnail_auth_tag: Buffer | null;
+      } | undefined;
 
-    if (!row) {
-      throw new Error('Item not found.');
-    }
-
-    if (
-      !row.thumbnail_mime_type ||
-      !row.thumbnail_enc ||
-      !row.thumbnail_iv ||
-      !row.thumbnail_auth_tag
-    ) {
+    if (!row) throw new Error('Item not found.');
+    if (!row.thumbnail_mime_type || !row.thumbnail_enc || !row.thumbnail_iv || !row.thumbnail_auth_tag) {
       throw new Error('Thumbnail not available for this item.');
     }
 
     const key = this.sessionStore.getMasterKey();
     const decrypted = this.cryptoService.decryptBuffer(
-      {
-        iv: row.thumbnail_iv,
-        authTag: row.thumbnail_auth_tag,
-        encrypted: row.thumbnail_enc,
-      },
+      { iv: row.thumbnail_iv, authTag: row.thumbnail_auth_tag, encrypted: row.thumbnail_enc },
       key,
     );
-
-    return {
-      mimeType: row.thumbnail_mime_type,
-      base64Data: decrypted.toString('base64'),
-    };
+    return { mimeType: row.thumbnail_mime_type, base64Data: decrypted.toString('base64') };
   }
 
   setRating(itemId: string, rating: number | null): void {
     this.db
-      .prepare('UPDATE vault_items SET rating = ? WHERE id = ?')
+      .prepare(`UPDATE vault_objects SET rating = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
       .run(rating, itemId);
   }
 
   setFavorite(itemId: string, isFavorite: boolean): void {
     this.db
-      .prepare('UPDATE vault_items SET is_favorite = ? WHERE id = ?')
+      .prepare(`UPDATE vault_objects SET is_favorite = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
       .run(isFavorite ? 1 : 0, itemId);
   }
 
   renameItem(itemId: string, newName: string): void {
     const trimmed = newName.trim();
-    if (!trimmed) {
-      throw new Error('Name is required.');
-    }
+    if (!trimmed) throw new Error('Name is required.');
     const safeName = path.basename(trimmed);
-    if (!safeName) {
-      throw new Error('Name is invalid.');
-    }
-
+    if (!safeName) throw new Error('Name is invalid.');
     const encrypted = this.encryptOriginalName(safeName);
     this.db
-      .prepare('UPDATE vault_items SET original_filename_enc = ? WHERE id = ?')
+      .prepare('UPDATE vault_items SET original_filename_enc = ? WHERE vault_object_id = ?')
       .run(encrypted, itemId);
   }
 
@@ -498,75 +385,45 @@ export class VaultService {
     itemIds: string[],
     targetDir: string,
     onProgress?: (progress: {
-      total: number;
-      processed: number;
-      failed: number;
-      currentItemId?: string;
-      currentFile?: string;
+      total: number; processed: number; failed: number; currentItemId?: string; currentFile?: string;
     }) => void,
   ): Promise<{ exported: number; failed: number }> {
     const total = itemIds.length;
     let processed = 0;
     let failed = 0;
-
     await fs.access(targetDir);
 
     for (const itemId of itemIds) {
       try {
         const row = this.db
           .prepare(
-            `SELECT id, encrypted_filename, original_filename_enc, iv, auth_tag
-             FROM vault_items
-             WHERE id = ?`
+            `SELECT vi.vault_object_id, vi.encrypted_filename, vi.original_filename_enc, vi.iv, vi.auth_tag
+             FROM vault_items vi WHERE vi.vault_object_id = ?`,
           )
           .get(itemId) as ExportItemRow | undefined;
 
-        if (!row) {
-          throw new Error('Item not found.');
-        }
+        if (!row) throw new Error('Item not found.');
 
         const encryptedPath = path.join(this.vaultPaths.filesDir, row.encrypted_filename);
         const encryptedData = await fs.readFile(encryptedPath);
         const key = this.sessionStore.getMasterKey();
         const decrypted = this.cryptoService.decryptBuffer(
-          {
-            iv: row.iv,
-            authTag: row.auth_tag,
-            encrypted: encryptedData,
-          },
+          { iv: row.iv, authTag: row.auth_tag, encrypted: encryptedData },
           key,
         );
         const originalName = this.decryptOriginalName(row.original_filename_enc);
-        const safeOriginal = originalName && originalName !== 'unknown'
-          ? path.basename(originalName)
-          : `${row.id}`;
-        const resolvedName = safeOriginal || `${row.id}`;
-        const outputPath = await this.resolveUniqueExportPath(targetDir, resolvedName);
+        const safeOriginal = originalName && originalName !== 'unknown' ? path.basename(originalName) : `${row.vault_object_id}`;
+        const outputPath = await this.resolveUniqueExportPath(targetDir, safeOriginal || `${row.vault_object_id}`);
         await fs.writeFile(outputPath, decrypted);
-        onProgress?.({
-          total,
-          processed: processed + 1,
-          failed,
-          currentItemId: itemId,
-          currentFile: outputPath,
-        });
+        onProgress?.({ total, processed: processed + 1, failed, currentItemId: itemId, currentFile: outputPath });
       } catch {
         failed += 1;
-        onProgress?.({
-          total,
-          processed: processed + 1,
-          failed,
-          currentItemId: itemId,
-        });
+        onProgress?.({ total, processed: processed + 1, failed, currentItemId: itemId });
       } finally {
         processed += 1;
       }
     }
-
-    return {
-      exported: processed - failed,
-      failed,
-    };
+    return { exported: processed - failed, failed };
   }
 
   async clearAllItems(): Promise<{ deleted: number }> {
@@ -580,14 +437,12 @@ export class VaultService {
         await fs.unlink(filePath);
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException;
-        if (nodeError.code !== 'ENOENT') {
-          throw error;
-        }
+        if (nodeError.code !== 'ENOENT') throw error;
       }
     }
 
-    this.db.prepare('DELETE FROM item_tags').run();
-    this.db.prepare('DELETE FROM vault_items').run();
+    // CASCADE on vault_objects deletes vault_items and object_tags rows
+    this.db.prepare("DELETE FROM vault_objects WHERE type = 'file'").run();
     return { deleted: rows.length };
   }
 
@@ -599,13 +454,10 @@ export class VaultService {
     const folderItems = this.scanFolderItems(folderId);
     const nameToItem = new Map(folderItems.map((item) => [item.originalName.toLowerCase(), item]));
     const hashToItem = new Map(
-      folderItems
-        .filter((item) => item.contentHash !== null)
-        .map((item) => [item.contentHash as string, item]),
+      folderItems.filter((item) => item.contentHash !== null).map((item) => [item.contentHash as string, item]),
     );
 
     const conflicts: import('../../../shared/ipc').ConflictItem[] = [];
-
     for (const filePath of filePaths) {
       const fileName = path.basename(filePath);
       const fileBuffer = await fs.readFile(filePath);
@@ -617,23 +469,20 @@ export class VaultService {
       if (nameMatch) {
         const isExactDuplicate = nameMatch.contentHash === fileHash;
         conflicts.push({
-          filePath,
-          fileName,
+          filePath, fileName,
           existingItemId: nameMatch.id,
           existingItemName: nameMatch.originalName,
           conflictType: isExactDuplicate ? 'exact_duplicate' : 'name_conflict',
         });
       } else if (hashMatch) {
         conflicts.push({
-          filePath,
-          fileName,
+          filePath, fileName,
           existingItemId: hashMatch.id,
           existingItemName: hashMatch.originalName,
           conflictType: 'exact_duplicate',
         });
       }
     }
-
     return conflicts;
   }
 
@@ -641,18 +490,19 @@ export class VaultService {
     this.ensureUnlocked();
     const rows = this.db
       .prepare(
-        `SELECT id, original_filename_enc, content_hash
-         FROM vault_items
-         WHERE ${folderId === null ? 'folder_id IS NULL' : 'folder_id = ?'}`
+        `SELECT vi.vault_object_id, vi.original_filename_enc, vi.content_hash
+         FROM vault_items vi
+         INNER JOIN vault_objects vo ON vo.id = vi.vault_object_id
+         WHERE ${folderId === null ? 'vo.folder_id IS NULL' : 'vo.folder_id = ?'}`,
       )
       .all(...(folderId === null ? [] : [folderId])) as Array<{
-        id: string;
+        vault_object_id: string;
         original_filename_enc: Buffer;
         content_hash: string | null;
       }>;
 
     return rows.map((row) => ({
-      id: row.id,
+      id: row.vault_object_id,
       originalName: this.decryptOriginalName(row.original_filename_enc),
       contentHash: row.content_hash,
     }));
@@ -666,31 +516,26 @@ export class VaultService {
     folderId?: number | null,
   ): Promise<VaultItemSummary> {
     const metaRow = this.db
-      .prepare('SELECT rating, is_favorite FROM vault_items WHERE id = ?')
+      .prepare('SELECT rating, is_favorite FROM vault_objects WHERE id = ?')
       .get(existingItemId) as { rating: number | null; is_favorite: number | null } | undefined;
 
     const tagRows = this.db
-      .prepare('SELECT tag_id FROM item_tags WHERE item_id = ?')
+      .prepare('SELECT tag_id FROM object_tags WHERE object_id = ?')
       .all(existingItemId) as Array<{ tag_id: number }>;
 
     await this.deleteItem(existingItemId);
-
     const newItem = await this.addEncryptedFile(sourcePath, metadata, thumbnail, folderId);
 
     if (metaRow) {
-      if (metaRow.rating !== null) {
-        this.setRating(newItem.id, metaRow.rating);
-      }
-      if (metaRow.is_favorite) {
-        this.setFavorite(newItem.id, true);
-      }
+      if (metaRow.rating !== null) this.setRating(newItem.id, metaRow.rating);
+      if (metaRow.is_favorite) this.setFavorite(newItem.id, true);
     }
 
     if (tagRows.length > 0) {
       const placeholders = tagRows.map(() => '(?, ?)').join(', ');
       const values = tagRows.flatMap((r) => [newItem.id, r.tag_id]);
       this.db
-        .prepare(`INSERT OR IGNORE INTO item_tags (item_id, tag_id) VALUES ${placeholders}`)
+        .prepare(`INSERT OR IGNORE INTO object_tags (object_id, tag_id) VALUES ${placeholders}`)
         .run(...values);
     }
 
@@ -699,71 +544,54 @@ export class VaultService {
 
   async deleteItem(itemId: string): Promise<void> {
     const row = this.db
-      .prepare('SELECT encrypted_filename FROM vault_items WHERE id = ?')
+      .prepare('SELECT encrypted_filename FROM vault_items WHERE vault_object_id = ?')
       .get(itemId) as { encrypted_filename: string } | undefined;
 
-    if (!row) {
-      throw new Error('Item not found.');
-    }
+    if (!row) throw new Error('Item not found.');
 
     const filePath = path.join(this.vaultPaths.filesDir, row.encrypted_filename);
     try {
       await fs.unlink(filePath);
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code !== 'ENOENT') {
-        throw error;
-      }
+      if (nodeError.code !== 'ENOENT') throw error;
     }
 
-    this.db.prepare('DELETE FROM item_tags WHERE item_id = ?').run(itemId);
-    this.db.prepare('DELETE FROM vault_items WHERE id = ?').run(itemId);
+    // CASCADE on vault_objects deletes vault_items and object_tags rows
+    this.db.prepare('DELETE FROM vault_objects WHERE id = ?').run(itemId);
   }
 
   async getDecryptedMedia(itemId: string): Promise<{
-    itemId: string;
-    mimeType: string;
-    fileSize: number;
-    data: Buffer;
+    itemId: string; mimeType: string; fileSize: number; data: Buffer;
   }> {
     const row = this.db
       .prepare(
-        `SELECT id, encrypted_filename, mime_type, file_size, content_hash, iv, auth_tag
-         FROM vault_items
-         WHERE id = ?`
+        `SELECT vi.vault_object_id, vi.encrypted_filename, vi.mime_type, vi.file_size, vi.content_hash, vi.iv, vi.auth_tag
+         FROM vault_items vi WHERE vi.vault_object_id = ?`,
       )
       .get(itemId) as MediaItemRow | undefined;
 
-    if (!row) {
-      throw new Error('Item not found.');
-    }
+    if (!row) throw new Error('Item not found.');
 
     const encryptedPath = path.join(this.vaultPaths.filesDir, row.encrypted_filename);
     const encryptedData = await fs.readFile(encryptedPath);
     const key = this.sessionStore.getMasterKey();
     const decrypted = this.cryptoService.decryptBuffer(
-      {
-        iv: row.iv,
-        authTag: row.auth_tag,
-        encrypted: encryptedData,
-      },
+      { iv: row.iv, authTag: row.auth_tag, encrypted: encryptedData },
       key,
     );
+
     if (row.content_hash) {
       const decryptedHash = createHash('sha256').update(decrypted).digest('hex');
       if (decryptedHash !== row.content_hash) {
-        logger.error('content hash mismatch', {
-          itemId: row.id,
-          expected: row.content_hash,
-          actual: decryptedHash,
-        });
+        logger.error('content hash mismatch', { itemId: row.vault_object_id, expected: row.content_hash, actual: decryptedHash });
       } else {
-        logger.info('content hash ok', { itemId: row.id });
+        logger.info('content hash ok', { itemId: row.vault_object_id });
       }
     }
 
     return {
-      itemId: row.id,
+      itemId: row.vault_object_id,
       mimeType: row.mime_type || 'application/octet-stream',
       fileSize: row.file_size,
       data: decrypted,
