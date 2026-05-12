@@ -45,6 +45,9 @@ type GalleryListViewProps = {
   onExportItem?: (itemId: string) => void;
   onDeleteItem?: (itemId: string) => void;
   onRenameItem?: (itemId: string, newName: string) => void;
+  onGoToFolder?: (itemId: string) => void;
+  allVisibleSelected?: boolean;
+  onToggleSelectAllVisible?: () => void;
   hasMore: boolean;
   isLoadingMore: boolean;
   sentinelRef: React.RefObject<HTMLDivElement | null>;
@@ -65,6 +68,11 @@ const formatFileSize = (bytes: number): string => {
 };
 
 const isVideo = (mimeType: string): boolean => mimeType.startsWith('video/');
+const typeBadgeLabel = (item: VaultItemSummary): 'IMAGE' | 'VIDEO' | 'FILE' => {
+  if (item.mimeType.startsWith('video/')) return 'VIDEO';
+  if (item.mimeType.startsWith('image/')) return 'IMAGE';
+  return 'FILE';
+};
 
 // ── Single list row ──────────────────────────────────────────────────
 const ListRow: React.FC<{
@@ -87,6 +95,7 @@ const ListRow: React.FC<{
   onExport?: (itemId: string) => void;
   onDelete?: (itemId: string) => void;
   onRename?: (itemId: string, newName: string) => void;
+  onGoToFolder?: (itemId: string) => void;
   isMultiSelect: boolean;
 }> = ({
   index,
@@ -108,6 +117,7 @@ const ListRow: React.FC<{
   onExport,
   onDelete,
   onRename,
+  onGoToFolder,
   isMultiSelect,
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -118,9 +128,7 @@ const ListRow: React.FC<{
   const isOpenViewerDisabled = (): boolean => isOpenViewerDisabledForItem?.(item.id) ?? getContextTargetIds().length > 1;
   const openViewerDisabled = isOpenViewerDisabled();
 
-  const typeLabel = isVideo(item.mimeType)
-    ? 'video'
-    : (item.mimeType.split('/')[1] ?? 'file').toLowerCase();
+  const typeLabel = typeBadgeLabel(item);
 
   const infoLabel = isVideo(item.mimeType) && item.durationSeconds && item.durationSeconds > 0
     ? formatDuration(item.durationSeconds)
@@ -213,7 +221,7 @@ const ListRow: React.FC<{
         <div style={{ fontFamily: SERIF, fontSize: 13, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {item.originalName}
         </div>
-        <div style={{ fontFamily: MONO, fontSize: 9, color: T.mute, letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 1 }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', marginTop: 2, padding: '1px 5px', border: `1px solid ${T.line2}`, background: T.accentGlow, fontFamily: MONO, fontSize: 8, color: T.accent, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
           {typeLabel}
         </div>
       </div>
@@ -278,8 +286,11 @@ const ListRow: React.FC<{
               onToggleFavorite(item.id, !item.isFavorite);
             }}
           >
-            {contextTargetIds.length > 1 ? 'Toggle Favourites' : item.isFavorite ? 'Remove Favourite' : 'Add to Favourites'}
+            {item.isFavorite ? 'Unfavourite' : 'Favourite'}
           </ContextMenuItem>
+          {item.folderId != null && onGoToFolder && (
+            <ContextMenuItem onClick={() => onGoToFolder(item.id)}>Go to Folder</ContextMenuItem>
+          )}
           <ContextMenuItem
             onClick={() => {
               const targetIds = getContextTargetIds();
@@ -287,7 +298,7 @@ const ListRow: React.FC<{
               onOpenMoveDialog(item.id);
             }}
           >
-            {contextTargetIds.length > 1 ? 'Move Selected…' : 'Move to Folder…'}
+            Move to Folder
           </ContextMenuItem>
           {(onExport || onExportForIds) && (
             <ContextMenuItem
@@ -297,7 +308,7 @@ const ListRow: React.FC<{
                 onExport?.(item.id);
               }}
             >
-              {contextTargetIds.length > 1 ? 'Export Selected' : 'Export'}
+              Export
             </ContextMenuItem>
           )}
           {onRename && contextTargetIds.length === 1 && (
@@ -312,7 +323,7 @@ const ListRow: React.FC<{
               }}
               className="text-danger focus:text-danger"
             >
-              {contextTargetIds.length > 1 ? 'Delete Selected' : 'Delete'}
+              Delete
             </ContextMenuItem>
           )}
         </ContextMenuContent>
@@ -330,7 +341,43 @@ const ListRow: React.FC<{
 };
 
 // ── Column header ────────────────────────────────────────────────────
-const ListHeader: React.FC<{ isMultiSelect: boolean }> = ({ isMultiSelect }) => (
+const HeaderSelectBox: React.FC<{
+  visible: boolean;
+  checked: boolean;
+  onToggle?: () => void;
+}> = ({ visible, checked, onToggle }) => (
+  <button
+    type="button"
+    onClick={(event) => { event.stopPropagation(); onToggle?.(); }}
+    title={checked ? 'Clear selection' : 'Select all visible'}
+    aria-label={checked ? 'Clear selection' : 'Select all visible'}
+    disabled={!visible || !onToggle}
+    style={{
+      width: 14,
+      height: 14,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      border: visible ? `1px solid ${checked ? T.accent : T.mute2}` : '1px solid transparent',
+      background: visible && checked ? T.accent : 'transparent',
+      cursor: visible && onToggle ? 'pointer' : 'default',
+      padding: 0,
+      opacity: visible ? 1 : 0,
+    }}
+  >
+    {visible && checked && (
+      <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+        <path d="M1.5 4.5l2 2 4-4" stroke="#0a0c0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )}
+  </button>
+);
+
+const ListHeader: React.FC<{
+  isMultiSelect: boolean;
+  allVisibleSelected?: boolean;
+  onToggleSelectAllVisible?: () => void;
+}> = ({ isMultiSelect, allVisibleSelected = false, onToggleSelectAllVisible }) => (
   <div style={{
     display: 'grid',
     gridTemplateColumns: isMultiSelect
@@ -343,7 +390,13 @@ const ListHeader: React.FC<{ isMultiSelect: boolean }> = ({ isMultiSelect }) => 
     borderBottom: `1px solid ${T.line2}`,
     marginBottom: 0,
   }}>
-    {isMultiSelect && <span />}
+    {isMultiSelect && (
+      <HeaderSelectBox
+        visible={isMultiSelect}
+        checked={allVisibleSelected}
+        onToggle={onToggleSelectAllVisible}
+      />
+    )}
     <span style={{ fontFamily: MONO, fontSize: 8, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>№</span>
     <span />
     <span style={{ fontFamily: MONO, fontSize: 8, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Name</span>
@@ -377,6 +430,9 @@ export const GalleryListView = ({
   onExportItem,
   onDeleteItem,
   onRenameItem,
+  onGoToFolder,
+  allVisibleSelected,
+  onToggleSelectAllVisible,
   hasMore,
   isLoadingMore,
   sentinelRef,
@@ -413,7 +469,11 @@ export const GalleryListView = ({
       onMouseDown={onMouseDown}
       style={{ position: 'relative', minHeight: '100%', userSelect: 'none' }}
     >
-      <ListHeader isMultiSelect={isMultiSelect} />
+      <ListHeader
+        isMultiSelect={isMultiSelect}
+        allVisibleSelected={allVisibleSelected}
+        onToggleSelectAllVisible={onToggleSelectAllVisible}
+      />
 
       {items.map((item, idx) => (
         <ListRow
@@ -437,6 +497,7 @@ export const GalleryListView = ({
           onExport={onExportItem}
           onDelete={onDeleteItem}
           onRename={onRenameItem}
+          onGoToFolder={onGoToFolder}
           isMultiSelect={isMultiSelect}
         />
       ))}

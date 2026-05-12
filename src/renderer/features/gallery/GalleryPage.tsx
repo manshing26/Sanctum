@@ -526,6 +526,23 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
         }),
   };
 
+  const allVisibleSelected = filteredItems.length > 0 && filteredItems.every((item) => selectedItemIds.includes(item.id));
+  const handleSelectAllVisible = (): void => {
+    setIsMultiSelect(true);
+    setSelectedItems(filteredItems.map((item) => item.id));
+    if (filteredItems.length > 0) setShowInspector(true);
+  };
+  const handleClearBulkSelection = (): void => {
+    clearSelection();
+  };
+  const handleToggleSelectAllVisible = (): void => {
+    if (allVisibleSelected) {
+      handleClearBulkSelection();
+      return;
+    }
+    handleSelectAllVisible();
+  };
+
   const sharedViewProps = {
     items: filteredItems.slice(0, renderCount),
     thumbnails,
@@ -548,6 +565,8 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
     onExportItem: (itemId: string) => void handleExportItem(itemId),
     onDeleteItem: (itemId: string) => void handleDeleteItem(itemId),
     onRenameItem: (itemId: string, newName: string) => void handleRenameItem(itemId, newName),
+    allVisibleSelected,
+    onToggleSelectAllVisible: handleToggleSelectAllVisible,
     hasMore: renderCount < filteredItems.length,
     isLoadingMore,
     sentinelRef,
@@ -628,6 +647,9 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
           onViewModeChange={setViewMode}
           isMultiSelect={isMultiSelect}
           onToggleMultiSelect={handleToggleMultiSelect}
+          onSelectAllVisible={handleSelectAllVisible}
+          onClearSelection={handleClearBulkSelection}
+          allVisibleSelected={allVisibleSelected}
           showSidebar={showSidebar}
           onToggleSidebar={() => setShowSidebar((p) => !p)}
           itemCount={filteredItems.length}

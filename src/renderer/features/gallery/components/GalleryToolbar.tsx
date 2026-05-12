@@ -64,10 +64,15 @@ type GalleryToolbarProps = {
   onViewModeChange: (mode: 'grid' | 'list') => void;
   isMultiSelect: boolean;
   onToggleMultiSelect: () => void;
+  onSelectAllVisible: () => void;
+  onClearSelection: () => void;
+  allVisibleSelected: boolean;
   showSidebar: boolean;
   onToggleSidebar: () => void;
   itemCount: number;
   selectedFolderName: string | null;
+  subtitle?: string;
+  breadcrumb?: string | null;
   selectedViewScope: 'all' | 'video' | 'image' | 'root' | 'folder' | 'bookmark';
   isBookmarkScope?: boolean;
   // Tag filter bar props (inlined)
@@ -114,10 +119,15 @@ export const GalleryToolbar = ({
   onViewModeChange,
   isMultiSelect,
   onToggleMultiSelect,
+  onSelectAllVisible,
+  onClearSelection,
+  allVisibleSelected,
   showSidebar,
   onToggleSidebar,
   itemCount,
   selectedFolderName,
+  subtitle,
+  breadcrumb,
   selectedViewScope,
   isBookmarkScope,
   tags,
@@ -174,11 +184,16 @@ export const GalleryToolbar = ({
 
         {/* Title */}
         <div style={{ flex: 1, minWidth: 0 }}>
+          {breadcrumb && (
+            <div style={{ fontFamily: MONO, fontSize: 8, color: T.mute2, letterSpacing: '0.08em', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>
+              {breadcrumb}
+            </div>
+          )}
           <div style={{ fontFamily: SERIF, fontSize: 22, fontWeight: 400, color: T.text, letterSpacing: '-0.02em', lineHeight: 1 }}>
             {titleLabel}
           </div>
           <div style={{ fontFamily: MONO, fontSize: 9, color: T.mute, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 3 }}>
-            {itemCount} {itemCount === 1 ? 'object' : 'objects'} · encrypted · aes-256-gcm
+            {subtitle ?? `${itemCount} ${itemCount === 1 ? 'object' : 'objects'} · encrypted · aes-256-gcm`}
           </div>
         </div>
 
@@ -387,6 +402,52 @@ export const GalleryToolbar = ({
             {selectedCount > 0 ? `${selectedCount} selected` : 'Select items'}
           </span>
 
+          <button
+            type="button"
+            onClick={onSelectAllVisible}
+            disabled={itemCount === 0 || allVisibleSelected}
+            style={{
+              height: 22,
+              padding: '0 8px',
+              background: 'none',
+              border: `1px solid ${T.line2}`,
+              cursor: itemCount === 0 || allVisibleSelected ? 'default' : 'pointer',
+              color: itemCount === 0 || allVisibleSelected ? T.mute2 : T.mute,
+              opacity: itemCount === 0 || allVisibleSelected ? 0.5 : 1,
+              fontFamily: MONO,
+              fontSize: 9,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              flexShrink: 0,
+              borderRadius: 0,
+            }}
+          >
+            Select all visible
+          </button>
+
+          <button
+            type="button"
+            onClick={onClearSelection}
+            disabled={selectedCount === 0}
+            style={{
+              height: 22,
+              padding: '0 8px',
+              background: 'none',
+              border: `1px solid ${T.line2}`,
+              cursor: selectedCount === 0 ? 'default' : 'pointer',
+              color: selectedCount === 0 ? T.mute2 : T.mute,
+              opacity: selectedCount === 0 ? 0.5 : 1,
+              fontFamily: MONO,
+              fontSize: 9,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              flexShrink: 0,
+              borderRadius: 0,
+            }}
+          >
+            Clear
+          </button>
+
           {selectedCount > 0 && (
             <>
               <div style={{ width: 1, height: 14, background: T.line2, margin: '0 4px' }} />
@@ -421,6 +482,7 @@ export const GalleryToolbar = ({
       )}
 
       {/* Tag filter row */}
+      {!isMultiSelect && (
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '6px 20px',
@@ -429,23 +491,21 @@ export const GalleryToolbar = ({
         overflowX: 'auto',
       }}>
         {/* Multi-select toggle when not active */}
-        {!isMultiSelect && (
-          <button
-            type="button"
-            onClick={onToggleMultiSelect}
-            title="Bulk edit"
-            style={{
-              height: 22, padding: '0 8px',
-              background: 'none', border: `1px solid ${T.line2}`,
-              cursor: 'pointer', color: T.mute2,
-              fontFamily: MONO, fontSize: 9,
-              letterSpacing: '0.06em', textTransform: 'uppercase',
-              flexShrink: 0, borderRadius: 0,
-            }}
-          >
-            Select
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onToggleMultiSelect}
+          title="Bulk edit"
+          style={{
+            height: 22, padding: '0 8px',
+            background: 'none', border: `1px solid ${T.line2}`,
+            cursor: 'pointer', color: T.mute2,
+            fontFamily: MONO, fontSize: 9,
+            letterSpacing: '0.06em', textTransform: 'uppercase',
+            flexShrink: 0, borderRadius: 0,
+          }}
+        >
+          Select
+        </button>
 
         <div style={{ width: 1, height: 14, background: T.line2, flexShrink: 0 }} />
 
@@ -557,6 +617,7 @@ export const GalleryToolbar = ({
           </button>
         )}
       </div>
+      )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>

@@ -36,6 +36,7 @@ type ItemDetailsPanelProps = {
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
   onRenameItem: (itemId: string, newName: string) => void;
   onSetRating: (itemId: string, rating: number | null) => void;
+  onGoToFolder?: (itemId: string) => void;
   selectedCount: number;
 };
 
@@ -76,6 +77,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
   onToggleFavorite,
   onRenameItem,
   onSetRating,
+  onGoToFolder,
   selectedCount,
 }) => {
   const [isRenaming, setIsRenaming] = useState(false);
@@ -227,6 +229,14 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
           </svg>
         </button>
       </div>
+      {item.folderId != null && onGoToFolder && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+          <button type="button" onClick={() => onGoToFolder(item.id)} style={{ ...actionBtn('ghost'), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M1 8V3a1 1 0 0 1 1-1h2l1 1h3a1 1 0 0 1 1 1v4z" /></svg>
+            Go to Folder
+          </button>
+        </div>
+      )}
 
       <div style={{ borderTop: `1px solid ${T.line}`, marginBottom: 14 }} />
 

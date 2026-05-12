@@ -41,6 +41,7 @@ type GalleryCardProps = {
   onExport?: (itemId: string) => void;
   onDelete?: (itemId: string) => void;
   onRename?: (itemId: string, newName: string) => void;
+  onGoToFolder?: (itemId: string) => void;
   isMultiSelect: boolean;
   tags?: TagSummary[];
 };
@@ -60,6 +61,11 @@ const formatFileSize = (bytes: number): string => {
 
 const isVideo = (mimeType: string): boolean => mimeType.startsWith('video/');
 const isGif = (mimeType: string): boolean => mimeType === 'image/gif';
+const typeBadgeLabel = (item: VaultItemSummary): 'IMAGE' | 'VIDEO' | 'FILE' => {
+  if (item.mimeType.startsWith('video/')) return 'VIDEO';
+  if (item.mimeType.startsWith('image/')) return 'IMAGE';
+  return 'FILE';
+};
 
 export const GalleryCard = ({
   item,
@@ -80,6 +86,7 @@ export const GalleryCard = ({
   onExport,
   onDelete,
   onRename,
+  onGoToFolder,
   isMultiSelect,
   tags = [],
 }: GalleryCardProps): React.JSX.Element => {
@@ -91,6 +98,7 @@ export const GalleryCard = ({
   const isOpenViewerDisabled = (): boolean => isOpenViewerDisabledForItem?.(item.id) ?? getContextTargetIds().length > 1;
   const openViewerDisabled = isOpenViewerDisabled();
   const mediaType = isVideo(item.mimeType) ? 'video' : isGif(item.mimeType) ? 'gif' : 'image';
+  const badgeLabel = typeBadgeLabel(item);
   const itemTags = (item.tagIds ?? [])
     .map((tagId) => tags.find((tag) => tag.id === tagId))
     .filter((tag): tag is TagSummary => Boolean(tag));
@@ -174,24 +182,21 @@ export const GalleryCard = ({
         </button>
 
         {/* Type badge */}
-        {(mediaType === 'video' || mediaType === 'gif') && (
-          <div style={{
-            position: 'absolute', top: isMultiSelect ? 30 : 7, left: 7, zIndex: 10,
-            padding: '2px 6px',
-            background: 'rgba(0,0,0,0.75)',
-            fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em',
-            color: T.mute,
-            display: 'flex', alignItems: 'center', gap: 4,
-          }}>
-            {mediaType === 'video' && (
-              <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="currentColor" strokeWidth="1.3">
-                <rect x="0.5" y="1" width="5" height="7" /><polyline points="5.5,2.5 8.5,1 8.5,8 5.5,6.5" />
-              </svg>
-            )}
-            {mediaType === 'video' ? 'VIDEO' : 'GIF'}
-          </div>
-        )}
-
+        <div style={{
+          position: 'absolute', top: isMultiSelect ? 30 : 7, left: 7, zIndex: 10,
+          padding: '2px 6px',
+          background: 'rgba(0,0,0,0.75)',
+          fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em',
+          color: T.mute,
+          display: 'flex', alignItems: 'center', gap: 4,
+        }}>
+          {badgeLabel === 'VIDEO' && (
+            <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="currentColor" strokeWidth="1.3">
+              <rect x="0.5" y="1" width="5" height="7" /><polyline points="5.5,2.5 8.5,1 8.5,8 5.5,6.5" />
+            </svg>
+          )}
+          {badgeLabel}
+        </div>
         {primaryTag && (
           <div style={{
             position: 'absolute', bottom: 7, left: 7, zIndex: 10,
@@ -281,7 +286,7 @@ export const GalleryCard = ({
             {item.width && item.height ? ` · ${item.width}×${item.height}` : ''}
           </span>
           {item.rating !== undefined && item.rating > 0 && (
-            <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9, color: T.accent }}>
+            <span title={`${item.rating}/5 rating`} style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9, color: T.accent }}>
               {'·'.repeat(item.rating)}
             </span>
           )}
@@ -313,8 +318,11 @@ export const GalleryCard = ({
               onToggleFavorite(item.id, !item.isFavorite);
             }}
           >
-            {contextTargetIds.length > 1 ? 'Toggle Favourites' : item.isFavorite ? 'Remove Favourite' : 'Add to Favourites'}
+            {item.isFavorite ? 'Unfavourite' : 'Favourite'}
           </ContextMenuItem>
+          {item.folderId != null && onGoToFolder && (
+            <ContextMenuItem onClick={() => onGoToFolder(item.id)}>Go to Folder</ContextMenuItem>
+          )}
           {(onOpenMoveDialog || onOpenMoveDialogForIds) && (
             <ContextMenuItem
               onClick={() => {
@@ -323,7 +331,7 @@ export const GalleryCard = ({
                 onOpenMoveDialog?.(item.id);
               }}
             >
-              {contextTargetIds.length > 1 ? 'Move Selected…' : 'Move to Folder…'}
+              Move to Folder
             </ContextMenuItem>
           )}
           {(onExport || onExportForIds) && (
@@ -334,7 +342,7 @@ export const GalleryCard = ({
                 onExport?.(item.id);
               }}
             >
-              {contextTargetIds.length > 1 ? 'Export Selected' : 'Export'}
+              Export
             </ContextMenuItem>
           )}
           {onRename && contextTargetIds.length === 1 && (
@@ -349,7 +357,7 @@ export const GalleryCard = ({
               }}
               className="text-danger focus:text-danger"
             >
-              {contextTargetIds.length > 1 ? 'Delete Selected' : 'Delete'}
+              Delete
             </ContextMenuItem>
           )}
         </ContextMenuContent>

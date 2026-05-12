@@ -33,6 +33,7 @@ type GalleryGridProps = {
   onExportItem?: (itemId: string) => void;
   onDeleteItem?: (itemId: string) => void;
   onRenameItem?: (itemId: string, newName: string) => void;
+  onGoToFolder?: (itemId: string) => void;
   hasMore: boolean;
   isLoadingMore: boolean;
   sentinelRef: React.RefObject<HTMLDivElement | null>;
@@ -62,6 +63,7 @@ export const GalleryGrid = ({
   onExportItem,
   onDeleteItem,
   onRenameItem,
+  onGoToFolder,
   hasMore,
   isLoadingMore,
   sentinelRef,
@@ -125,6 +127,7 @@ export const GalleryGrid = ({
             onExport={onExportItem}
             onDelete={onDeleteItem}
             onRename={onRenameItem}
+            onGoToFolder={onGoToFolder}
             isMultiSelect={isMultiSelect}
             tags={tags}
           />

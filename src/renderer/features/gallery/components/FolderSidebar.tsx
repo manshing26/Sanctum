@@ -36,6 +36,8 @@ type FolderSidebarProps = {
   newFolderParentId: number | null;
   onNewFolderParentIdChange: (value: number | null) => void;
   onCreateFolder: () => void;
+  createDialogOpen?: boolean;
+  onCreateDialogOpenChange?: (open: boolean) => void;
   onDeleteFolder: (folderId: number) => void;
   onRenameFolder: (folderId: number, name: string) => Promise<boolean>;
   onMoveFolder: (folderId: number, parentId: number | null) => Promise<boolean>;
@@ -196,11 +198,15 @@ export const FolderSidebar = ({
   newFolderParentId,
   onNewFolderParentIdChange,
   onCreateFolder,
+  createDialogOpen,
+  onCreateDialogOpenChange,
   onDeleteFolder,
   onRenameFolder,
   onMoveFolder,
 }: FolderSidebarProps): React.JSX.Element => {
-  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
+  const [internalShowNewFolderDialog, setInternalShowNewFolderDialog] = useState(false);
+  const showNewFolderDialog = createDialogOpen ?? internalShowNewFolderDialog;
+  const setShowNewFolderDialog = onCreateDialogOpenChange ?? setInternalShowNewFolderDialog;
   const [editingFolder, setEditingFolder] = useState<FolderNode | null>(null);
   const [editName, setEditName] = useState('');
   const [editParentId, setEditParentId] = useState<number | null>(null);

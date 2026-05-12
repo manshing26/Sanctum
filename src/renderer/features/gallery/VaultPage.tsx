@@ -156,9 +156,49 @@ const ListSelectionMark: React.FC<{ selected: boolean; visible: boolean }> = ({ 
   </div>
 );
 
+type ObjectTypeLabel = 'IMAGE' | 'VIDEO' | 'FILE' | 'BOOKMARK';
+
+const fileTypeLabel = (item: VaultItemSummary): ObjectTypeLabel => {
+  if (item.mimeType.startsWith('image/')) return 'IMAGE';
+  if (item.mimeType.startsWith('video/')) return 'VIDEO';
+  return 'FILE';
+};
+
+const TypeBadge: React.FC<{ label: ObjectTypeLabel; variant?: 'overlay' | 'inline' }> = ({ label, variant = 'inline' }) => (
+  <span
+    title={label.toLowerCase()}
+    style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      flexShrink: 0,
+      padding: variant === 'overlay' ? '2px 6px' : '1px 5px',
+      background: variant === 'overlay' ? 'rgba(0,0,0,0.75)' : T.accentGlow,
+      border: variant === 'overlay' ? 'none' : `1px solid ${T.line2}`,
+      fontFamily: MONO,
+      fontSize: variant === 'overlay' ? 9 : 8,
+      letterSpacing: variant === 'overlay' ? '0.08em' : '0.06em',
+      color: variant === 'overlay' ? T.mute : T.accent,
+      lineHeight: 1.3,
+    }}
+  >
+    {label}
+  </span>
+);
+
+const GridRating: React.FC<{ rating?: number }> = ({ rating }) => {
+  const value = rating ?? 0;
+  if (value <= 0) return null;
+  return (
+    <span title={`${value}/5 rating`} style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9, color: T.accent, flexShrink: 0 }}>
+      {'·'.repeat(value)}
+    </span>
+  );
+};
+
 const ListRating: React.FC<{ rating?: number }> = ({ rating }) => (
   <span
     className="pv-list-col-rating"
+    title={`${rating ?? 0}/5 rating`}
     style={{
       fontFamily: MONO,
       fontSize: 10,
@@ -199,9 +239,39 @@ const ListFavoriteButton: React.FC<{
   </button>
 );
 
-const MixedListHeader: React.FC = () => (
-  <div className="pv-list-row pv-list-header" aria-hidden="true">
-    <span />
+const HeaderSelectBox: React.FC<{
+  visible: boolean;
+  checked: boolean;
+  onToggle: () => void;
+}> = ({ visible, checked, onToggle }) => (
+  <button
+    type="button"
+    onClick={(event) => { event.stopPropagation(); onToggle(); }}
+    title={checked ? 'Clear selection' : 'Select all visible'}
+    aria-label={checked ? 'Clear selection' : 'Select all visible'}
+    style={{
+      width: 14,
+      height: 14,
+      border: visible ? `1px solid ${checked ? T.accent : T.line2}` : '1px solid transparent',
+      background: visible && checked ? T.accent : 'transparent',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 0,
+      cursor: visible ? 'pointer' : 'default',
+    }}
+  >
+    {visible && checked && <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="#0a0c0b" strokeWidth="1.8"><path d="M1.5 4l2 2 3-3" /></svg>}
+  </button>
+);
+
+const MixedListHeader: React.FC<{
+  isMultiSelect: boolean;
+  allVisibleSelected: boolean;
+  onToggleSelectAllVisible: () => void;
+}> = ({ isMultiSelect, allVisibleSelected, onToggleSelectAllVisible }) => (
+  <div className="pv-list-row pv-list-header">
+    <HeaderSelectBox visible={isMultiSelect} checked={allVisibleSelected} onToggle={onToggleSelectAllVisible} />
     <span />
     <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Title</span>
     <span className="pv-list-col-rating" style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Rating</span>
@@ -223,6 +293,69 @@ const ListTagChip: React.FC<{ tag: Pick<TagSummary, 'id' | 'name' | 'color'> }> 
   </span>
 );
 
+const EmptyVaultState: React.FC<{
+  message: string;
+  canImport?: boolean;
+  canCreateFolder?: boolean;
+  canClearFilters?: boolean;
+  onImport?: () => void;
+  onCreateFolder?: () => void;
+  onClearFilters?: () => void;
+}> = ({ message, canImport, canCreateFolder, canClearFilters, onImport, onCreateFolder, onClearFilters }) => (
+  <div style={{
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    gap: 12, padding: '64px 0',
+    border: `1px dashed ${T.line2}`,
+  }}>
+    <svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke={T.mute2} strokeWidth="1.2">
+      <rect x="3" y="3" width="12" height="12" /><rect x="21" y="3" width="12" height="12" />
+      <rect x="3" y="21" width="12" height="12" /><rect x="21" y="21" width="12" height="12" />
+    </svg>
+    <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute2, letterSpacing: '0.06em', margin: 0 }}>{message}</p>
+    {(canImport || canCreateFolder || canClearFilters) && (
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {canClearFilters && (
+          <button type="button" onClick={onClearFilters} style={{ height: 28, padding: '0 12px', border: `1px solid ${T.line2}`, background: 'none', color: T.mute, fontFamily: MONO, fontSize: 10, cursor: 'pointer' }}>
+            Clear Search/Filters
+          </button>
+        )}
+        {canImport && (
+          <button type="button" onClick={onImport} style={{ height: 28, padding: '0 12px', border: 'none', background: T.accent, color: '#0a0c0b', fontFamily: MONO, fontSize: 10, cursor: 'pointer' }}>
+            Import Files
+          </button>
+        )}
+        {canCreateFolder && (
+          <button type="button" onClick={onCreateFolder} style={{ height: 28, padding: '0 12px', border: `1px solid ${T.line2}`, background: 'none', color: T.mute, fontFamily: MONO, fontSize: 10, cursor: 'pointer' }}>
+            Create Folder
+          </button>
+        )}
+      </div>
+    )}
+  </div>
+);
+
+const BulkInspectorSummary: React.FC<{ total: number; files: number; bookmarks: number }> = ({ total, files, bookmarks }) => (
+  <div style={{ padding: '18px 14px' }}>
+    <div style={{ border: `1px solid ${T.line2}`, background: T.accentGlow, padding: 14 }}>
+      <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 10 }}>· Selection ·</div>
+      <p style={{ margin: 0, fontFamily: SERIF, fontSize: 20, color: T.text }}>{total} objects selected</p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 14 }}>
+        <div style={{ border: `1px solid ${T.line}`, padding: 10 }}>
+          <div style={{ fontFamily: MONO, fontSize: 18, color: T.text }}>{files}</div>
+          <div style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Files</div>
+        </div>
+        <div style={{ border: `1px solid ${T.line}`, padding: 10 }}>
+          <div style={{ fontFamily: MONO, fontSize: 18, color: T.text }}>{bookmarks}</div>
+          <div style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Bookmarks</div>
+        </div>
+      </div>
+      <p style={{ margin: '14px 0 0', fontFamily: MONO, fontSize: 9, color: T.mute2, lineHeight: 1.6 }}>
+        Use the toolbar actions for this selection.
+      </p>
+    </div>
+  </div>
+);
+
 // ── Bookmark List Row ─────────────────────────────────────────────────
 const BookmarkListRow: React.FC<{
   bookmark: BookmarkSummary;
@@ -238,6 +371,7 @@ const BookmarkListRow: React.FC<{
   onExport: (ids: string[]) => void;
   onDelete: (ids: string[]) => void;
   onToggleTag: (ids: string[], tagId: number, assigned: boolean) => void;
+  onGoToFolder?: (bookmark: BookmarkSummary) => void;
 }> = ({
   bookmark,
   selected,
@@ -252,6 +386,7 @@ const BookmarkListRow: React.FC<{
   onExport,
   onDelete,
   onToggleTag,
+  onGoToFolder,
 }) => {
   const hostname = (() => { try { return new URL(bookmark.url).hostname; } catch { return bookmark.url; } })();
   const getTargetIds = (): string[] => contextTargetIds && contextTargetIds.length > 0 ? contextTargetIds : [bookmark.id];
@@ -292,9 +427,10 @@ const BookmarkListRow: React.FC<{
         <p className="pv-list-title" style={{ margin: 0, fontFamily: MONO, fontSize: 11, color: T.text }}>
           {bookmark.title}
         </p>
-        <p className="pv-list-subtitle" style={{ margin: '1px 0 0', fontFamily: MONO, fontSize: 9, color: T.mute }}>
-          {hostname}
-        </p>
+        <div className="pv-list-subtitle" style={{ margin: '1px 0 0', display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 9, color: T.mute }}>
+          <TypeBadge label="BOOKMARK" />
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hostname}</span>
+        </div>
       </div>
       <ListRating rating={bookmark.rating} />
       {/* Tags */}
@@ -324,7 +460,7 @@ const BookmarkListRow: React.FC<{
           Open in Browser
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onToggleFavorite(getTargetIds(), !bookmark.isFavorite)}>
-          {targetIds.length > 1 ? 'Toggle Favourites' : bookmark.isFavorite ? 'Remove Favourite' : 'Add to Favourites'}
+          {bookmark.isFavorite ? 'Unfavourite' : 'Favourite'}
         </ContextMenuItem>
         {tags.length > 0 && (
           <ContextMenuSub>
@@ -345,14 +481,19 @@ const BookmarkListRow: React.FC<{
             </ContextMenuSubContent>
           </ContextMenuSub>
         )}
+        {bookmark.folderId != null && onGoToFolder && (
+          <ContextMenuItem onClick={() => onGoToFolder(bookmark)}>
+            Go to Folder
+          </ContextMenuItem>
+        )}
         <ContextMenuItem onClick={() => onMove(getTargetIds())}>
-          {targetIds.length > 1 ? 'Move Selected...' : 'Move to Folder...'}
+          Move to Folder
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onExport(getTargetIds())}>
-          {targetIds.length > 1 ? 'Export Selected' : 'Export'}
+          Export
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onDelete(getTargetIds())} className="text-danger focus:text-danger">
-          {targetIds.length > 1 ? 'Delete Selected' : 'Delete'}
+          Delete
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -373,6 +514,7 @@ const FileListRow: React.FC<{
   onExport: (ids: string[]) => void;
   onDelete: (ids: string[]) => void;
   tags: TagSummary[];
+  onGoToFolder?: (item: VaultItemSummary) => void;
 }> = ({
   item,
   thumbnailUrl,
@@ -387,10 +529,9 @@ const FileListRow: React.FC<{
   onExport,
   onDelete,
   tags,
+  onGoToFolder,
 }) => {
-  const typeLabel = item.mimeType.startsWith('video/')
-    ? 'video'
-    : (item.mimeType.split('/')[1] ?? 'file').toLowerCase();
+  const typeLabel = fileTypeLabel(item);
   const targetIds = contextTargetIds && contextTargetIds.length > 0 ? contextTargetIds : [item.id];
   const itemTags = (item.tagIds ?? [])
     .map((tagId) => tags.find((tag) => tag.id === tagId))
@@ -436,9 +577,9 @@ const FileListRow: React.FC<{
         <p className="pv-list-title" style={{ margin: 0, fontFamily: MONO, fontSize: 11, color: T.text }}>
           {item.originalName}
         </p>
-        <p className="pv-list-subtitle" style={{ margin: '1px 0 0', fontFamily: MONO, fontSize: 9, color: T.mute, textTransform: 'uppercase' }}>
-          {typeLabel}
-        </p>
+        <div className="pv-list-subtitle" style={{ margin: '1px 0 0', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <TypeBadge label={typeLabel} />
+        </div>
       </div>
       <ListRating rating={item.rating} />
       <div className="pv-list-col-tags">
@@ -466,16 +607,21 @@ const FileListRow: React.FC<{
           Open in Viewer
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onToggleFavorite(targetIds)}>
-          {targetIds.length > 1 ? 'Toggle Favourites' : item.isFavorite ? 'Remove Favourite' : 'Add to Favourites'}
+          {item.isFavorite ? 'Unfavourite' : 'Favourite'}
         </ContextMenuItem>
+        {item.folderId != null && onGoToFolder && (
+          <ContextMenuItem onClick={() => onGoToFolder(item)}>
+            Go to Folder
+          </ContextMenuItem>
+        )}
         <ContextMenuItem onClick={() => onMove(targetIds)}>
-          {targetIds.length > 1 ? 'Move Selected...' : 'Move to Folder...'}
+          Move to Folder
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onExport(targetIds)}>
-          {targetIds.length > 1 ? 'Export Selected' : 'Export'}
+          Export
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onDelete(targetIds)} className="text-danger focus:text-danger">
-          {targetIds.length > 1 ? 'Delete Selected' : 'Delete'}
+          Delete
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -497,6 +643,7 @@ const BookmarkCard: React.FC<{
   onExport: (ids: string[]) => void;
   onDelete: (ids: string[]) => void;
   onToggleTag: (ids: string[], tagId: number, assigned: boolean) => void;
+  onGoToFolder?: (bookmark: BookmarkSummary) => void;
 }> = ({
   bookmark,
   selected,
@@ -511,6 +658,7 @@ const BookmarkCard: React.FC<{
   onExport,
   onDelete,
   onToggleTag,
+  onGoToFolder,
 }) => {
   const [hovered, setHovered] = useState(false);
   const hostname = (() => { try { return new URL(bookmark.url).hostname; } catch { return bookmark.url; } })();
@@ -583,6 +731,9 @@ const BookmarkCard: React.FC<{
             {selected && <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="#0a0c0b" strokeWidth="2"><path d="M1.5 4.5l2 2 4-4" /></svg>}
           </div>
         )}
+        <div style={{ position: 'absolute', top: isMultiSelect ? 30 : 7, left: 7, zIndex: 10 }}>
+          <TypeBadge label="BOOKMARK" variant="overlay" />
+        </div>
         <button
           type="button"
           onClick={(event) => {
@@ -641,11 +792,7 @@ const BookmarkCard: React.FC<{
           <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute, letterSpacing: '0.04em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {hostname}
           </span>
-          {bookmark.rating !== undefined && bookmark.rating > 0 && (
-            <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9, color: T.accent, flexShrink: 0 }}>
-              {'·'.repeat(bookmark.rating)}
-            </span>
-          )}
+          <GridRating rating={bookmark.rating} />
         </div>
       </div>
     </div>
@@ -658,7 +805,7 @@ const BookmarkCard: React.FC<{
           Open in Browser
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onToggleFavorite(getTargetIds(), !bookmark.isFavorite)}>
-          {targetIds.length > 1 ? 'Toggle Favourites' : bookmark.isFavorite ? 'Remove Favourite' : 'Add to Favourites'}
+          {bookmark.isFavorite ? 'Unfavourite' : 'Favourite'}
         </ContextMenuItem>
         {tags.length > 0 && (
           <ContextMenuSub>
@@ -679,14 +826,19 @@ const BookmarkCard: React.FC<{
             </ContextMenuSubContent>
           </ContextMenuSub>
         )}
+        {bookmark.folderId != null && onGoToFolder && (
+          <ContextMenuItem onClick={() => onGoToFolder(bookmark)}>
+            Go to Folder
+          </ContextMenuItem>
+        )}
         <ContextMenuItem onClick={() => onMove(getTargetIds())}>
-          {targetIds.length > 1 ? 'Move Selected...' : 'Move to Folder...'}
+          Move to Folder
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onExport(getTargetIds())}>
-          {targetIds.length > 1 ? 'Export Selected' : 'Export'}
+          Export
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onDelete(getTargetIds())} className="text-danger focus:text-danger">
-          {targetIds.length > 1 ? 'Delete Selected' : 'Delete'}
+          Delete
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -704,7 +856,8 @@ const BookmarkInspector: React.FC<{
   onSetRating: (bookmarkId: string, rating: number | null) => void;
   onOpenInBrowser?: (url: string) => void;
   onChangeThumbnail?: (bookmark: BookmarkSummary) => void;
-}> = ({ bookmark, tags, onDelete, onRename, onToggleTag, onToggleFavorite, onSetRating, onOpenInBrowser, onChangeThumbnail }) => {
+  onGoToFolder?: (bookmark: BookmarkSummary) => void;
+}> = ({ bookmark, tags, onDelete, onRename, onToggleTag, onToggleFavorite, onSetRating, onOpenInBrowser, onChangeThumbnail, onGoToFolder }) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState(bookmark.title);
 
@@ -823,6 +976,12 @@ const BookmarkInspector: React.FC<{
           <button type="button" onClick={() => onChangeThumbnail(bookmark)} style={{ ...actionBtn('ghost'), display: 'flex', alignItems: 'center', gap: 6 }}>
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1" y="1" width="8" height="8" /><circle cx="3.5" cy="3.5" r="1" /><polyline points="1,7 3,5 5.5,6.5 7,5 9,7" /></svg>
             Thumbnail
+          </button>
+        )}
+        {bookmark.folderId != null && onGoToFolder && (
+          <button type="button" onClick={() => onGoToFolder(bookmark)} style={{ ...actionBtn('ghost'), display: 'flex', alignItems: 'center', gap: 6 }}>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.3"><path d="M1 8V3a1 1 0 0 1 1-1h2l1 1h3a1 1 0 0 1 1 1v4z" /></svg>
+            Go to Folder
           </button>
         )}
       </div>
@@ -979,6 +1138,20 @@ const findFolderNameById = (nodes: FolderNode[], folderId: number): string | nul
   return null;
 };
 
+const findFolderPathById = (nodes: FolderNode[], folderId: number): string | null => {
+  const visit = (items: FolderNode[], path: string[]): string[] | null => {
+    for (const node of items) {
+      const next = [...path, node.name];
+      if (node.id === folderId) return next;
+      const found = visit(node.children, next);
+      if (found) return found;
+    }
+    return null;
+  };
+  const path = visit(nodes, ['Root']);
+  return path ? path.join(' / ') : null;
+};
+
 const collectFolderDescendantIds = (nodes: FolderNode[], folderId: number): Set<number> => {
   const byId = new Map<number, FolderNode>();
   const stack = [...nodes];
@@ -1002,8 +1175,30 @@ const collectFolderDescendantIds = (nodes: FolderNode[], folderId: number): Set<
 };
 
 type MixedObject =
-  | { kind: 'file'; id: string; createdAt: string; name: string; item: VaultItemSummary }
-  | { kind: 'bookmark'; id: string; createdAt: string; name: string; bookmark: BookmarkSummary };
+  | {
+      kind: 'file';
+      id: string;
+      createdAt: string;
+      name: string;
+      folderId: number | null;
+      isFavorite: boolean;
+      rating?: number;
+      tags: TagSummary[];
+      typeLabel: ObjectTypeLabel;
+      item: VaultItemSummary;
+    }
+  | {
+      kind: 'bookmark';
+      id: string;
+      createdAt: string;
+      name: string;
+      folderId: number | null;
+      isFavorite: boolean;
+      rating?: number;
+      tags: TagSummary[];
+      typeLabel: ObjectTypeLabel;
+      bookmark: BookmarkSummary;
+    };
 
 const mixedObjectSize = (object: MixedObject): number =>
   object.kind === 'file' ? object.item.size : 0;
@@ -1111,11 +1306,19 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   const showBookmarksInMixedView = !isBookmarkScope && (vaultScope === 'all' || vaultScope === 'root' || vaultScope === 'folder');
 
   const mixedObjects = useMemo<MixedObject[]>(() => {
+    const tagById = new Map(tags.map((tag) => [tag.id, tag]));
     const objects: MixedObject[] = filteredItems.map((item) => ({
       kind: 'file',
       id: item.id,
       createdAt: item.createdAt,
       name: item.originalName,
+      folderId: item.folderId ?? null,
+      isFavorite: item.isFavorite,
+      rating: item.rating,
+      tags: (item.tagIds ?? [])
+        .map((tagId) => tagById.get(tagId))
+        .filter((tag): tag is TagSummary => Boolean(tag)),
+      typeLabel: fileTypeLabel(item),
       item,
     }));
 
@@ -1125,6 +1328,11 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
         id: bookmark.id,
         createdAt: bookmark.createdAt,
         name: bookmark.title,
+        folderId: bookmark.folderId ?? null,
+        isFavorite: bookmark.isFavorite,
+        rating: bookmark.rating,
+        tags: bookmark.tags,
+        typeLabel: 'BOOKMARK' as ObjectTypeLabel,
         bookmark,
       })));
     }
@@ -1150,7 +1358,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
           return compareCreatedNewest(a, b);
       }
     });
-  }, [filteredItems, showBookmarksInMixedView, sort, visibleBookmarks]);
+  }, [filteredItems, showBookmarksInMixedView, sort, tags, visibleBookmarks]);
   const loadBookmarks = useCallback(async () => {
     setBookmarksLoading(true);
     try {
@@ -1165,6 +1373,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   const [newFolderParentId, setNewFolderParentId] = useState<number | null>(null);
   const [newTagName, setNewTagName] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
+  const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [showInspector, setShowInspector] = useState(true);
   const [viewerItemId, setViewerItemId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
@@ -1354,6 +1563,37 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     setSelectedViewScope('bookmark' as typeof selectedViewScope);
     setSelectedFolderId(null);
     setBookmarkFolderId(null);
+  };
+
+  const handleClearFilters = (): void => {
+    setSearchTerm('');
+    setSelectedTagIds([]);
+    setShowFavoritesOnly(false);
+  };
+
+  const handleGoToItemFolder = (itemId: string): void => {
+    const item = allItems.find((entry) => entry.id === itemId) ?? filteredItems.find((entry) => entry.id === itemId);
+    if (!item || item.folderId == null) return;
+    setSelectedViewScope('folder' as typeof selectedViewScope);
+    setSelectedFolderId(item.folderId);
+    setBookmarkFolderId(item.folderId);
+    setSelectedBookmarkId(null);
+    clearBookmarkSelection();
+    setSelectedItems([item.id]);
+    setIsMultiSelect(false);
+    setShowInspector(true);
+  };
+
+  const handleGoToBookmarkFolder = (bookmark: BookmarkSummary): void => {
+    if (bookmark.folderId == null) return;
+    setSelectedViewScope('folder' as typeof selectedViewScope);
+    setSelectedFolderId(bookmark.folderId);
+    setBookmarkFolderId(bookmark.folderId);
+    clearSelection();
+    setSelectedBookmarkIds([]);
+    setSelectedBookmarkId(bookmark.id);
+    setIsMultiSelect(false);
+    setShowInspector(true);
   };
 
   const handleSortChange = async (nextSort: VaultListSort): Promise<void> => {
@@ -1799,6 +2039,52 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     if (deleted) clearBookmarkSelection();
   };
 
+  const showGoToFolderActions = selectedViewScope === 'all' || searchTerm.trim().length > 0;
+  const visibleFileCount = filteredItems.length;
+  const visibleBookmarkCount = isBookmarkScope || showBookmarksInMixedView ? visibleBookmarks.length : 0;
+  const visibleObjectCount = visibleFileCount + visibleBookmarkCount;
+  const countAwareSubtitle = (isBookmarkScope || showBookmarksInMixedView)
+    ? `${visibleObjectCount} ${visibleObjectCount === 1 ? 'object' : 'objects'} · ${visibleFileCount} ${visibleFileCount === 1 ? 'file' : 'files'} · ${visibleBookmarkCount} ${visibleBookmarkCount === 1 ? 'bookmark' : 'bookmarks'} · encrypted`
+    : undefined;
+  const toolbarBreadcrumb = selectedFolderId !== null && (selectedViewScope === 'folder' || isBookmarkScope)
+    ? findFolderPathById(folders, selectedFolderId) ?? null
+    : bookmarkFolderId !== null
+      ? findFolderPathById(folders, bookmarkFolderId) ?? null
+      : null;
+  const filtersActive = searchTerm.trim().length > 0 || selectedTagIds.length > 0 || showFavoritesOnly;
+  const bulkSummaryTotal = selectedItemIds.length + selectedBookmarkIds.length;
+  const visibleFileIdsForSelection = showBookmarksInMixedView
+    ? mixedObjects.filter((object): object is Extract<MixedObject, { kind: 'file' }> => object.kind === 'file').map((object) => object.id)
+    : isBookmarkScope
+      ? []
+      : filteredItems.map((item) => item.id);
+  const visibleBookmarkIdsForSelection = isBookmarkScope || showBookmarksInMixedView
+    ? visibleBookmarks.map((bookmark) => bookmark.id)
+    : [];
+  const visibleSelectionCount = visibleFileIdsForSelection.length + visibleBookmarkIdsForSelection.length;
+  const allVisibleSelected = visibleSelectionCount > 0 &&
+    visibleFileIdsForSelection.every((id) => selectedItemIds.includes(id)) &&
+    visibleBookmarkIdsForSelection.every((id) => selectedBookmarkIds.includes(id));
+  const handleSelectAllVisible = (): void => {
+    setIsMultiSelect(true);
+    setSelectedItems(visibleFileIdsForSelection);
+    setSelectedBookmarkIds(visibleBookmarkIdsForSelection);
+    setSelectedBookmarkId(null);
+    if (visibleSelectionCount > 0) setShowInspector(true);
+  };
+  const handleClearBulkSelection = (): void => {
+    clearSelection();
+    clearBookmarkSelection();
+    setSelectedBookmarkId(null);
+  };
+  const handleToggleSelectAllVisible = (): void => {
+    if (allVisibleSelected) {
+      handleClearBulkSelection();
+      return;
+    }
+    handleSelectAllVisible();
+  };
+
   const detailsPanelProps = {
     item: selectedItem,
     thumbnailUrl: selectedItem ? thumbnails[selectedItem.id] : undefined,
@@ -1810,6 +2096,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     onToggleFavorite: (itemId: string, isFavorite: boolean) => void handleToggleFavorite(itemId, isFavorite),
     onRenameItem: (itemId: string, newName: string) => void handleRenameItem(itemId, newName),
     onSetRating: (itemId: string, rating: number | null) => void handleSetRating(itemId, rating),
+    onGoToFolder: showGoToFolderActions ? handleGoToItemFolder : undefined,
     selectedCount: selectedItemIds.length,
     onUpdateSecureDeleteDefault: (enabled: boolean) =>
       void window.electronAPI
@@ -1843,6 +2130,9 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     onExportItem: (itemId: string) => void handleExportItem(itemId),
     onDeleteItem: (itemId: string) => void handleDeleteItem(itemId),
     onRenameItem: (itemId: string, newName: string) => void handleRenameItem(itemId, newName),
+    onGoToFolder: showGoToFolderActions ? handleGoToItemFolder : undefined,
+    allVisibleSelected,
+    onToggleSelectAllVisible: handleToggleSelectAllVisible,
     hasMore: renderCount < filteredItems.length,
     isLoadingMore,
     sentinelRef,
@@ -1882,6 +2172,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     onExport: (ids: string[]) => void handleExportBookmarks(ids),
     onDelete: (ids: string[]) => void handleDeleteBookmarksByIds(ids),
     onToggleTag: (ids: string[], tagId: number, assigned: boolean) => void handleToggleBookmarkTagByIds(ids, tagId, assigned),
+    onGoToFolder: showGoToFolderActions ? handleGoToBookmarkFolder : undefined,
   };
   const handleBookmarkCardClick = (id: string): void => {
     setShowInspector(true);
@@ -1996,9 +2287,14 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
           onViewModeChange={setViewMode}
           isMultiSelect={isMultiSelect}
           onToggleMultiSelect={handleToggleMultiSelect}
+          onSelectAllVisible={handleSelectAllVisible}
+          onClearSelection={handleClearBulkSelection}
+          allVisibleSelected={allVisibleSelected}
           showSidebar={showSidebar}
           onToggleSidebar={() => setShowSidebar((p) => !p)}
           itemCount={isBookmarkScope ? visibleBookmarks.length : filteredItems.length + (showBookmarksInMixedView ? visibleBookmarks.length : 0)}
+          subtitle={countAwareSubtitle}
+          breadcrumb={toolbarBreadcrumb}
           selectedFolderName={
             isBookmarkScope
               ? bookmarkTitleLabel
@@ -2043,6 +2339,8 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
             newFolderParentId={newFolderParentId}
             onNewFolderParentIdChange={setNewFolderParentId}
             onCreateFolder={() => void handleCreateFolder()}
+            createDialogOpen={showNewFolderDialog}
+            onCreateDialogOpenChange={setShowNewFolderDialog}
             onDeleteFolder={(folderId) => void handleDeleteFolder(folderId)}
             onRenameFolder={handleRenameFolder}
             onMoveFolder={handleMoveFolder}
@@ -2057,15 +2355,11 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
             style={{ flex: 1, overflowY: 'auto', padding: viewMode === 'grid' ? '16px 20px' : 0, position: 'relative', userSelect: 'none' }}
           >
             {visibleBookmarks.length === 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '60px 0', color: T.mute }}>
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" opacity={0.4}>
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                </svg>
-                <p style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: T.mute2 }}>
-                  {bookmarkFolderId !== null ? 'No bookmarks in this folder' : 'No bookmarks saved yet'}
-                </p>
-              </div>
+              <EmptyVaultState
+                message={filtersActive ? 'No bookmarks match current filters' : bookmarkFolderId !== null ? 'No bookmarks in this folder' : 'No bookmarks saved yet'}
+                canClearFilters={filtersActive}
+                onClearFilters={handleClearFilters}
+              />
             ) : viewMode === 'grid' ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
                 {visibleBookmarks.map((b) => (
@@ -2083,7 +2377,11 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
               </div>
             ) : (
               <div className="pv-mixed-list">
-                <MixedListHeader />
+                <MixedListHeader
+                  isMultiSelect={isBookmarkMultiSelect}
+                  allVisibleSelected={allVisibleSelected}
+                  onToggleSelectAllVisible={handleToggleSelectAllVisible}
+                />
                 {visibleBookmarks.map((b) => (
                   <BookmarkListRow
                     key={b.id}
@@ -2118,17 +2416,15 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
             style={{ flex: 1, overflowY: 'auto', padding: viewMode === 'grid' ? '16px 20px' : 0, position: 'relative', userSelect: 'none' }}
           >
             {mixedObjects.length === 0 ? (
-              <div style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: 12, padding: '64px 0',
-                border: `1px dashed ${T.line2}`,
-              }}>
-                <svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke={T.mute2} strokeWidth="1.2">
-                  <rect x="3" y="3" width="12" height="12" /><rect x="21" y="3" width="12" height="12" />
-                  <rect x="3" y="21" width="12" height="12" /><rect x="21" y="21" width="12" height="12" />
-                </svg>
-                <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute2, letterSpacing: '0.06em' }}>No objects match current filters</p>
-              </div>
+              <EmptyVaultState
+                message={filtersActive ? 'No objects match current filters' : 'No objects in this scope'}
+                canClearFilters={filtersActive}
+                canImport={!filtersActive}
+                canCreateFolder={!filtersActive}
+                onClearFilters={handleClearFilters}
+                onImport={() => setImportSettingsOpen(true)}
+                onCreateFolder={() => setShowNewFolderDialog(true)}
+              />
             ) : viewMode === 'grid' ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
                 {renderedMixedObjects.map((object) => (
@@ -2153,6 +2449,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
                       onExport={(itemId) => void handleExportItem(itemId)}
                       onDelete={(itemId) => void handleDeleteItem(itemId)}
                       onRename={(itemId, newName) => void handleRenameItem(itemId, newName)}
+                      onGoToFolder={showGoToFolderActions ? handleGoToItemFolder : undefined}
                       isMultiSelect={isMultiSelect}
                       tags={tags}
                     />
@@ -2172,7 +2469,11 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
               </div>
             ) : (
               <div className="pv-mixed-list">
-                <MixedListHeader />
+                <MixedListHeader
+                  isMultiSelect={isMultiSelect}
+                  allVisibleSelected={allVisibleSelected}
+                  onToggleSelectAllVisible={handleToggleSelectAllVisible}
+                />
                 {renderedMixedObjects.map((object) => (
                   object.kind === 'file' ? (
                     <FileListRow
@@ -2189,6 +2490,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
                       onMove={openMoveDialogForIds}
                       onExport={(itemIds) => void handleExportByIds(itemIds)}
                       onDelete={(itemIds) => void handleDeleteByIds(itemIds)}
+                      onGoToFolder={showGoToFolderActions ? (item) => handleGoToItemFolder(item.id) : undefined}
                       tags={tags}
                     />
                   ) : (
@@ -2265,7 +2567,9 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
               </button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              {selectedBookmark ? (
+              {isMultiSelect && bulkSummaryTotal > 1 ? (
+                <BulkInspectorSummary total={bulkSummaryTotal} files={selectedItemIds.length} bookmarks={selectedBookmarkIds.length} />
+              ) : selectedBookmark ? (
                   <BookmarkInspector
                     bookmark={selectedBookmark}
                     tags={tags}
@@ -2276,6 +2580,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
                     onSetRating={(bookmarkId, rating) => void handleSetBookmarkRating(bookmarkId, rating)}
                     onOpenInBrowser={onOpenUrlInBrowser}
                     onChangeThumbnail={onScrapeImages ? (b) => setThumbPickerBookmark(b) : undefined}
+                    onGoToFolder={showGoToFolderActions ? handleGoToBookmarkFolder : undefined}
                   />
               ) : isBookmarkScope ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '48px 0', color: T.mute }}>
