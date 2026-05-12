@@ -362,6 +362,27 @@ export const GalleryToolbar = ({
           borderBottom: `1px solid ${T.line}`,
           background: T.accentGlow,
         }}>
+          <button
+            type="button"
+            onClick={onToggleMultiSelect}
+            style={{
+              height: 22, padding: '0 8px',
+              background: 'none',
+              border: `1px solid ${T.line2}`,
+              cursor: 'pointer',
+              color: T.mute2,
+              fontFamily: MONO, fontSize: 9,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              flexShrink: 0,
+              borderRadius: 0,
+            }}
+          >
+            Done
+          </button>
+
+          <div style={{ width: 1, height: 14, background: T.line2, flexShrink: 0 }} />
+
           <span style={{ fontFamily: MONO, fontSize: 10, color: T.accent, letterSpacing: '0.06em' }}>
             {selectedCount > 0 ? `${selectedCount} selected` : 'Select items'}
           </span>
@@ -396,22 +417,6 @@ export const GalleryToolbar = ({
             </>
           )}
 
-          <div style={{ marginLeft: 'auto' }}>
-            <button
-              type="button"
-              onClick={onToggleMultiSelect}
-              style={{
-                height: 24, padding: '0 10px',
-                background: 'none',
-                border: `1px solid ${T.line2}`,
-                cursor: 'pointer',
-                color: T.mute, fontFamily: MONO, fontSize: 10,
-                letterSpacing: '0.06em', borderRadius: 0,
-              }}
-            >
-              Done
-            </button>
-          </div>
         </div>
       )}
 

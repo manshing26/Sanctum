@@ -158,6 +158,11 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
   }, [filteredItems]);
 
   useEffect(() => {
+    if (!selectedItem || !selectedItem.hasThumbnail || thumbnails[selectedItem.id]) return;
+    void hydrateThumbnails([selectedItem]);
+  }, [hydrateThumbnails, selectedItem, thumbnails]);
+
+  useEffect(() => {
     void loadFirstPage().then((result) => {
       if (!result.ok) toast.error(result.error);
     });
@@ -218,12 +223,12 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
   };
 
   const resolveContextTargetIds = (clickedItemId: string): string[] => {
-    if (selectedItemIds.length > 1 && selectedItemIds.includes(clickedItemId)) return selectedItemIds;
     return [clickedItemId];
   };
 
   const handleItemContextMenu = (itemId: string): void => {
-    if (!selectedItemIds.includes(itemId)) setSelectedItems([itemId]);
+    setSelectedItems([itemId]);
+    setIsMultiSelect(false);
   };
 
   const handleEmptyBackgroundClick = (): void => {
@@ -340,6 +345,24 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
     } finally {
       setIsDeletingFolder(false);
     }
+  };
+
+  const handleRenameFolder = async (folderId: number, name: string): Promise<boolean> => {
+    const result = await window.electronAPI.renameFolder({ folderId, name });
+    if (!result.ok) { toast.error(result.error); return false; }
+    const refreshed = await refresh();
+    if (!refreshed.ok) { toast.error(refreshed.error); return false; }
+    toast.success('Folder renamed.');
+    return true;
+  };
+
+  const handleMoveFolder = async (folderId: number, parentId: number | null): Promise<boolean> => {
+    const result = await window.electronAPI.moveFolder({ folderId, parentId });
+    if (!result.ok) { toast.error(result.error); return false; }
+    const refreshed = await refresh();
+    if (!refreshed.ok) { toast.error(refreshed.error); return false; }
+    toast.success('Folder moved.');
+    return true;
   };
 
   const handleCreateTag = async (color?: string): Promise<void> => {
@@ -483,6 +506,7 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
 
   const detailsPanelProps = {
     item: selectedItem,
+    thumbnailUrl: selectedItem ? thumbnails[selectedItem.id] : undefined,
     tags,
     securitySettings,
     onToggleTag: (itemId: string, tagId: number, assigned: boolean) => void handleToggleTag(itemId, tagId, assigned),
@@ -528,6 +552,7 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
     isLoadingMore,
     sentinelRef,
     isMultiSelect,
+    tags,
   };
 
   return (
@@ -643,6 +668,8 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
             onNewFolderParentIdChange={setNewFolderParentId}
             onCreateFolder={() => void handleCreateFolder()}
             onDeleteFolder={(folderId) => void handleDeleteFolder(folderId)}
+            onRenameFolder={handleRenameFolder}
+            onMoveFolder={handleMoveFolder}
           />
         </div>
 

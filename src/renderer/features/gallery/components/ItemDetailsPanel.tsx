@@ -26,6 +26,7 @@ const formatFileSize = (bytes: number): string => {
 
 type ItemDetailsPanelProps = {
   item: VaultItemSummary | null;
+  thumbnailUrl?: string;
   tags: TagSummary[];
   securitySettings: SecuritySettings;
   onToggleTag: (itemId: string, tagId: number, assigned: boolean) => void;
@@ -67,6 +68,7 @@ const fieldRow = (label: string, value: React.ReactNode, mono = false): React.Re
 // ── Inline details content ────────────────────────────────────────────
 const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
   item,
+  thumbnailUrl,
   tags,
   onToggleTag,
   onOpenItem,
@@ -124,18 +126,22 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
     <div style={{ padding: '16px 14px' }}>
       {/* Thumbnail preview */}
       <div style={{ aspectRatio: '4/3', marginBottom: 14, overflow: 'hidden', background: '#0d0f0d', border: `1px solid ${T.line}` }}>
-        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {isVid ? (
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke={T.mute2} strokeWidth="1.2">
-              <rect x="2" y="3" width="16" height="22" /><polyline points="18,7 26,4 26,24 18,21" />
-            </svg>
-          ) : (
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke={T.mute2} strokeWidth="1.2">
-              <rect x="2" y="2" width="24" height="24" /><circle cx="9" cy="9" r="3" />
-              <polyline points="2,19 8,13 13,18 18,14 26,19 26,26 2,26" />
-            </svg>
-          )}
-        </div>
+        {thumbnailUrl ? (
+          <img src={thumbnailUrl} alt={item.originalName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {isVid ? (
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke={T.mute2} strokeWidth="1.2">
+                <rect x="2" y="3" width="16" height="22" /><polyline points="18,7 26,4 26,24 18,21" />
+              </svg>
+            ) : (
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke={T.mute2} strokeWidth="1.2">
+                <rect x="2" y="2" width="24" height="24" /><circle cx="9" cy="9" r="3" />
+                <polyline points="2,19 8,13 13,18 18,14 26,19 26,26 2,26" />
+              </svg>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Name / rename */}

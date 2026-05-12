@@ -1,5 +1,5 @@
 import React from 'react';
-import type { VaultItemSummary } from '../../../../shared/ipc';
+import type { TagSummary, VaultItemSummary } from '../../../../shared/ipc';
 import { GalleryCard } from './GalleryCard';
 import { useMarqueeSelection } from '../hooks/useMarqueeSelection';
 
@@ -37,6 +37,7 @@ type GalleryGridProps = {
   isLoadingMore: boolean;
   sentinelRef: React.RefObject<HTMLDivElement | null>;
   isMultiSelect: boolean;
+  tags?: TagSummary[];
 };
 
 export const GalleryGrid = ({
@@ -65,6 +66,7 @@ export const GalleryGrid = ({
   isLoadingMore,
   sentinelRef,
   isMultiSelect,
+  tags,
 }: GalleryGridProps): React.JSX.Element => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const { isSelecting, overlayStyle, onMouseDown } = useMarqueeSelection({
@@ -124,6 +126,7 @@ export const GalleryGrid = ({
             onDelete={onDeleteItem}
             onRename={onRenameItem}
             isMultiSelect={isMultiSelect}
+            tags={tags}
           />
         ))}
       </div>

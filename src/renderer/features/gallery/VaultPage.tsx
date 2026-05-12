@@ -32,6 +32,7 @@ import { ImportSettingsDialog } from './components/ImportSettingsDialog';
 import { DeleteFolderDialog } from './components/DeleteFolderDialog';
 import { ImportConflictDialog } from './components/ImportConflictDialog';
 import { useGalleryState } from './state/useGalleryState';
+import { useMarqueeSelection } from './hooks/useMarqueeSelection';
 import { MediaViewerOverlay } from '../viewer/MediaViewerOverlay';
 
 const T = {
@@ -49,11 +50,178 @@ const T = {
 const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace";
 const SERIF = "'Fraunces', Georgia, serif";
 
+const MIXED_LIST_STYLES = `
+  .pv-mixed-list {
+    container-type: inline-size;
+    min-width: 0;
+  }
+  .pv-list-row {
+    display: grid;
+    grid-template-columns: 22px 50px minmax(0, 1fr) 72px minmax(90px, 160px) 34px 86px;
+    align-items: center;
+    column-gap: 10px;
+    min-width: 0;
+    padding: 7px 12px;
+    border-bottom: 1px solid ${T.line};
+  }
+  .pv-list-header {
+    min-height: 32px;
+    padding-top: 0;
+    padding-bottom: 0;
+    background: rgba(10, 12, 11, 0.65);
+    border-top: 1px solid ${T.line};
+  }
+  .pv-list-col-title,
+  .pv-list-title,
+  .pv-list-subtitle,
+  .pv-list-col-tags,
+  .pv-list-tag {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .pv-list-title,
+  .pv-list-subtitle,
+  .pv-list-tag {
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pv-list-col-tags {
+    display: flex;
+    gap: 3px;
+  }
+  .pv-list-thumb {
+    width: 40px;
+    height: 28px;
+  }
+  @container (max-width: 760px) {
+    .pv-list-row {
+      grid-template-columns: 22px 50px minmax(0, 1fr) 72px minmax(80px, 130px) 34px;
+    }
+    .pv-list-col-date {
+      display: none !important;
+    }
+  }
+  @container (max-width: 640px) {
+    .pv-list-row {
+      grid-template-columns: 22px 50px minmax(0, 1fr) 72px minmax(76px, 110px);
+    }
+    .pv-list-col-fav {
+      display: none !important;
+    }
+  }
+  @container (max-width: 540px) {
+    .pv-list-row {
+      grid-template-columns: 22px 50px minmax(0, 1fr) 72px;
+    }
+    .pv-list-col-tags {
+      display: none !important;
+    }
+  }
+  @container (max-width: 430px) {
+    .pv-list-row {
+      grid-template-columns: 22px 46px minmax(0, 1fr);
+      column-gap: 8px;
+      padding-left: 10px;
+      padding-right: 10px;
+    }
+    .pv-list-col-rating {
+      display: none !important;
+    }
+    .pv-list-thumb {
+      width: 38px;
+      height: 26px;
+    }
+  }
+`;
+
 type VaultPageProps = {
   onMessage?: (message: string) => void;
   onOpenUrlInBrowser?: (url: string) => void;
   onScrapeImages?: () => Promise<string[]>;
 };
+
+const ListSelectionMark: React.FC<{ selected: boolean; visible: boolean }> = ({ selected, visible }) => (
+  <div
+    style={{
+      width: 14,
+      height: 14,
+      border: visible ? `1px solid ${selected ? T.accent : T.line2}` : '1px solid transparent',
+      background: visible && selected ? T.accent : 'transparent',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}
+  >
+    {visible && selected && <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="#0a0c0b" strokeWidth="1.8"><path d="M1.5 4l2 2 3-3" /></svg>}
+  </div>
+);
+
+const ListRating: React.FC<{ rating?: number }> = ({ rating }) => (
+  <span
+    className="pv-list-col-rating"
+    style={{
+      fontFamily: MONO,
+      fontSize: 10,
+      letterSpacing: '0.02em',
+      color: rating && rating > 0 ? '#e3c94f' : T.mute2,
+      whiteSpace: 'nowrap',
+    }}
+  >
+    {rating && rating > 0 ? `${rating}/5` : '-'}
+  </span>
+);
+
+const ListFavoriteButton: React.FC<{
+  active: boolean;
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+}> = ({ active, onClick }) => (
+  <button
+    type="button"
+    className="pv-list-col-fav"
+    onClick={onClick}
+    title={active ? 'Unfavourite' : 'Favourite'}
+    style={{
+      width: 26,
+      height: 26,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      border: `1px solid ${active ? T.accent : 'transparent'}`,
+      background: active ? T.accentGlow : 'transparent',
+      color: active ? T.accent : T.mute2,
+      cursor: 'pointer',
+      padding: 0,
+    }}
+  >
+    <svg width="12" height="12" viewBox="0 0 12 12" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.3">
+      <path d="M6 1.2l1.45 2.94 3.25.47-2.35 2.29.56 3.23L6 8.6l-2.91 1.53.56-3.23L1.3 4.61l3.25-.47L6 1.2z" />
+    </svg>
+  </button>
+);
+
+const MixedListHeader: React.FC = () => (
+  <div className="pv-list-row pv-list-header" aria-hidden="true">
+    <span />
+    <span />
+    <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Title</span>
+    <span className="pv-list-col-rating" style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Rating</span>
+    <span className="pv-list-col-tags" style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Tags</span>
+    <span className="pv-list-col-fav" style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Fav</span>
+    <span className="pv-list-col-date" style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Date</span>
+  </div>
+);
+
+const ListTagChip: React.FC<{ tag: Pick<TagSummary, 'id' | 'name' | 'color'> }> = ({ tag }) => (
+  <span className="pv-list-tag" style={{
+    display: 'inline-flex', alignItems: 'center', gap: 3,
+    padding: '1px 5px',
+    background: T.accentGlow, border: `1px solid ${T.line2}`,
+    fontFamily: MONO, fontSize: 8, color: T.accent,
+  }}>
+    {tag.color && <span style={{ width: 5, height: 5, borderRadius: '50%', background: tag.color, flexShrink: 0 }} />}
+    {tag.name}
+  </span>
+);
 
 // ── Bookmark List Row ─────────────────────────────────────────────────
 const BookmarkListRow: React.FC<{
@@ -86,39 +254,28 @@ const BookmarkListRow: React.FC<{
   onToggleTag,
 }) => {
   const hostname = (() => { try { return new URL(bookmark.url).hostname; } catch { return bookmark.url; } })();
-  const targetIds = contextTargetIds && contextTargetIds.length > 0 ? contextTargetIds : [bookmark.id];
+  const getTargetIds = (): string[] => contextTargetIds && contextTargetIds.length > 0 ? contextTargetIds : [bookmark.id];
+  const targetIds = getTargetIds();
   const tagAssigned = (tagId: number): boolean => bookmark.tags.some((tag) => tag.id === tagId);
   const row = (
     <div
+      data-gallery-item-id={bookmark.id}
       role="button"
       tabIndex={0}
       onClick={onClick}
       onContextMenu={() => onContextMenuOpen?.(bookmark.id)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e as unknown as React.MouseEvent); } }}
+      className="pv-list-row"
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '7px 12px',
         background: selected ? T.accentGlow : 'none',
-        borderBottom: `1px solid ${T.line}`,
         borderLeft: `2px solid ${selected ? T.accent : 'transparent'}`,
         cursor: 'pointer',
         userSelect: 'none',
       }}
     >
-      {isMultiSelect && (
-        <div style={{
-          width: 14, height: 14, flexShrink: 0,
-          border: `1px solid ${selected ? T.accent : T.line2}`,
-          background: selected ? T.accent : 'transparent',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          {selected && <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="#0a0c0b" strokeWidth="1.8"><path d="M1.5 4l2 2 3-3" /></svg>}
-        </div>
-      )}
+      <ListSelectionMark selected={selected} visible={isMultiSelect} />
       {/* Thumbnail */}
-      <div style={{ width: 40, height: 28, flexShrink: 0, background: '#0d0f0d', overflow: 'hidden', border: `1px solid ${T.line}` }}>
+      <div className="pv-list-thumb" style={{ background: '#0d0f0d', overflow: 'hidden', border: `1px solid ${T.line}` }}>
         {bookmark.thumbnailDataUrl ? (
           <img src={bookmark.thumbnailDataUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
@@ -131,32 +288,30 @@ const BookmarkListRow: React.FC<{
         )}
       </div>
       {/* Title + hostname */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontFamily: MONO, fontSize: 11, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <div className="pv-list-col-title">
+        <p className="pv-list-title" style={{ margin: 0, fontFamily: MONO, fontSize: 11, color: T.text }}>
           {bookmark.title}
         </p>
-        <p style={{ margin: '1px 0 0', fontFamily: MONO, fontSize: 9, color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <p className="pv-list-subtitle" style={{ margin: '1px 0 0', fontFamily: MONO, fontSize: 9, color: T.mute }}>
           {hostname}
         </p>
       </div>
+      <ListRating rating={bookmark.rating} />
       {/* Tags */}
-      {bookmark.tags.length > 0 && (
-        <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
-          {bookmark.tags.slice(0, 3).map((t) => (
-            <span key={t.id} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 3,
-              padding: '1px 5px',
-              background: T.accentGlow, border: `1px solid ${T.line2}`,
-              fontFamily: MONO, fontSize: 8, color: T.accent,
-            }}>
-              {t.color && <span style={{ width: 5, height: 5, borderRadius: '50%', background: t.color }} />}
-              {t.name}
-            </span>
-          ))}
-        </div>
-      )}
+      <div className="pv-list-col-tags">
+        {bookmark.tags.slice(0, 3).map((t) => (
+          <ListTagChip key={t.id} tag={t} />
+        ))}
+      </div>
+      <ListFavoriteButton
+        active={bookmark.isFavorite}
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggleFavorite([bookmark.id], !bookmark.isFavorite);
+        }}
+      />
       {/* Date */}
-      <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, flexShrink: 0 }}>
+      <span className="pv-list-col-date" style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, whiteSpace: 'nowrap' }}>
         {new Date(bookmark.createdAt).toLocaleDateString()}
       </span>
     </div>
@@ -168,7 +323,7 @@ const BookmarkListRow: React.FC<{
         <ContextMenuItem disabled={targetIds.length > 1} onClick={() => onOpen(bookmark)}>
           Open in Browser
         </ContextMenuItem>
-        <ContextMenuItem onClick={() => onToggleFavorite(targetIds, !bookmark.isFavorite)}>
+        <ContextMenuItem onClick={() => onToggleFavorite(getTargetIds(), !bookmark.isFavorite)}>
           {targetIds.length > 1 ? 'Toggle Favourites' : bookmark.isFavorite ? 'Remove Favourite' : 'Add to Favourites'}
         </ContextMenuItem>
         {tags.length > 0 && (
@@ -181,7 +336,7 @@ const BookmarkListRow: React.FC<{
                   <ContextMenuCheckboxItem
                     key={tag.id}
                     checked={assigned}
-                    onCheckedChange={() => onToggleTag(targetIds, tag.id, assigned)}
+                    onCheckedChange={() => onToggleTag(getTargetIds(), tag.id, assigned)}
                   >
                     {tag.name}
                   </ContextMenuCheckboxItem>
@@ -190,13 +345,13 @@ const BookmarkListRow: React.FC<{
             </ContextMenuSubContent>
           </ContextMenuSub>
         )}
-        <ContextMenuItem onClick={() => onMove(targetIds)}>
+        <ContextMenuItem onClick={() => onMove(getTargetIds())}>
           {targetIds.length > 1 ? 'Move Selected...' : 'Move to Folder...'}
         </ContextMenuItem>
-        <ContextMenuItem onClick={() => onExport(targetIds)}>
+        <ContextMenuItem onClick={() => onExport(getTargetIds())}>
           {targetIds.length > 1 ? 'Export Selected' : 'Export'}
         </ContextMenuItem>
-        <ContextMenuItem onClick={() => onDelete(targetIds)} className="text-danger focus:text-danger">
+        <ContextMenuItem onClick={() => onDelete(getTargetIds())} className="text-danger focus:text-danger">
           {targetIds.length > 1 ? 'Delete Selected' : 'Delete'}
         </ContextMenuItem>
       </ContextMenuContent>
@@ -217,6 +372,7 @@ const FileListRow: React.FC<{
   onMove: (ids: string[]) => void;
   onExport: (ids: string[]) => void;
   onDelete: (ids: string[]) => void;
+  tags: TagSummary[];
 }> = ({
   item,
   thumbnailUrl,
@@ -230,14 +386,22 @@ const FileListRow: React.FC<{
   onMove,
   onExport,
   onDelete,
+  tags,
 }) => {
   const typeLabel = item.mimeType.startsWith('video/')
     ? 'video'
     : (item.mimeType.split('/')[1] ?? 'file').toLowerCase();
   const targetIds = contextTargetIds && contextTargetIds.length > 0 ? contextTargetIds : [item.id];
+  const itemTags = (item.tagIds ?? [])
+    .map((tagId) => tags.find((tag) => tag.id === tagId))
+    .filter((tag): tag is TagSummary => Boolean(tag));
+  const visibleTags = itemTags.length > 0
+    ? itemTags
+    : (item.tags ?? []).map((name, index) => ({ id: index * -1 - 1, name }));
 
   const row = (
     <div
+      data-gallery-item-id={item.id}
       role="button"
       tabIndex={0}
       onClick={onClick}
@@ -246,29 +410,16 @@ const FileListRow: React.FC<{
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e as unknown as React.MouseEvent); }
       }}
+      className="pv-list-row"
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '7px 12px',
         background: selected ? T.accentGlow : 'none',
-        borderBottom: `1px solid ${T.line}`,
         borderLeft: `2px solid ${selected ? T.accent : 'transparent'}`,
         cursor: 'pointer',
         userSelect: 'none',
       }}
     >
-      {isMultiSelect && (
-        <div style={{
-          width: 14, height: 14, flexShrink: 0,
-          border: `1px solid ${selected ? T.accent : T.line2}`,
-          background: selected ? T.accent : 'transparent',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          {selected && <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="#0a0c0b" strokeWidth="1.8"><path d="M1.5 4l2 2 3-3" /></svg>}
-        </div>
-      )}
-      <div style={{ width: 40, height: 28, flexShrink: 0, background: '#0d0f0d', overflow: 'hidden', border: `1px solid ${T.line}` }}>
+      <ListSelectionMark selected={selected} visible={isMultiSelect} />
+      <div className="pv-list-thumb" style={{ background: '#0d0f0d', overflow: 'hidden', border: `1px solid ${T.line}` }}>
         {thumbnailUrl ? (
           <img src={thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
@@ -281,29 +432,28 @@ const FileListRow: React.FC<{
           </div>
         )}
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontFamily: MONO, fontSize: 11, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <div className="pv-list-col-title">
+        <p className="pv-list-title" style={{ margin: 0, fontFamily: MONO, fontSize: 11, color: T.text }}>
           {item.originalName}
         </p>
-        <p style={{ margin: '1px 0 0', fontFamily: MONO, fontSize: 9, color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
+        <p className="pv-list-subtitle" style={{ margin: '1px 0 0', fontFamily: MONO, fontSize: 9, color: T.mute, textTransform: 'uppercase' }}>
           {typeLabel}
         </p>
       </div>
-      {item.tags && item.tags.length > 0 && (
-        <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
-          {item.tags.slice(0, 3).map((tagName) => (
-            <span key={tagName} style={{
-              display: 'inline-flex', alignItems: 'center',
-              padding: '1px 5px',
-              background: T.accentGlow, border: `1px solid ${T.line2}`,
-              fontFamily: MONO, fontSize: 8, color: T.accent,
-            }}>
-              {tagName}
-            </span>
-          ))}
-        </div>
-      )}
-      <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, flexShrink: 0 }}>
+      <ListRating rating={item.rating} />
+      <div className="pv-list-col-tags">
+        {visibleTags.slice(0, 3).map((tag) => (
+          <ListTagChip key={tag.id} tag={tag} />
+        ))}
+      </div>
+      <ListFavoriteButton
+        active={item.isFavorite}
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggleFavorite([item.id]);
+        }}
+      />
+      <span className="pv-list-col-date" style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, whiteSpace: 'nowrap' }}>
         {new Date(item.createdAt).toLocaleDateString()}
       </span>
     </div>
@@ -362,31 +512,53 @@ const BookmarkCard: React.FC<{
   onDelete,
   onToggleTag,
 }) => {
+  const [hovered, setHovered] = useState(false);
   const hostname = (() => { try { return new URL(bookmark.url).hostname; } catch { return bookmark.url; } })();
-  const targetIds = contextTargetIds && contextTargetIds.length > 0 ? contextTargetIds : [bookmark.id];
+  const getTargetIds = (): string[] => contextTargetIds && contextTargetIds.length > 0 ? contextTargetIds : [bookmark.id];
+  const targetIds = getTargetIds();
   const tagAssigned = (tagId: number): boolean => bookmark.tags.some((tag) => tag.id === tagId);
+  const primaryTag = bookmark.tags[0];
   const card = (
     <div
+      data-gallery-item-id={bookmark.id}
       role="button"
       tabIndex={0}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onClick={onClick}
       onContextMenu={() => onContextMenuOpen?.(bookmark.id)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e as unknown as React.MouseEvent); } }}
       style={{
-        display: 'flex',
-        flexDirection: 'column',
-        background: selected ? T.accentGlow : T.bg2,
-        border: `1px solid ${selected ? T.accent : T.line}`,
-        cursor: 'pointer',
+        position: 'relative',
+        width: '100%',
         overflow: 'hidden',
+        border: selected
+          ? `1px solid ${T.text}`
+          : hovered
+            ? `1px solid ${T.line2}`
+            : `1px solid ${T.line}`,
+        boxShadow: selected ? `0 0 0 1px ${T.text}` : 'none',
+        background: '#0e100e',
+        cursor: 'pointer',
         userSelect: 'none',
-        transition: 'border-color 0.1s',
+        transition: 'border-color 0.15s',
+        borderRadius: 0,
       }}
     >
       {/* Thumbnail / placeholder */}
-      <div style={{ aspectRatio: '16/9', background: '#0d0f0d', overflow: 'hidden', position: 'relative', flexShrink: 0 }}>
+      <div style={{ aspectRatio: '4/3', background: '#0d0f0d', overflow: 'hidden', position: 'relative' }}>
         {bookmark.thumbnailDataUrl ? (
-          <img src={bookmark.thumbnailDataUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img
+            src={bookmark.thumbnailDataUrl}
+            alt=""
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              transition: 'transform 0.3s',
+              transform: hovered ? 'scale(1.03)' : 'scale(1)',
+            }}
+          />
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={T.mute2} strokeWidth="1.2">
@@ -396,54 +568,85 @@ const BookmarkCard: React.FC<{
           </div>
         )}
         {isMultiSelect && (
-          <div style={{
-            position: 'absolute', top: 6, right: 6,
+          <div
+            onClick={(event) => { event.stopPropagation(); onClick(event); }}
+            style={{
+            position: 'absolute', top: 8, left: 8, zIndex: 10,
             width: 16, height: 16,
-            border: `1.5px solid ${selected ? T.accent : 'rgba(255,255,255,0.5)'}`,
-            background: selected ? T.accent : 'rgba(10,12,11,0.6)',
+            border: `1px solid ${selected ? T.accent : 'rgba(220,220,200,0.4)'}`,
+            background: selected ? T.accent : 'rgba(10,12,11,0.7)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
+            opacity: selected || hovered ? 1 : 0,
+            transition: 'opacity 0.15s',
+            cursor: 'pointer',
           }}>
             {selected && <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="#0a0c0b" strokeWidth="2"><path d="M1.5 4.5l2 2 4-4" /></svg>}
           </div>
         )}
-        {!isMultiSelect && bookmark.isFavorite && (
-          <div style={{
-            position: 'absolute', top: 6, right: 6,
-            width: 18, height: 18,
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleFavorite([bookmark.id], !bookmark.isFavorite);
+          }}
+          title={bookmark.isFavorite ? 'Unfavourite' : 'Favourite'}
+          style={{
+            position: 'absolute', top: 7, right: 7, zIndex: 10,
+            width: 24, height: 24,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(10,12,11,0.72)',
-            color: T.accent,
-          }}>
-            <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor" stroke="currentColor" strokeWidth="1.1">
+            background: bookmark.isFavorite ? T.accentGlow : 'rgba(10,12,11,0.6)',
+            border: 'none',
+            cursor: 'pointer',
+            color: bookmark.isFavorite ? T.accent : T.mute,
+            opacity: bookmark.isFavorite || hovered ? 1 : 0,
+            transition: 'opacity 0.15s',
+            padding: 0,
+          }}
+        >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill={bookmark.isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.3">
               <path d="M6 1.2l1.35 2.74 3.02.44-2.19 2.13.52 3.01L6 8.1 3.3 9.52l.52-3.01L1.63 4.38l3.02-.44z" />
             </svg>
+        </button>
+        {primaryTag && (
+          <div style={{
+            position: 'absolute', bottom: 7, left: 7, zIndex: 10,
+            maxWidth: 'calc(100% - 14px)',
+            padding: '2px 6px',
+            background: 'rgba(0,0,0,0.75)',
+            fontFamily: MONO,
+            fontSize: 9,
+            letterSpacing: '0.04em',
+            color: T.mute,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+          }}>
+            {primaryTag.color && <span style={{ width: 5, height: 5, borderRadius: '50%', background: primaryTag.color, flexShrink: 0 }} />}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{primaryTag.name}</span>
           </div>
         )}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: hovered ? 'rgba(0,0,0,0.08)' : 'transparent',
+          transition: 'background 0.2s',
+          pointerEvents: 'none',
+        }} />
       </div>
       {/* Footer */}
-      <div style={{ padding: '8px 10px', flex: 1 }}>
-        <p style={{ margin: 0, fontFamily: MONO, fontSize: 11, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <div style={{ padding: '8px 10px', borderTop: `1px solid ${T.line}` }}>
+        <p style={{ margin: 0, fontFamily: SERIF, fontSize: 13, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {bookmark.title}
         </p>
-        <p style={{ margin: '2px 0 0', fontFamily: MONO, fontSize: 9, color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {hostname}
-        </p>
-        {bookmark.tags.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 5 }}>
-            {bookmark.tags.map((t) => (
-              <span key={t.id} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 3,
-                padding: '1px 5px',
-                background: T.accentGlow,
-                border: `1px solid ${T.line2}`,
-                fontFamily: MONO, fontSize: 8, color: T.accent,
-              }}>
-                {t.color && <span style={{ width: 5, height: 5, borderRadius: '50%', background: t.color }} />}
-                {t.name}
-              </span>
-            ))}
-          </div>
-        )}
+        <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute, letterSpacing: '0.04em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {hostname}
+          </span>
+          {bookmark.rating !== undefined && bookmark.rating > 0 && (
+            <span style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9, color: T.accent, flexShrink: 0 }}>
+              {'·'.repeat(bookmark.rating)}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -454,7 +657,7 @@ const BookmarkCard: React.FC<{
         <ContextMenuItem disabled={targetIds.length > 1} onClick={() => onOpen(bookmark)}>
           Open in Browser
         </ContextMenuItem>
-        <ContextMenuItem onClick={() => onToggleFavorite(targetIds, !bookmark.isFavorite)}>
+        <ContextMenuItem onClick={() => onToggleFavorite(getTargetIds(), !bookmark.isFavorite)}>
           {targetIds.length > 1 ? 'Toggle Favourites' : bookmark.isFavorite ? 'Remove Favourite' : 'Add to Favourites'}
         </ContextMenuItem>
         {tags.length > 0 && (
@@ -467,7 +670,7 @@ const BookmarkCard: React.FC<{
                   <ContextMenuCheckboxItem
                     key={tag.id}
                     checked={assigned}
-                    onCheckedChange={() => onToggleTag(targetIds, tag.id, assigned)}
+                    onCheckedChange={() => onToggleTag(getTargetIds(), tag.id, assigned)}
                   >
                     {tag.name}
                   </ContextMenuCheckboxItem>
@@ -476,13 +679,13 @@ const BookmarkCard: React.FC<{
             </ContextMenuSubContent>
           </ContextMenuSub>
         )}
-        <ContextMenuItem onClick={() => onMove(targetIds)}>
+        <ContextMenuItem onClick={() => onMove(getTargetIds())}>
           {targetIds.length > 1 ? 'Move Selected...' : 'Move to Folder...'}
         </ContextMenuItem>
-        <ContextMenuItem onClick={() => onExport(targetIds)}>
+        <ContextMenuItem onClick={() => onExport(getTargetIds())}>
           {targetIds.length > 1 ? 'Export Selected' : 'Export'}
         </ContextMenuItem>
-        <ContextMenuItem onClick={() => onDelete(targetIds)} className="text-danger focus:text-danger">
+        <ContextMenuItem onClick={() => onDelete(getTargetIds())} className="text-danger focus:text-danger">
           {targetIds.length > 1 ? 'Delete Selected' : 'Delete'}
         </ContextMenuItem>
       </ContextMenuContent>
@@ -538,7 +741,7 @@ const BookmarkInspector: React.FC<{
   return (
     <div style={{ padding: '16px 14px' }}>
       {/* Thumbnail */}
-      <div style={{ aspectRatio: '16/9', marginBottom: 14, overflow: 'hidden', background: '#0d0f0d', border: `1px solid ${T.line}` }}>
+      <div style={{ aspectRatio: '4/3', marginBottom: 14, overflow: 'hidden', background: '#0d0f0d', border: `1px solid ${T.line}` }}>
         {bookmark.thumbnailDataUrl ? (
           <img src={bookmark.thumbnailDataUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
@@ -802,6 +1005,18 @@ type MixedObject =
   | { kind: 'file'; id: string; createdAt: string; name: string; item: VaultItemSummary }
   | { kind: 'bookmark'; id: string; createdAt: string; name: string; bookmark: BookmarkSummary };
 
+const mixedObjectSize = (object: MixedObject): number =>
+  object.kind === 'file' ? object.item.size : 0;
+
+const mixedObjectRating = (object: MixedObject): number =>
+  object.kind === 'file' ? object.item.rating ?? 0 : object.bookmark.rating ?? 0;
+
+const compareCreatedNewest = (a: { createdAt: string }, b: { createdAt: string }): number =>
+  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+
+const compareCreatedOldest = (a: { createdAt: string }, b: { createdAt: string }): number =>
+  new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+
 // ── VaultPage ─────────────────────────────────────────────────────────
 export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps): React.JSX.Element => {
   const state = useGalleryState();
@@ -830,7 +1045,9 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   const vaultScope = selectedViewScope as VaultScope;
   const isBookmarkScope = vaultScope === 'bookmark';
 
-  const selectedBookmark = bookmarks.find((b) => b.id === selectedBookmarkId) ?? null;
+  const selectedBookmark = selectedItemIds.length === 0
+    ? bookmarks.find((b) => b.id === selectedBookmarkId) ?? null
+    : null;
 
   const mixedFolderIds = useMemo(() => {
     if (vaultScope !== 'folder' || selectedFolderId === null) return null;
@@ -859,7 +1076,14 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     // Search
     if (searchTerm.trim()) {
       const q = searchTerm.trim().toLowerCase();
-      list = list.filter((b) => b.title.toLowerCase().includes(q) || b.url.toLowerCase().includes(q));
+      list = list.filter((b) => {
+        const haystack = [
+          b.title,
+          b.url,
+          ...b.tags.map((tag) => tag.name),
+        ].join(' ').toLowerCase();
+        return haystack.includes(q);
+      });
     }
 
     if (showFavoritesOnly) {
@@ -869,11 +1093,15 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     // Sort
     list.sort((a, b) => {
       switch (sort) {
-        case 'newest': return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        case 'oldest': return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case 'newest': return compareCreatedNewest(a, b);
+        case 'oldest': return compareCreatedOldest(a, b);
         case 'name_asc': return a.title.localeCompare(b.title);
         case 'name_desc': return b.title.localeCompare(a.title);
-        default: return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case 'rating_desc': return (b.rating ?? 0) - (a.rating ?? 0) || compareCreatedNewest(a, b);
+        case 'rating_asc': return (a.rating ?? 0) - (b.rating ?? 0) || compareCreatedOldest(a, b);
+        case 'size_desc':
+        case 'size_asc':
+        default: return compareCreatedNewest(a, b);
       }
     });
 
@@ -909,13 +1137,20 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
           return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
         case 'name_desc':
           return b.name.localeCompare(a.name, undefined, { sensitivity: 'base' });
+        case 'size_desc':
+          return mixedObjectSize(b) - mixedObjectSize(a) || compareCreatedNewest(a, b);
+        case 'size_asc':
+          return mixedObjectSize(a) - mixedObjectSize(b) || compareCreatedOldest(a, b);
+        case 'rating_desc':
+          return mixedObjectRating(b) - mixedObjectRating(a) || compareCreatedNewest(a, b);
+        case 'rating_asc':
+          return mixedObjectRating(a) - mixedObjectRating(b) || compareCreatedOldest(a, b);
         case 'newest':
         default:
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          return compareCreatedNewest(a, b);
       }
     });
   }, [filteredItems, showBookmarksInMixedView, sort, visibleBookmarks]);
-
   const loadBookmarks = useCallback(async () => {
     setBookmarksLoading(true);
     try {
@@ -939,6 +1174,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   const exportToastIdRef = useRef<string | number | null>(null);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [moveDialogItemIds, setMoveDialogItemIds] = useState<string[]>([]);
+  const [moveDialogBookmarkIds, setMoveDialogBookmarkIds] = useState<string[]>([]);
   const [moveDialogSource, setMoveDialogSource] = useState<'single' | 'bulk'>('single');
   const [isMoveBusy, setIsMoveBusy] = useState(false);
   const [importSettingsOpen, setImportSettingsOpen] = useState(false);
@@ -955,19 +1191,35 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   const [renderCount, setRenderCount] = useState(RENDER_PAGE);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const renderedMixedObjects = useMemo(
+    () => mixedObjects.slice(0, renderCount),
+    [mixedObjects, renderCount],
+  );
+  const renderedMixedFiles = useMemo(
+    () => renderedMixedObjects
+      .filter((object): object is Extract<MixedObject, { kind: 'file' }> => object.kind === 'file')
+      .map((object) => object.item),
+    [renderedMixedObjects],
+  );
 
-  useEffect(() => { setRenderCount(RENDER_PAGE); }, [filteredItems]);
+  useEffect(() => { setRenderCount(RENDER_PAGE); }, [filteredItems, mixedObjects]);
 
   const handleSentinelIntersect = useCallback(async (entries: IntersectionObserverEntry[]) => {
     if (!entries[0]?.isIntersecting) return;
-    if (renderCount >= filteredItems.length) return;
+    const totalRenderable = showBookmarksInMixedView ? mixedObjects.length : filteredItems.length;
+    if (renderCount >= totalRenderable) return;
     setIsLoadingMore(true);
-    const next = Math.min(renderCount + RENDER_PAGE, filteredItems.length);
-    const newBatch = filteredItems.slice(renderCount, next);
+    const next = Math.min(renderCount + RENDER_PAGE, totalRenderable);
+    const newBatch = showBookmarksInMixedView
+      ? mixedObjects
+        .slice(renderCount, next)
+        .filter((object): object is Extract<MixedObject, { kind: 'file' }> => object.kind === 'file')
+        .map((object) => object.item)
+      : filteredItems.slice(renderCount, next);
     setRenderCount(next);
     await hydrateThumbnails(newBatch);
     setIsLoadingMore(false);
-  }, [renderCount, filteredItems, hydrateThumbnails]);
+  }, [filteredItems, hydrateThumbnails, mixedObjects, renderCount, showBookmarksInMixedView]);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -984,6 +1236,16 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     if (filteredItems.length === 0) return;
     void hydrateThumbnails(filteredItems.slice(0, RENDER_PAGE));
   }, [filteredItems]);
+
+  useEffect(() => {
+    if (!showBookmarksInMixedView || renderedMixedFiles.length === 0) return;
+    void hydrateThumbnails(renderedMixedFiles);
+  }, [hydrateThumbnails, renderedMixedFiles, showBookmarksInMixedView]);
+
+  useEffect(() => {
+    if (!selectedItem || !selectedItem.hasThumbnail || thumbnails[selectedItem.id]) return;
+    void hydrateThumbnails([selectedItem]);
+  }, [hydrateThumbnails, selectedItem, thumbnails]);
 
   useEffect(() => {
     void loadFirstPage().then((result) => {
@@ -1057,12 +1319,14 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   };
 
   const resolveContextTargetIds = (clickedItemId: string): string[] => {
-    if (selectedItemIds.length > 1 && selectedItemIds.includes(clickedItemId)) return selectedItemIds;
     return [clickedItemId];
   };
 
   const handleItemContextMenu = (itemId: string): void => {
-    if (!selectedItemIds.includes(itemId)) setSelectedItems([itemId]);
+    clearBookmarkSelection();
+    setSelectedBookmarkId(null);
+    setSelectedItems([itemId]);
+    setIsMultiSelect(false);
   };
 
   const handleEmptyBackgroundClick = (): void => {
@@ -1197,6 +1461,24 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     } finally {
       setIsDeletingFolder(false);
     }
+  };
+
+  const handleRenameFolder = async (folderId: number, name: string): Promise<boolean> => {
+    const result = await window.electronAPI.renameFolder({ folderId, name });
+    if (!result.ok) { toast.error(result.error); return false; }
+    const refreshed = await refresh();
+    if (!refreshed.ok) { toast.error(refreshed.error); return false; }
+    toast.success('Folder renamed.');
+    return true;
+  };
+
+  const handleMoveFolder = async (folderId: number, parentId: number | null): Promise<boolean> => {
+    const result = await window.electronAPI.moveFolder({ folderId, parentId });
+    if (!result.ok) { toast.error(result.error); return false; }
+    const refreshed = await refresh();
+    if (!refreshed.ok) { toast.error(refreshed.error); return false; }
+    toast.success('Folder moved.');
+    return true;
   };
 
   const handleCreateTag = async (color?: string): Promise<void> => {
@@ -1338,13 +1620,21 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
 
   const openMoveDialogForIds = (itemIds: string[]): void => {
     if (itemIds.length === 0 && selectedBookmarkIds.length === 0) { toast.warning('Select objects to move.'); return; }
-    setMoveDialogSource(itemIds.length > 1 ? 'bulk' : 'single');
+    setMoveDialogSource(itemIds.length + selectedBookmarkIds.length > 1 ? 'bulk' : 'single');
     setMoveDialogItemIds(itemIds);
+    setMoveDialogBookmarkIds(selectedBookmarkIds);
     setMoveDialogOpen(true);
   };
 
   const openSingleMoveDialog = (itemId: string): void => { openMoveDialogForIds([itemId]); };
   const openBulkMoveDialog = (): void => { openMoveDialogForIds(selectedItemIds); };
+  const openBookmarkBulkMoveDialog = (): void => {
+    if (selectedBookmarkIds.length === 0) { toast.warning('Select bookmarks to move.'); return; }
+    setMoveDialogSource(selectedBookmarkIds.length > 1 ? 'bulk' : 'single');
+    setMoveDialogItemIds([]);
+    setMoveDialogBookmarkIds(selectedBookmarkIds);
+    setMoveDialogOpen(true);
+  };
 
   const handleOpenViewerForIds = (itemIds: string[]): void => {
     if (itemIds.length !== 1) return;
@@ -1352,17 +1642,11 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   };
 
   const handleConfirmMoveDialog = async (folderId: number | null, itemIds: string[]): Promise<void> => {
-    const bookmarkIdsToMove = selectedBookmarkIds;
+    const bookmarkIdsToMove = moveDialogBookmarkIds;
     if (itemIds.length === 0 && bookmarkIdsToMove.length === 0) return;
     setIsMoveBusy(true);
     const destinationLabel = folderId === null ? 'Root' : findFolderNameById(folders, folderId) ?? 'selected folder';
     try {
-      if (isBookmarkScope) {
-        await handleAssignFolderSelectedBookmarks(folderId);
-        toast.success(`Moved ${selectedBookmarkIds.length} bookmark(s) to ${destinationLabel}.`);
-        clearBookmarkSelection();
-        return;
-      }
       if (itemIds.length > 0 && moveDialogSource === 'bulk') {
         const result = await window.electronAPI.assignItemsFolder({ itemIds, folderId });
         if (!result.ok) { toast.error(result.error); return; }
@@ -1383,6 +1667,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
       else toast.success(`Moved to ${destinationLabel}.`);
       setMoveDialogOpen(false);
       setMoveDialogItemIds([]);
+      setMoveDialogBookmarkIds([]);
       clearSelection();
       clearBookmarkSelection();
     } finally {
@@ -1441,13 +1726,6 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
       : await window.electronAPI.assignBookmarksTag({ bookmarkIds, tagId });
     if (!response.ok) { toast.error(response.error); return; }
     await loadBookmarks();
-  };
-
-  const handleAssignBookmarkFolder = async (bookmarkId: string, folderId: number | null): Promise<void> => {
-    const result = await window.electronAPI.assignBookmarkFolder({ bookmarkId, folderId });
-    if (!result.ok) { toast.error(result.error); return; }
-    await loadBookmarks();
-    toast.success('Folder assigned.');
   };
 
   const handlePickThumb = async (dataUrl: string, bookmarkId: string): Promise<void> => {
@@ -1521,17 +1799,9 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     if (deleted) clearBookmarkSelection();
   };
 
-  const handleAssignFolderSelectedBookmarks = async (folderId: number | null): Promise<void> => {
-    if (selectedBookmarkIds.length === 0) return;
-    const result = await window.electronAPI.assignBookmarksFolder({ bookmarkIds: selectedBookmarkIds, folderId });
-    if (!result.ok) { toast.error(result.error); return; }
-    await loadBookmarks();
-    toast.success('Folder assigned.');
-    setMoveDialogOpen(false);
-  };
-
   const detailsPanelProps = {
     item: selectedItem,
+    thumbnailUrl: selectedItem ? thumbnails[selectedItem.id] : undefined,
     tags,
     securitySettings,
     onToggleTag: (itemId: string, tagId: number, assigned: boolean) => void handleToggleTag(itemId, tagId, assigned),
@@ -1577,6 +1847,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     isLoadingMore,
     sentinelRef,
     isMultiSelect,
+    tags,
   };
 
   // Toolbar title for bookmark scope
@@ -1587,17 +1858,20 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   // Bookmark multi-select — active in bookmark scope or mixed views
   const isBookmarkMultiSelect = (isBookmarkScope || showBookmarksInMixedView) && isMultiSelect;
   const resolveBookmarkContextTargetIds = (clickedBookmarkId: string): string[] => {
-    if (selectedBookmarkIds.length > 1 && selectedBookmarkIds.includes(clickedBookmarkId)) return selectedBookmarkIds;
     return [clickedBookmarkId];
   };
   const handleBookmarkContextMenu = (bookmarkId: string): void => {
-    if (!selectedBookmarkIds.includes(bookmarkId)) setSelectedBookmarkIds([bookmarkId]);
+    clearSelection();
+    setSelectedBookmarkIds([bookmarkId]);
+    setSelectedBookmarkId(bookmarkId);
+    setIsMultiSelect(false);
   };
   const openMoveDialogForBookmarkIds = (bookmarkIds: string[]): void => {
     if (bookmarkIds.length === 0) { toast.warning('Select bookmarks to move.'); return; }
     setSelectedBookmarkIds(bookmarkIds);
     setMoveDialogSource(bookmarkIds.length > 1 ? 'bulk' : 'single');
     setMoveDialogItemIds([]);
+    setMoveDialogBookmarkIds(bookmarkIds);
     setMoveDialogOpen(true);
   };
   const bookmarkActionProps = {
@@ -1618,6 +1892,36 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
       setSelectedBookmarkId(id);
     }
   };
+
+  const vaultMarqueeContainerRef = useRef<HTMLDivElement>(null);
+  const selectedVaultObjectIds = useMemo(
+    () => [...selectedItemIds, ...selectedBookmarkIds],
+    [selectedBookmarkIds, selectedItemIds],
+  );
+  const handleSetVaultMarqueeSelection = useCallback((objectIds: string[]): void => {
+    const fileIds = new Set(filteredItems.map((item) => item.id));
+    const bookmarkIds = new Set(visibleBookmarks.map((bookmark) => bookmark.id));
+    const nextItemIds = objectIds.filter((id) => fileIds.has(id));
+    const nextBookmarkIds = objectIds.filter((id) => bookmarkIds.has(id));
+
+    setSelectedItems(nextItemIds);
+    setSelectedBookmarkIds(nextBookmarkIds);
+    if (nextBookmarkIds.length !== 1 || selectedBookmarkId !== nextBookmarkIds[0]) {
+      setSelectedBookmarkId(null);
+    }
+    if (objectIds.length > 0) setShowInspector(true);
+  }, [filteredItems, selectedBookmarkId, setSelectedItems, visibleBookmarks]);
+  const {
+    isSelecting: isVaultMarqueeSelecting,
+    overlayStyle: vaultMarqueeOverlayStyle,
+    onMouseDown: handleVaultMarqueeMouseDown,
+  } = useMarqueeSelection({
+    containerRef: vaultMarqueeContainerRef,
+    selectedItemIds: selectedVaultObjectIds,
+    onSetSelectedItems: handleSetVaultMarqueeSelection,
+    onBeginSelection: () => setIsMultiSelect(true),
+    onEmptyBackgroundClick: handleEmptyBackgroundClick,
+  });
 
   return (
     <div
@@ -1645,6 +1949,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
         void runImport(files, dropFolderId, false);
       }}
     >
+      <style>{MIXED_LIST_STYLES}</style>
       {/* Drag overlay */}
       {isDragOver && !isBookmarkScope && (
         <div style={{
@@ -1676,7 +1981,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
           onExportSelected={isBookmarkScope ? () => void handleExportBookmarks() : () => void handleExportSelected()}
           onDeleteSelected={isBookmarkScope ? () => void handleDeleteSelectedBookmarks() : () => void handleDeleteSelected()}
           onToggleFavoriteSelected={() => void handleToggleFavoriteSelected()}
-          onOpenBulkMoveDialog={isBookmarkScope ? () => { setMoveDialogSource('bulk'); setMoveDialogOpen(true); } : openBulkMoveDialog}
+          onOpenBulkMoveDialog={isBookmarkScope ? openBookmarkBulkMoveDialog : openBulkMoveDialog}
           onRefresh={() => void handleRefresh()}
           isBusy={isLoading || bookmarksLoading}
           showFavoritesOnly={showFavoritesOnly}
@@ -1739,14 +2044,17 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
             onNewFolderParentIdChange={setNewFolderParentId}
             onCreateFolder={() => void handleCreateFolder()}
             onDeleteFolder={(folderId) => void handleDeleteFolder(folderId)}
+            onRenameFolder={handleRenameFolder}
+            onMoveFolder={handleMoveFolder}
           />
         </div>
 
         {/* Content area */}
         {isBookmarkScope ? (
           <div
-            style={{ flex: 1, overflowY: 'auto', padding: viewMode === 'grid' ? '16px 20px' : 0 }}
-            onClick={(e) => { if (e.target === e.currentTarget && isMultiSelect) { clearBookmarkSelection(); setIsMultiSelect(false); } }}
+            ref={vaultMarqueeContainerRef}
+            onMouseDown={handleVaultMarqueeMouseDown}
+            style={{ flex: 1, overflowY: 'auto', padding: viewMode === 'grid' ? '16px 20px' : 0, position: 'relative', userSelect: 'none' }}
           >
             {visibleBookmarks.length === 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '60px 0', color: T.mute }}>
@@ -1774,7 +2082,8 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
                 ))}
               </div>
             ) : (
-              <div>
+              <div className="pv-mixed-list">
+                <MixedListHeader />
                 {visibleBookmarks.map((b) => (
                   <BookmarkListRow
                     key={b.id}
@@ -1789,13 +2098,24 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
                 ))}
               </div>
             )}
+            {isVaultMarqueeSelecting && vaultMarqueeOverlayStyle && (
+              <div
+                style={{
+                  ...vaultMarqueeOverlayStyle,
+                  position: 'absolute',
+                  zIndex: 20,
+                  pointerEvents: 'none',
+                  border: `1px solid ${T.accent}`,
+                  background: T.accentGlow,
+                }}
+              />
+            )}
           </div>
         ) : showBookmarksInMixedView ? (
           <div
-            style={{ flex: 1, overflowY: 'auto', padding: viewMode === 'grid' ? '16px 20px' : 0 }}
-            onClick={(e) => {
-              if (e.target === e.currentTarget && isMultiSelect) handleEmptyBackgroundClick();
-            }}
+            ref={vaultMarqueeContainerRef}
+            onMouseDown={handleVaultMarqueeMouseDown}
+            style={{ flex: 1, overflowY: 'auto', padding: viewMode === 'grid' ? '16px 20px' : 0, position: 'relative', userSelect: 'none' }}
           >
             {mixedObjects.length === 0 ? (
               <div style={{
@@ -1811,7 +2131,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
               </div>
             ) : viewMode === 'grid' ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
-                {mixedObjects.map((object) => (
+                {renderedMixedObjects.map((object) => (
                   object.kind === 'file' ? (
                     <GalleryCard
                       key={object.id}
@@ -1834,6 +2154,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
                       onDelete={(itemId) => void handleDeleteItem(itemId)}
                       onRename={(itemId, newName) => void handleRenameItem(itemId, newName)}
                       isMultiSelect={isMultiSelect}
+                      tags={tags}
                     />
                   ) : (
                     <BookmarkCard
@@ -1850,8 +2171,9 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
                 ))}
               </div>
             ) : (
-              <div>
-                {mixedObjects.map((object) => (
+              <div className="pv-mixed-list">
+                <MixedListHeader />
+                {renderedMixedObjects.map((object) => (
                   object.kind === 'file' ? (
                     <FileListRow
                       key={object.id}
@@ -1864,10 +2186,11 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
 	                      onContextMenuOpen={handleItemContextMenu}
 	                      contextTargetIds={resolveContextTargetIds(object.id)}
 	                      onToggleFavorite={(itemIds) => void handleToggleFavoriteByIds(itemIds)}
-	                      onMove={openMoveDialogForIds}
-	                      onExport={(itemIds) => void handleExportByIds(itemIds)}
-	                      onDelete={(itemIds) => void handleDeleteByIds(itemIds)}
-	                    />
+                      onMove={openMoveDialogForIds}
+                      onExport={(itemIds) => void handleExportByIds(itemIds)}
+                      onDelete={(itemIds) => void handleDeleteByIds(itemIds)}
+                      tags={tags}
+                    />
                   ) : (
                     <BookmarkListRow
                       key={object.id}
@@ -1881,6 +2204,27 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
 	                    />
                   )
                 ))}
+              </div>
+            )}
+            {isVaultMarqueeSelecting && vaultMarqueeOverlayStyle && (
+              <div
+                style={{
+                  ...vaultMarqueeOverlayStyle,
+                  position: 'absolute',
+                  zIndex: 20,
+                  pointerEvents: 'none',
+                  border: `1px solid ${T.accent}`,
+                  background: T.accentGlow,
+                }}
+              />
+            )}
+            {renderCount < mixedObjects.length && (
+              <div ref={sentinelRef} style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
+                {isLoadingMore && (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke={T.mute2} strokeWidth="1.5" style={{ animation: 'spin 1s linear infinite' }}>
+                    <path d="M14 8A6 6 0 1 1 8 2" />
+                  </svg>
+                )}
               </div>
             )}
           </div>
@@ -1969,8 +2313,9 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
         onOpenChange={setMoveDialogOpen}
         folders={folders}
         itemIds={moveDialogItemIds}
+        objectCount={moveDialogItemIds.length + moveDialogBookmarkIds.length}
         onConfirm={handleConfirmMoveDialog}
-        title={moveDialogSource === 'bulk' ? 'Move selected items' : 'Move item'}
+        title={moveDialogSource === 'bulk' ? 'Move selected objects' : 'Move object'}
         isBusy={isMoveBusy}
       />
 

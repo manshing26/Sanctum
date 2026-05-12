@@ -20,6 +20,7 @@ type MoveToFolderDialogProps = {
   onOpenChange: (open: boolean) => void;
   folders: FolderNode[];
   itemIds: string[];
+  objectCount?: number;
   onConfirm: (folderId: number | null, itemIds: string[]) => Promise<void>;
   title?: string;
   isBusy?: boolean;
@@ -52,6 +53,7 @@ export const MoveToFolderDialog = ({
   onOpenChange,
   folders,
   itemIds,
+  objectCount,
   onConfirm,
   title,
   isBusy = false,
@@ -84,7 +86,7 @@ export const MoveToFolderDialog = ({
   };
 
   const handleConfirm = async (): Promise<void> => {
-    if (selectedDestination === undefined || itemIds.length === 0 || isBusy) return;
+    if (selectedDestination === undefined || (objectCount ?? itemIds.length) === 0 || isBusy) return;
     await onConfirm(selectedDestination, itemIds);
   };
 
@@ -140,7 +142,8 @@ export const MoveToFolderDialog = ({
 
   if (!open) return <></>;
 
-  const canConfirm = selectedDestination !== undefined && itemIds.length > 0 && !isBusy;
+  const visibleCount = objectCount ?? itemIds.length;
+  const canConfirm = selectedDestination !== undefined && visibleCount > 0 && !isBusy;
 
   return (
     <div
@@ -155,7 +158,7 @@ export const MoveToFolderDialog = ({
         <div style={{ padding: '18px 24px 14px', borderBottom: `1px solid ${T.line}` }}>
           <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: 20, color: T.text, margin: '0 0 4px' }}>{title ?? 'Move to Folder'}</p>
           <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0 }}>
-            Choose destination for {itemIds.length} item{itemIds.length === 1 ? '' : 's'}.
+            Choose destination for {visibleCount} item{visibleCount === 1 ? '' : 's'}.
           </p>
         </div>
 

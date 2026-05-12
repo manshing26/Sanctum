@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { VaultItemSummary } from '../../../../shared/ipc';
+import type { TagSummary, VaultItemSummary } from '../../../../shared/ipc';
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -42,6 +42,7 @@ type GalleryCardProps = {
   onDelete?: (itemId: string) => void;
   onRename?: (itemId: string, newName: string) => void;
   isMultiSelect: boolean;
+  tags?: TagSummary[];
 };
 
 const formatDuration = (seconds: number): string => {
@@ -80,13 +81,20 @@ export const GalleryCard = ({
   onDelete,
   onRename,
   isMultiSelect,
+  tags = [],
 }: GalleryCardProps): React.JSX.Element => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
-  const contextTargetIds = contextTargetIdsForItem?.(item.id) ?? [item.id];
-  const openViewerDisabled = isOpenViewerDisabledForItem?.(item.id) ?? contextTargetIds.length > 1;
+  const getContextTargetIds = (): string[] => contextTargetIdsForItem?.(item.id) ?? [item.id];
+  const contextTargetIds = getContextTargetIds();
+  const isOpenViewerDisabled = (): boolean => isOpenViewerDisabledForItem?.(item.id) ?? getContextTargetIds().length > 1;
+  const openViewerDisabled = isOpenViewerDisabled();
   const mediaType = isVideo(item.mimeType) ? 'video' : isGif(item.mimeType) ? 'gif' : 'image';
+  const itemTags = (item.tagIds ?? [])
+    .map((tagId) => tags.find((tag) => tag.id === tagId))
+    .filter((tag): tag is TagSummary => Boolean(tag));
+  const primaryTag = itemTags[0] ?? (item.tags?.[0] ? { id: -1, name: item.tags[0] } : undefined);
 
   const cardContent = (
     <div
@@ -168,7 +176,7 @@ export const GalleryCard = ({
         {/* Type badge */}
         {(mediaType === 'video' || mediaType === 'gif') && (
           <div style={{
-            position: 'absolute', bottom: 7, left: 7, zIndex: 10,
+            position: 'absolute', top: isMultiSelect ? 30 : 7, left: 7, zIndex: 10,
             padding: '2px 6px',
             background: 'rgba(0,0,0,0.75)',
             fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em',
@@ -181,6 +189,25 @@ export const GalleryCard = ({
               </svg>
             )}
             {mediaType === 'video' ? 'VIDEO' : 'GIF'}
+          </div>
+        )}
+
+        {primaryTag && (
+          <div style={{
+            position: 'absolute', bottom: 7, left: 7, zIndex: 10,
+            maxWidth: item.durationSeconds !== undefined && item.durationSeconds > 0 ? 'calc(100% - 78px)' : 'calc(100% - 14px)',
+            padding: '2px 6px',
+            background: 'rgba(0,0,0,0.75)',
+            fontFamily: MONO,
+            fontSize: 9,
+            letterSpacing: '0.04em',
+            color: T.mute,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+          }}>
+            {primaryTag.color && <span style={{ width: 5, height: 5, borderRadius: '50%', background: primaryTag.color, flexShrink: 0 }} />}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{primaryTag.name}</span>
           </div>
         )}
 
@@ -271,8 +298,9 @@ export const GalleryCard = ({
           <ContextMenuItem
             disabled={openViewerDisabled}
             onClick={() => {
-              if (openViewerDisabled) return;
-              if (onOpenViewerForIds) { onOpenViewerForIds(contextTargetIds); return; }
+              const targetIds = getContextTargetIds();
+              if (isOpenViewerDisabled()) return;
+              if (onOpenViewerForIds) { onOpenViewerForIds(targetIds); return; }
               onOpen(item.id);
             }}
           >
@@ -280,7 +308,8 @@ export const GalleryCard = ({
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => {
-              if (onToggleFavoriteForIds) { onToggleFavoriteForIds(contextTargetIds); return; }
+              const targetIds = getContextTargetIds();
+              if (onToggleFavoriteForIds) { onToggleFavoriteForIds(targetIds); return; }
               onToggleFavorite(item.id, !item.isFavorite);
             }}
           >
@@ -289,7 +318,8 @@ export const GalleryCard = ({
           {(onOpenMoveDialog || onOpenMoveDialogForIds) && (
             <ContextMenuItem
               onClick={() => {
-                if (onOpenMoveDialogForIds) { onOpenMoveDialogForIds(contextTargetIds); return; }
+                const targetIds = getContextTargetIds();
+                if (onOpenMoveDialogForIds) { onOpenMoveDialogForIds(targetIds); return; }
                 onOpenMoveDialog?.(item.id);
               }}
             >
@@ -299,7 +329,8 @@ export const GalleryCard = ({
           {(onExport || onExportForIds) && (
             <ContextMenuItem
               onClick={() => {
-                if (onExportForIds) { onExportForIds(contextTargetIds); return; }
+                const targetIds = getContextTargetIds();
+                if (onExportForIds) { onExportForIds(targetIds); return; }
                 onExport?.(item.id);
               }}
             >
@@ -312,7 +343,8 @@ export const GalleryCard = ({
           {(onDelete || onDeleteForIds) && (
             <ContextMenuItem
               onClick={() => {
-                if (onDeleteForIds) { onDeleteForIds(contextTargetIds); return; }
+                const targetIds = getContextTargetIds();
+                if (onDeleteForIds) { onDeleteForIds(targetIds); return; }
                 onDelete?.(item.id);
               }}
               className="text-danger focus:text-danger"

@@ -113,8 +113,10 @@ const ListRow: React.FC<{
   const [imageLoaded, setImageLoaded] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
-  const contextTargetIds = contextTargetIdsForItem?.(item.id) ?? [item.id];
-  const openViewerDisabled = isOpenViewerDisabledForItem?.(item.id) ?? contextTargetIds.length > 1;
+  const getContextTargetIds = (): string[] => contextTargetIdsForItem?.(item.id) ?? [item.id];
+  const contextTargetIds = getContextTargetIds();
+  const isOpenViewerDisabled = (): boolean => isOpenViewerDisabledForItem?.(item.id) ?? getContextTargetIds().length > 1;
+  const openViewerDisabled = isOpenViewerDisabled();
 
   const typeLabel = isVideo(item.mimeType)
     ? 'video'
@@ -261,8 +263,9 @@ const ListRow: React.FC<{
           <ContextMenuItem
             disabled={openViewerDisabled}
             onClick={() => {
-              if (openViewerDisabled) return;
-              if (onOpenViewerForIds) { onOpenViewerForIds(contextTargetIds); return; }
+              const targetIds = getContextTargetIds();
+              if (isOpenViewerDisabled()) return;
+              if (onOpenViewerForIds) { onOpenViewerForIds(targetIds); return; }
               onOpen(item.id);
             }}
           >
@@ -270,7 +273,8 @@ const ListRow: React.FC<{
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => {
-              if (onToggleFavoriteForIds) { onToggleFavoriteForIds(contextTargetIds); return; }
+              const targetIds = getContextTargetIds();
+              if (onToggleFavoriteForIds) { onToggleFavoriteForIds(targetIds); return; }
               onToggleFavorite(item.id, !item.isFavorite);
             }}
           >
@@ -278,7 +282,8 @@ const ListRow: React.FC<{
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => {
-              if (onOpenMoveDialogForIds) { onOpenMoveDialogForIds(contextTargetIds); return; }
+              const targetIds = getContextTargetIds();
+              if (onOpenMoveDialogForIds) { onOpenMoveDialogForIds(targetIds); return; }
               onOpenMoveDialog(item.id);
             }}
           >
@@ -287,7 +292,8 @@ const ListRow: React.FC<{
           {(onExport || onExportForIds) && (
             <ContextMenuItem
               onClick={() => {
-                if (onExportForIds) { onExportForIds(contextTargetIds); return; }
+                const targetIds = getContextTargetIds();
+                if (onExportForIds) { onExportForIds(targetIds); return; }
                 onExport?.(item.id);
               }}
             >
@@ -300,7 +306,8 @@ const ListRow: React.FC<{
           {(onDelete || onDeleteForIds) && (
             <ContextMenuItem
               onClick={() => {
-                if (onDeleteForIds) { onDeleteForIds(contextTargetIds); return; }
+                const targetIds = getContextTargetIds();
+                if (onDeleteForIds) { onDeleteForIds(targetIds); return; }
                 onDelete?.(item.id);
               }}
               className="text-danger focus:text-danger"
