@@ -34,11 +34,20 @@ export const StarRating = ({
             key={star}
             type="button"
             disabled={readOnly}
-            onClick={() => {
+            onMouseDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
               if (readOnly || !onChange) return;
               onChange(star === currentValue ? null : star);
             }}
-            onMouseEnter={() => !readOnly && setHoverIndex(star)}
+            onMouseEnter={(event) => {
+              event.stopPropagation();
+              if (!readOnly) setHoverIndex(star);
+            }}
             className={cn(
               'transition-colors',
               readOnly
@@ -48,6 +57,19 @@ export const StarRating = ({
                 ? 'text-yellow-400'
                 : 'text-text-muted/30',
             )}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: size === 'sm' ? 18 : 22,
+              height: size === 'sm' ? 18 : 22,
+              padding: 0,
+              background: 'transparent',
+              border: 'none',
+              color: filled ? '#facc15' : 'rgba(151,166,196,0.35)',
+              cursor: readOnly ? 'default' : 'pointer',
+              pointerEvents: readOnly ? 'none' : 'auto',
+            }}
             aria-label={`${star} star${star === 1 ? '' : 's'}`}
           >
             <Star

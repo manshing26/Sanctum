@@ -319,6 +319,8 @@ export type BookmarkSummary = {
   title: string;
   url: string;
   folderId: number | null;
+  isFavorite: boolean;
+  rating?: number;
   tags: TagSummary[];
   createdAt: string;
   updatedAt: string;

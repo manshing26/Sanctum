@@ -26,6 +26,8 @@ type BookmarkRow = {
   thumbnail_iv: Buffer | null;
   thumbnail_auth_tag: Buffer | null;
   folder_id: number | null;
+  is_favorite: number | null;
+  rating: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -100,7 +102,7 @@ const logger = getLogger('bookmark');
 const BOOKMARK_SELECT = `
   SELECT b.vault_object_id, b.title_enc, b.url_enc,
          b.thumbnail_enc, b.thumbnail_iv, b.thumbnail_auth_tag,
-         vo.folder_id, vo.created_at, vo.updated_at
+         vo.folder_id, vo.is_favorite, vo.rating, vo.created_at, vo.updated_at
   FROM bookmarks b
   INNER JOIN vault_objects vo ON vo.id = b.vault_object_id
 `;
@@ -200,6 +202,8 @@ export class BookmarkService {
       title: decryptPayload(row.title_enc, this.cryptoService, masterKey),
       url: decryptPayload(row.url_enc, this.cryptoService, masterKey),
       folderId: row.folder_id,
+      isFavorite: Boolean(row.is_favorite),
+      rating: row.rating ?? undefined,
       tags: this.getBookmarkTags(row.vault_object_id),
       createdAt: row.created_at,
       updatedAt: row.updated_at,

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type {
   BookmarkSummary,
@@ -7,12 +7,25 @@ import type {
   CreateFolderInput,
   FolderNode,
   TagSummary,
+  VaultItemSummary,
   VaultListSort,
 } from '../../../shared/ipc';
 import { FolderSidebar } from './components/FolderSidebar';
 import { GalleryGrid } from './components/GalleryGrid';
 import { GalleryListView } from './components/GalleryListView';
 import { GalleryToolbar } from './components/GalleryToolbar';
+import { GalleryCard } from './components/GalleryCard';
+import {
+  ContextMenu,
+  ContextMenuCheckboxItem,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+} from '../../components/ui/ContextMenu';
+import { StarRating } from '../../components/ui/StarRating';
 import { ItemDetailsSidebar } from './components/ItemDetailsPanel';
 import { MoveToFolderDialog } from './components/MoveToFolderDialog';
 import { ImportSettingsDialog } from './components/ImportSettingsDialog';
@@ -48,13 +61,39 @@ const BookmarkListRow: React.FC<{
   selected: boolean;
   isMultiSelect: boolean;
   onClick: (e: React.MouseEvent) => void;
-}> = ({ bookmark, selected, isMultiSelect, onClick }) => {
+  onContextMenuOpen?: (id: string) => void;
+  contextTargetIds?: string[];
+  tags: TagSummary[];
+  onOpen: (bookmark: BookmarkSummary) => void;
+  onToggleFavorite: (ids: string[], isFavorite: boolean) => void;
+  onMove: (ids: string[]) => void;
+  onExport: (ids: string[]) => void;
+  onDelete: (ids: string[]) => void;
+  onToggleTag: (ids: string[], tagId: number, assigned: boolean) => void;
+}> = ({
+  bookmark,
+  selected,
+  isMultiSelect,
+  onClick,
+  onContextMenuOpen,
+  contextTargetIds,
+  tags,
+  onOpen,
+  onToggleFavorite,
+  onMove,
+  onExport,
+  onDelete,
+  onToggleTag,
+}) => {
   const hostname = (() => { try { return new URL(bookmark.url).hostname; } catch { return bookmark.url; } })();
-  return (
+  const targetIds = contextTargetIds && contextTargetIds.length > 0 ? contextTargetIds : [bookmark.id];
+  const tagAssigned = (tagId: number): boolean => bookmark.tags.some((tag) => tag.id === tagId);
+  const row = (
     <div
       role="button"
       tabIndex={0}
       onClick={onClick}
+      onContextMenu={() => onContextMenuOpen?.(bookmark.id)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e as unknown as React.MouseEvent); } }}
       style={{
         display: 'flex',
@@ -122,6 +161,175 @@ const BookmarkListRow: React.FC<{
       </span>
     </div>
   );
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem disabled={targetIds.length > 1} onClick={() => onOpen(bookmark)}>
+          Open in Browser
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onToggleFavorite(targetIds, !bookmark.isFavorite)}>
+          {targetIds.length > 1 ? 'Toggle Favourites' : bookmark.isFavorite ? 'Remove Favourite' : 'Add to Favourites'}
+        </ContextMenuItem>
+        {tags.length > 0 && (
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>Tags</ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              {tags.map((tag) => {
+                const assigned = tagAssigned(tag.id);
+                return (
+                  <ContextMenuCheckboxItem
+                    key={tag.id}
+                    checked={assigned}
+                    onCheckedChange={() => onToggleTag(targetIds, tag.id, assigned)}
+                  >
+                    {tag.name}
+                  </ContextMenuCheckboxItem>
+                );
+              })}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        )}
+        <ContextMenuItem onClick={() => onMove(targetIds)}>
+          {targetIds.length > 1 ? 'Move Selected...' : 'Move to Folder...'}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onExport(targetIds)}>
+          {targetIds.length > 1 ? 'Export Selected' : 'Export'}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onDelete(targetIds)} className="text-danger focus:text-danger">
+          {targetIds.length > 1 ? 'Delete Selected' : 'Delete'}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+};
+
+const FileListRow: React.FC<{
+  item: VaultItemSummary;
+  thumbnailUrl?: string;
+  selected: boolean;
+  isMultiSelect: boolean;
+  onClick: (e: React.MouseEvent) => void;
+  onOpen: () => void;
+  onContextMenuOpen?: (id: string) => void;
+  contextTargetIds?: string[];
+  onToggleFavorite: (ids: string[]) => void;
+  onMove: (ids: string[]) => void;
+  onExport: (ids: string[]) => void;
+  onDelete: (ids: string[]) => void;
+}> = ({
+  item,
+  thumbnailUrl,
+  selected,
+  isMultiSelect,
+  onClick,
+  onOpen,
+  onContextMenuOpen,
+  contextTargetIds,
+  onToggleFavorite,
+  onMove,
+  onExport,
+  onDelete,
+}) => {
+  const typeLabel = item.mimeType.startsWith('video/')
+    ? 'video'
+    : (item.mimeType.split('/')[1] ?? 'file').toLowerCase();
+  const targetIds = contextTargetIds && contextTargetIds.length > 0 ? contextTargetIds : [item.id];
+
+  const row = (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onDoubleClick={onOpen}
+      onContextMenu={() => onContextMenuOpen?.(item.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e as unknown as React.MouseEvent); }
+      }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '7px 12px',
+        background: selected ? T.accentGlow : 'none',
+        borderBottom: `1px solid ${T.line}`,
+        borderLeft: `2px solid ${selected ? T.accent : 'transparent'}`,
+        cursor: 'pointer',
+        userSelect: 'none',
+      }}
+    >
+      {isMultiSelect && (
+        <div style={{
+          width: 14, height: 14, flexShrink: 0,
+          border: `1px solid ${selected ? T.accent : T.line2}`,
+          background: selected ? T.accent : 'transparent',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {selected && <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="#0a0c0b" strokeWidth="1.8"><path d="M1.5 4l2 2 3-3" /></svg>}
+        </div>
+      )}
+      <div style={{ width: 40, height: 28, flexShrink: 0, background: '#0d0f0d', overflow: 'hidden', border: `1px solid ${T.line}` }}>
+        {thumbnailUrl ? (
+          <img src={thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.mute2} strokeWidth="1.2">
+              {item.mimeType.startsWith('video/')
+                ? <><rect x="3" y="4" width="12" height="16" /><polyline points="15,8 21,5 21,19 15,16" /></>
+                : <><rect x="3" y="3" width="18" height="18" /><circle cx="9" cy="9" r="2" /><polyline points="3,17 8,12 12,16 16,13 21,17" /></>}
+            </svg>
+          </div>
+        )}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ margin: 0, fontFamily: MONO, fontSize: 11, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {item.originalName}
+        </p>
+        <p style={{ margin: '1px 0 0', fontFamily: MONO, fontSize: 9, color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
+          {typeLabel}
+        </p>
+      </div>
+      {item.tags && item.tags.length > 0 && (
+        <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+          {item.tags.slice(0, 3).map((tagName) => (
+            <span key={tagName} style={{
+              display: 'inline-flex', alignItems: 'center',
+              padding: '1px 5px',
+              background: T.accentGlow, border: `1px solid ${T.line2}`,
+              fontFamily: MONO, fontSize: 8, color: T.accent,
+            }}>
+              {tagName}
+            </span>
+          ))}
+        </div>
+      )}
+      <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, flexShrink: 0 }}>
+        {new Date(item.createdAt).toLocaleDateString()}
+      </span>
+    </div>
+  );
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem disabled={targetIds.length > 1} onClick={onOpen}>
+          Open in Viewer
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onToggleFavorite(targetIds)}>
+          {targetIds.length > 1 ? 'Toggle Favourites' : item.isFavorite ? 'Remove Favourite' : 'Add to Favourites'}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onMove(targetIds)}>
+          {targetIds.length > 1 ? 'Move Selected...' : 'Move to Folder...'}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onExport(targetIds)}>
+          {targetIds.length > 1 ? 'Export Selected' : 'Export'}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onDelete(targetIds)} className="text-danger focus:text-danger">
+          {targetIds.length > 1 ? 'Delete Selected' : 'Delete'}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
 };
 
 // ── Bookmark Card ─────────────────────────────────────────────────────
@@ -130,13 +338,39 @@ const BookmarkCard: React.FC<{
   selected: boolean;
   isMultiSelect: boolean;
   onClick: (e: React.MouseEvent) => void;
-}> = ({ bookmark, selected, isMultiSelect, onClick }) => {
+  onContextMenuOpen?: (id: string) => void;
+  contextTargetIds?: string[];
+  tags: TagSummary[];
+  onOpen: (bookmark: BookmarkSummary) => void;
+  onToggleFavorite: (ids: string[], isFavorite: boolean) => void;
+  onMove: (ids: string[]) => void;
+  onExport: (ids: string[]) => void;
+  onDelete: (ids: string[]) => void;
+  onToggleTag: (ids: string[], tagId: number, assigned: boolean) => void;
+}> = ({
+  bookmark,
+  selected,
+  isMultiSelect,
+  onClick,
+  onContextMenuOpen,
+  contextTargetIds,
+  tags,
+  onOpen,
+  onToggleFavorite,
+  onMove,
+  onExport,
+  onDelete,
+  onToggleTag,
+}) => {
   const hostname = (() => { try { return new URL(bookmark.url).hostname; } catch { return bookmark.url; } })();
-  return (
+  const targetIds = contextTargetIds && contextTargetIds.length > 0 ? contextTargetIds : [bookmark.id];
+  const tagAssigned = (tagId: number): boolean => bookmark.tags.some((tag) => tag.id === tagId);
+  const card = (
     <div
       role="button"
       tabIndex={0}
       onClick={onClick}
+      onContextMenu={() => onContextMenuOpen?.(bookmark.id)}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e as unknown as React.MouseEvent); } }}
       style={{
         display: 'flex',
@@ -172,6 +406,19 @@ const BookmarkCard: React.FC<{
             {selected && <svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="#0a0c0b" strokeWidth="2"><path d="M1.5 4.5l2 2 4-4" /></svg>}
           </div>
         )}
+        {!isMultiSelect && bookmark.isFavorite && (
+          <div style={{
+            position: 'absolute', top: 6, right: 6,
+            width: 18, height: 18,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(10,12,11,0.72)',
+            color: T.accent,
+          }}>
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor" stroke="currentColor" strokeWidth="1.1">
+              <path d="M6 1.2l1.35 2.74 3.02.44-2.19 2.13.52 3.01L6 8.1 3.3 9.52l.52-3.01L1.63 4.38l3.02-.44z" />
+            </svg>
+          </div>
+        )}
       </div>
       {/* Footer */}
       <div style={{ padding: '8px 10px', flex: 1 }}>
@@ -200,20 +447,61 @@ const BookmarkCard: React.FC<{
       </div>
     </div>
   );
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{card}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem disabled={targetIds.length > 1} onClick={() => onOpen(bookmark)}>
+          Open in Browser
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onToggleFavorite(targetIds, !bookmark.isFavorite)}>
+          {targetIds.length > 1 ? 'Toggle Favourites' : bookmark.isFavorite ? 'Remove Favourite' : 'Add to Favourites'}
+        </ContextMenuItem>
+        {tags.length > 0 && (
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>Tags</ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              {tags.map((tag) => {
+                const assigned = tagAssigned(tag.id);
+                return (
+                  <ContextMenuCheckboxItem
+                    key={tag.id}
+                    checked={assigned}
+                    onCheckedChange={() => onToggleTag(targetIds, tag.id, assigned)}
+                  >
+                    {tag.name}
+                  </ContextMenuCheckboxItem>
+                );
+              })}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        )}
+        <ContextMenuItem onClick={() => onMove(targetIds)}>
+          {targetIds.length > 1 ? 'Move Selected...' : 'Move to Folder...'}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onExport(targetIds)}>
+          {targetIds.length > 1 ? 'Export Selected' : 'Export'}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onDelete(targetIds)} className="text-danger focus:text-danger">
+          {targetIds.length > 1 ? 'Delete Selected' : 'Delete'}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
 };
 
 // ── Bookmark Inspector ────────────────────────────────────────────────
 const BookmarkInspector: React.FC<{
   bookmark: BookmarkSummary;
   tags: TagSummary[];
-  folders: FolderNode[];
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
   onToggleTag: (bookmarkId: string, tagId: number, assigned: boolean) => void;
-  onAssignFolder: (bookmarkId: string, folderId: number | null) => void;
+  onToggleFavorite: (bookmarkId: string, isFavorite: boolean) => void;
+  onSetRating: (bookmarkId: string, rating: number | null) => void;
   onOpenInBrowser?: (url: string) => void;
   onChangeThumbnail?: (bookmark: BookmarkSummary) => void;
-}> = ({ bookmark, tags, folders, onDelete, onRename, onToggleTag, onAssignFolder, onOpenInBrowser, onChangeThumbnail }) => {
+}> = ({ bookmark, tags, onDelete, onRename, onToggleTag, onToggleFavorite, onSetRating, onOpenInBrowser, onChangeThumbnail }) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState(bookmark.title);
 
@@ -221,15 +509,6 @@ const BookmarkInspector: React.FC<{
     setTitleDraft(bookmark.title);
     setIsRenaming(false);
   }, [bookmark.id, bookmark.title]);
-
-  const flatFolders = (nodes: FolderNode[], depth = 0): Array<{ id: number; label: string }> => {
-    const out: Array<{ id: number; label: string }> = [];
-    for (const n of nodes) {
-      out.push({ id: n.id, label: `${'  '.repeat(depth)}${n.name}` });
-      out.push(...flatFolders(n.children, depth + 1));
-    }
-    return out;
-  };
 
   const iconBtn = (): React.CSSProperties => ({
     width: 28, height: 28,
@@ -311,11 +590,25 @@ const BookmarkInspector: React.FC<{
       {/* Actions */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
         {onOpenInBrowser && (
-          <button type="button" onClick={() => onOpenInBrowser(bookmark.url)} style={{ ...actionBtn('default'), display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button type="button" onClick={() => onOpenInBrowser(bookmark.url)} style={{ ...actionBtn('default'), flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="5.5" cy="5.5" r="4.5" /><path d="M5.5 1C5.5 1 7 3 7 5.5S5.5 10 5.5 10M5.5 1C5.5 1 4 3 4 5.5S5.5 10 5.5 10M1 5.5h9" /></svg>
             Open
           </button>
         )}
+        <button type="button"
+          onClick={() => onToggleFavorite(bookmark.id, !bookmark.isFavorite)}
+          title={bookmark.isFavorite ? 'Unfavourite' : 'Favourite'}
+          style={{ ...iconBtn(), background: bookmark.isFavorite ? T.accentGlow : 'none', borderColor: bookmark.isFavorite ? T.accent : T.line2, color: bookmark.isFavorite ? T.accent : T.mute }}
+        >
+          <svg width="11" height="11" viewBox="0 0 12 12" fill={bookmark.isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.3">
+            <path d="M6 1.2l1.35 2.74 3.02.44-2.19 2.13.52 3.01L6 8.1 3.3 9.52l.52-3.01L1.63 4.38l3.02-.44z" />
+          </svg>
+        </button>
+        <button type="button" onClick={() => onDelete(bookmark.id)} style={{ ...iconBtn(), borderColor: T.danger, color: T.danger }}>
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.3"><polyline points="1.5,2.5 9.5,2.5" /><path d="M3 2.5V1.5h5v1" /><rect x="2" y="2.5" width="7" height="8" /></svg>
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
         <button type="button"
           onClick={() => { void navigator.clipboard.writeText(bookmark.url); toast.success('URL copied.'); }}
           style={{ ...actionBtn('ghost'), display: 'flex', alignItems: 'center', gap: 6 }}
@@ -329,9 +622,6 @@ const BookmarkInspector: React.FC<{
             Thumbnail
           </button>
         )}
-        <button type="button" onClick={() => onDelete(bookmark.id)} style={{ ...iconBtn(), borderColor: T.danger, color: T.danger }}>
-          <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.3"><polyline points="1.5,2.5 9.5,2.5" /><path d="M3 2.5V1.5h5v1" /><rect x="2" y="2.5" width="7" height="8" /></svg>
-        </button>
       </div>
 
       <div style={{ borderTop: `1px solid ${T.line}`, marginBottom: 14 }} />
@@ -346,19 +636,10 @@ const BookmarkInspector: React.FC<{
 
       <div style={{ borderTop: `1px solid ${T.line}`, marginBottom: 14 }} />
 
-      {/* Folder assignment */}
+      {/* Rating */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Folder ·</div>
-        <select
-          value={bookmark.folderId ?? 'none'}
-          onChange={(e) => onAssignFolder(bookmark.id, e.target.value === 'none' ? null : Number(e.target.value))}
-          style={{ width: '100%', height: 28, background: '#0a0c0b', border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 10, padding: '0 6px', outline: 'none', borderRadius: 0 }}
-        >
-          <option value="none">None (root)</option>
-          {flatFolders(folders).map((opt) => (
-            <option key={opt.id} value={opt.id}>{opt.label}</option>
-          ))}
-        </select>
+        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Rating ·</div>
+        <StarRating value={bookmark.rating} onChange={(rating) => onSetRating(bookmark.id, rating)} />
       </div>
 
       <div style={{ borderTop: `1px solid ${T.line}`, marginBottom: 14 }} />
@@ -495,6 +776,32 @@ const findFolderNameById = (nodes: FolderNode[], folderId: number): string | nul
   return null;
 };
 
+const collectFolderDescendantIds = (nodes: FolderNode[], folderId: number): Set<number> => {
+  const byId = new Map<number, FolderNode>();
+  const stack = [...nodes];
+  while (stack.length > 0) {
+    const node = stack.pop() as FolderNode;
+    byId.set(node.id, node);
+    stack.push(...node.children);
+  }
+
+  const result = new Set<number>();
+  const queue = [folderId];
+  while (queue.length > 0) {
+    const id = queue.shift() as number;
+    if (result.has(id)) continue;
+    result.add(id);
+    const node = byId.get(id);
+    if (!node) continue;
+    for (const child of node.children) queue.push(child.id);
+  }
+  return result;
+};
+
+type MixedObject =
+  | { kind: 'file'; id: string; createdAt: string; name: string; item: VaultItemSummary }
+  | { kind: 'bookmark'; id: string; createdAt: string; name: string; bookmark: BookmarkSummary };
+
 // ── VaultPage ─────────────────────────────────────────────────────────
 export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps): React.JSX.Element => {
   const state = useGalleryState();
@@ -521,15 +828,28 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   // View scope includes 'bookmark' now
   type VaultScope = 'all' | 'video' | 'image' | 'root' | 'folder' | 'bookmark';
   const vaultScope = selectedViewScope as VaultScope;
+  const isBookmarkScope = vaultScope === 'bookmark';
 
   const selectedBookmark = bookmarks.find((b) => b.id === selectedBookmarkId) ?? null;
 
-  // Derive sorted + filtered bookmark list
-  const visibleBookmarks = (() => {
+  const mixedFolderIds = useMemo(() => {
+    if (vaultScope !== 'folder' || selectedFolderId === null) return null;
+    return collectFolderDescendantIds(folders, selectedFolderId);
+  }, [folders, selectedFolderId, vaultScope]);
+
+  // Derive sorted + filtered bookmark list.
+  const visibleBookmarks = useMemo(() => {
     let list = bookmarks.slice();
 
-    // Folder filter
-    if (bookmarkFolderId !== null) list = list.filter((b) => b.folderId === bookmarkFolderId);
+    // Folder filter. Bookmark scope can show all bookmarks; mixed root/folder
+    // scopes mirror the file gallery's root/descendant behavior.
+    if (vaultScope === 'bookmark') {
+      if (bookmarkFolderId !== null) list = list.filter((b) => b.folderId === bookmarkFolderId);
+    } else if (vaultScope === 'root') {
+      list = list.filter((b) => b.folderId === null || b.folderId === undefined);
+    } else if (vaultScope === 'folder') {
+      list = list.filter((b) => b.folderId != null && Boolean(mixedFolderIds?.has(b.folderId)));
+    }
 
     // Tag filter
     if (selectedTagIds.length > 0) {
@@ -540,6 +860,10 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     if (searchTerm.trim()) {
       const q = searchTerm.trim().toLowerCase();
       list = list.filter((b) => b.title.toLowerCase().includes(q) || b.url.toLowerCase().includes(q));
+    }
+
+    if (showFavoritesOnly) {
+      list = list.filter((b) => b.isFavorite);
     }
 
     // Sort
@@ -554,7 +878,43 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     });
 
     return list;
-  })();
+  }, [bookmarkFolderId, bookmarks, mixedFolderIds, searchTerm, selectedTagIds, showFavoritesOnly, sort, vaultScope]);
+
+  const showBookmarksInMixedView = !isBookmarkScope && (vaultScope === 'all' || vaultScope === 'root' || vaultScope === 'folder');
+
+  const mixedObjects = useMemo<MixedObject[]>(() => {
+    const objects: MixedObject[] = filteredItems.map((item) => ({
+      kind: 'file',
+      id: item.id,
+      createdAt: item.createdAt,
+      name: item.originalName,
+      item,
+    }));
+
+    if (showBookmarksInMixedView) {
+      objects.push(...visibleBookmarks.map((bookmark) => ({
+        kind: 'bookmark' as const,
+        id: bookmark.id,
+        createdAt: bookmark.createdAt,
+        name: bookmark.title,
+        bookmark,
+      })));
+    }
+
+    return objects.sort((a, b) => {
+      switch (sort) {
+        case 'oldest':
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case 'name_asc':
+          return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+        case 'name_desc':
+          return b.name.localeCompare(a.name, undefined, { sensitivity: 'base' });
+        case 'newest':
+        default:
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+    });
+  }, [filteredItems, showBookmarksInMixedView, sort, visibleBookmarks]);
 
   const loadBookmarks = useCallback(async () => {
     setBookmarksLoading(true);
@@ -677,15 +1037,21 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   }, [viewerItemId, filteredItems]);
 
   const handleToggleMultiSelect = (): void => {
-    if (isMultiSelect) clearSelection();
+    if (isMultiSelect) {
+      clearSelection();
+      clearBookmarkSelection();
+    }
     setIsMultiSelect((prev) => !prev);
   };
 
   const handleItemClick = (itemId: string, multiKey = false): void => {
+    setShowInspector(true);
     if (isMultiSelect || multiKey) {
       if (!isMultiSelect) setIsMultiSelect(true);
       toggleSelectedItem(itemId);
     } else {
+      setSelectedBookmarkId(null);
+      clearBookmarkSelection();
       setSelectedItems([itemId]);
     }
   };
@@ -700,8 +1066,9 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   };
 
   const handleEmptyBackgroundClick = (): void => {
-    if (selectedItemIds.length === 0) return;
+    if (selectedItemIds.length === 0 && selectedBookmarkIds.length === 0) return;
     clearSelection();
+    clearBookmarkSelection();
     setIsMultiSelect(false);
   };
 
@@ -809,8 +1176,10 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     const node = findNode(folders, folderId);
     const folderName = node?.name ?? 'this folder';
     const subtreeIds = node ? collectIds([node]) : new Set([folderId]);
-    const hasFiles = allItems.some((item) => item.folderId != null && subtreeIds.has(item.folderId));
-    if (!hasFiles) { void confirmDeleteFolder(false, folderId); return; }
+    const hasObjects =
+      allItems.some((item) => item.folderId != null && subtreeIds.has(item.folderId)) ||
+      bookmarks.some((bookmark) => bookmark.folderId != null && subtreeIds.has(bookmark.folderId));
+    if (!hasObjects) { void confirmDeleteFolder(false, folderId); return; }
     setDeleteFolderDialog({ folderId, folderName });
   };
 
@@ -848,27 +1217,30 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     else toast.success('Tag deleted.');
   };
 
-  const handleDeleteByIds = async (itemIds: string[]): Promise<void> => {
-    if (itemIds.length === 0) { toast.warning('Select items to delete.'); return; }
-    const confirmed = window.confirm(
-      itemIds.length === 1 ? 'Delete this item? This cannot be undone.' : `Delete ${itemIds.length} item(s)? This cannot be undone.`,
-    );
-    if (!confirmed) return;
+  const handleDeleteByIds = async (itemIds: string[], confirm = true): Promise<boolean> => {
+    if (itemIds.length === 0) { toast.warning('Select items to delete.'); return false; }
+    if (confirm) {
+      const confirmed = window.confirm(
+        itemIds.length === 1 ? 'Delete this item? This cannot be undone.' : `Delete ${itemIds.length} item(s)? This cannot be undone.`,
+      );
+      if (!confirmed) return false;
+    }
     for (const itemId of itemIds) {
       const result = await window.electronAPI.deleteVaultItem({ itemId });
-      if (!result.ok) { toast.error(result.error); return; }
+      if (!result.ok) { toast.error(result.error); return false; }
       if (viewerItemId === itemId) setViewerItemId(null);
     }
     const refreshed = await refresh();
-    if (!refreshed.ok) toast.error(refreshed.error);
+    if (!refreshed.ok) { toast.error(refreshed.error); return false; }
     else toast.success(itemIds.length === 1 ? 'Item deleted.' : 'Items deleted.');
+    return true;
   };
 
   const handleDeleteItem = async (itemId: string): Promise<void> => { await handleDeleteByIds([itemId]); };
   const handleToggleFavorite = async (itemId: string, isFavorite: boolean): Promise<void> => {
     const result = await window.electronAPI.toggleFavorite({ itemId, isFavorite });
     if (!result.ok) { toast.error(result.error); return; }
-    const refreshed = await refresh();
+    const [refreshed] = await Promise.all([refresh(), loadBookmarks()]);
     if (!refreshed.ok) toast.error(refreshed.error);
   };
 
@@ -877,6 +1249,15 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     if (!result.ok) { toast.error(result.error); return; }
     const refreshed = await refresh();
     if (!refreshed.ok) toast.error(refreshed.error);
+  };
+
+  const handleSetBookmarkRating = async (bookmarkId: string, rating: number | null): Promise<void> => {
+    const result = await window.electronAPI.setRating({ itemId: bookmarkId, rating });
+    if (!result.ok) { toast.error(result.error); return; }
+    setBookmarks((prev) => prev.map((bookmark) => (
+      bookmark.id === bookmarkId ? { ...bookmark, rating: rating ?? undefined } : bookmark
+    )));
+    await loadBookmarks();
   };
 
   const handleRenameItem = async (itemId: string, newName: string): Promise<void> => {
@@ -895,25 +1276,68 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   };
 
   const handleExportItem = async (itemId: string): Promise<void> => { await handleExportByIds([itemId]); };
-  const handleExportSelected = async (): Promise<void> => { await handleExportByIds(selectedItemIds); };
-  const handleDeleteSelected = async (): Promise<void> => { await handleDeleteByIds(selectedItemIds); clearSelection(); };
+  const handleExportSelected = async (): Promise<void> => {
+    const hasFiles = selectedItemIds.length > 0;
+    const hasBookmarks = selectedBookmarkIds.length > 0;
+    if (!hasFiles && !hasBookmarks) { toast.warning('Select objects to export.'); return; }
+    if (hasFiles) await handleExportByIds(selectedItemIds);
+    if (hasBookmarks) await handleExportBookmarks(selectedBookmarkIds);
+  };
+  const handleDeleteSelected = async (): Promise<void> => {
+    if (selectedItemIds.length === 0 && selectedBookmarkIds.length === 0) { toast.warning('Select objects to delete.'); return; }
+    const total = selectedItemIds.length + selectedBookmarkIds.length;
+    const confirmed = window.confirm(
+      total === 1 ? 'Delete this object? This cannot be undone.' : `Delete ${total} object(s)? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+    if (selectedItemIds.length > 0) {
+      const deleted = await handleDeleteByIds(selectedItemIds, false);
+      if (!deleted) return;
+    }
+    if (selectedBookmarkIds.length > 0) await handleDeleteSelectedBookmarks(false);
+    clearSelection();
+    clearBookmarkSelection();
+  };
 
-  const handleToggleFavoriteByIds = async (itemIds: string[]): Promise<void> => {
+  const handleToggleFavoriteByIds = async (itemIds: string[], isFavorite?: boolean): Promise<void> => {
     if (itemIds.length === 0) return;
     const targetItems = filteredItems.filter((item) => itemIds.includes(item.id));
-    const allFavorite = targetItems.length > 0 && targetItems.every((item) => item.isFavorite);
+    const nextFavorite = isFavorite ?? !(targetItems.length > 0 && targetItems.every((item) => item.isFavorite));
     for (const item of targetItems) {
-      const result = await window.electronAPI.toggleFavorite({ itemId: item.id, isFavorite: !allFavorite });
+      const result = await window.electronAPI.toggleFavorite({ itemId: item.id, isFavorite: nextFavorite });
       if (!result.ok) { toast.error(result.error); return; }
     }
     const refreshed = await refresh();
     if (!refreshed.ok) toast.error(refreshed.error);
   };
 
-  const handleToggleFavoriteSelected = async (): Promise<void> => { await handleToggleFavoriteByIds(selectedItemIds); };
+  const handleToggleBookmarkFavoriteByIds = async (bookmarkIds: string[], isFavorite?: boolean): Promise<void> => {
+    if (bookmarkIds.length === 0) return;
+    const targetBookmarks = bookmarks.filter((bookmark) => bookmarkIds.includes(bookmark.id));
+    const nextFavorite = isFavorite ?? !(targetBookmarks.length > 0 && targetBookmarks.every((bookmark) => bookmark.isFavorite));
+    for (const bookmark of targetBookmarks) {
+      const result = await window.electronAPI.toggleFavorite({ itemId: bookmark.id, isFavorite: nextFavorite });
+      if (!result.ok) { toast.error(result.error); return; }
+    }
+    setBookmarks((prev) => prev.map((bookmark) => (
+      bookmarkIds.includes(bookmark.id) ? { ...bookmark, isFavorite: nextFavorite } : bookmark
+    )));
+    await loadBookmarks();
+  };
+
+  const handleToggleFavoriteSelected = async (): Promise<void> => {
+    const selectedBookmarks = bookmarks.filter((bookmark) => selectedBookmarkIds.includes(bookmark.id));
+    const selectedFiles = filteredItems.filter((item) => selectedItemIds.includes(item.id));
+    const allFavorite =
+      selectedFiles.length + selectedBookmarks.length > 0 &&
+      selectedFiles.every((item) => item.isFavorite) &&
+      selectedBookmarks.every((bookmark) => bookmark.isFavorite);
+    await handleToggleFavoriteByIds(selectedItemIds, !allFavorite);
+    await handleToggleBookmarkFavoriteByIds(selectedBookmarkIds, !allFavorite);
+  };
 
   const openMoveDialogForIds = (itemIds: string[]): void => {
-    if (itemIds.length === 0) { toast.warning('Select items to move.'); return; }
+    if (itemIds.length === 0 && selectedBookmarkIds.length === 0) { toast.warning('Select objects to move.'); return; }
     setMoveDialogSource(itemIds.length > 1 ? 'bulk' : 'single');
     setMoveDialogItemIds(itemIds);
     setMoveDialogOpen(true);
@@ -928,7 +1352,8 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   };
 
   const handleConfirmMoveDialog = async (folderId: number | null, itemIds: string[]): Promise<void> => {
-    if (itemIds.length === 0) return;
+    const bookmarkIdsToMove = selectedBookmarkIds;
+    if (itemIds.length === 0 && bookmarkIdsToMove.length === 0) return;
     setIsMoveBusy(true);
     const destinationLabel = folderId === null ? 'Root' : findFolderNameById(folders, folderId) ?? 'selected folder';
     try {
@@ -938,20 +1363,28 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
         clearBookmarkSelection();
         return;
       }
-      if (moveDialogSource === 'bulk') {
+      if (itemIds.length > 0 && moveDialogSource === 'bulk') {
         const result = await window.electronAPI.assignItemsFolder({ itemIds, folderId });
         if (!result.ok) { toast.error(result.error); return; }
-      } else {
+      } else if (itemIds.length > 0) {
         const result = await window.electronAPI.assignItemFolder({ itemId: itemIds[0], folderId });
         if (!result.ok) { toast.error(result.error); return; }
+      }
+      if (bookmarkIdsToMove.length > 0) {
+        const result = await window.electronAPI.assignBookmarksFolder({ bookmarkIds: bookmarkIdsToMove, folderId });
+        if (!result.ok) { toast.error(result.error); return; }
+        await loadBookmarks();
       }
       if (folderId !== null) { setSelectedViewScope('folder' as typeof selectedViewScope); setSelectedFolderId(folderId); }
       const refreshed = await refresh();
       if (!refreshed.ok) { toast.error(refreshed.error); return; }
-      if (moveDialogSource === 'bulk') toast.success(`Moved ${itemIds.length} item(s) to ${destinationLabel}.`);
+      const movedCount = itemIds.length + bookmarkIdsToMove.length;
+      if (moveDialogSource === 'bulk' || movedCount > 1) toast.success(`Moved ${movedCount} object(s) to ${destinationLabel}.`);
       else toast.success(`Moved to ${destinationLabel}.`);
       setMoveDialogOpen(false);
       setMoveDialogItemIds([]);
+      clearSelection();
+      clearBookmarkSelection();
     } finally {
       setIsMoveBusy(false);
     }
@@ -1001,6 +1434,15 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     await loadBookmarks();
   };
 
+  const handleToggleBookmarkTagByIds = async (bookmarkIds: string[], tagId: number, assigned: boolean): Promise<void> => {
+    if (bookmarkIds.length === 0) return;
+    const response = assigned
+      ? await window.electronAPI.unassignBookmarksTag({ bookmarkIds, tagId })
+      : await window.electronAPI.assignBookmarksTag({ bookmarkIds, tagId });
+    if (!response.ok) { toast.error(response.error); return; }
+    await loadBookmarks();
+  };
+
   const handleAssignBookmarkFolder = async (bookmarkId: string, folderId: number | null): Promise<void> => {
     const result = await window.electronAPI.assignBookmarkFolder({ bookmarkId, folderId });
     if (!result.ok) { toast.error(result.error); return; }
@@ -1017,8 +1459,8 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   };
 
   // Export bookmarks
-  const handleExportBookmarks = async (): Promise<void> => {
-    const ids = selectedBookmarkIds.length > 0 ? selectedBookmarkIds : undefined;
+  const handleExportBookmarks = async (bookmarkIds = selectedBookmarkIds): Promise<void> => {
+    const ids = bookmarkIds.length > 0 ? bookmarkIds : undefined;
     const result = await window.electronAPI.exportBookmarks(ids ? { ids } : undefined);
     if (!result.ok) { toast.error(result.error); return; }
     const blob = new Blob([result.data], { type: 'text/html' });
@@ -1056,18 +1498,27 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   };
   const clearBookmarkSelection = (): void => { setSelectedBookmarkIds([]); };
 
-  const handleDeleteSelectedBookmarks = async (): Promise<void> => {
-    if (selectedBookmarkIds.length === 0) return;
-    const confirmed = window.confirm(`Delete ${selectedBookmarkIds.length} bookmark(s)? This cannot be undone.`);
-    if (!confirmed) return;
-    for (const id of selectedBookmarkIds) {
-      const result = await window.electronAPI.deleteBookmark({ id });
-      if (!result.ok) { toast.error(result.error); return; }
+  const handleDeleteBookmarksByIds = async (bookmarkIds: string[], confirm = true): Promise<boolean> => {
+    if (bookmarkIds.length === 0) return false;
+    if (confirm) {
+      const confirmed = window.confirm(
+        bookmarkIds.length === 1 ? 'Delete this bookmark? This cannot be undone.' : `Delete ${bookmarkIds.length} bookmark(s)? This cannot be undone.`,
+      );
+      if (!confirmed) return false;
     }
-    setBookmarks((prev) => prev.filter((b) => !selectedBookmarkIds.includes(b.id)));
-    if (selectedBookmarkId !== null && selectedBookmarkIds.includes(selectedBookmarkId)) setSelectedBookmarkId(null);
-    clearBookmarkSelection();
-    toast.success(`${selectedBookmarkIds.length} bookmark(s) deleted.`);
+    for (const id of bookmarkIds) {
+      const result = await window.electronAPI.deleteBookmark({ id });
+      if (!result.ok) { toast.error(result.error); return false; }
+    }
+    setBookmarks((prev) => prev.filter((b) => !bookmarkIds.includes(b.id)));
+    if (selectedBookmarkId !== null && bookmarkIds.includes(selectedBookmarkId)) setSelectedBookmarkId(null);
+    toast.success(bookmarkIds.length === 1 ? 'Bookmark deleted.' : `${bookmarkIds.length} bookmark(s) deleted.`);
+    return true;
+  };
+
+  const handleDeleteSelectedBookmarks = async (confirm = true): Promise<void> => {
+    const deleted = await handleDeleteBookmarksByIds(selectedBookmarkIds, confirm);
+    if (deleted) clearBookmarkSelection();
   };
 
   const handleAssignFolderSelectedBookmarks = async (folderId: number | null): Promise<void> => {
@@ -1128,20 +1579,42 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     isMultiSelect,
   };
 
-  const isBookmarkScope = vaultScope === 'bookmark';
-
   // Toolbar title for bookmark scope
   const bookmarkTitleLabel = bookmarkFolderId !== null
     ? (findFolderNameById(folders, bookmarkFolderId) ?? 'Bookmarks')
     : 'Bookmarks';
 
   // Bookmark multi-select — active in bookmark scope or mixed views
-  const showBookmarksInMixedView = !isBookmarkScope && (vaultScope === 'all' || vaultScope === 'root' || vaultScope === 'folder');
   const isBookmarkMultiSelect = (isBookmarkScope || showBookmarksInMixedView) && isMultiSelect;
+  const resolveBookmarkContextTargetIds = (clickedBookmarkId: string): string[] => {
+    if (selectedBookmarkIds.length > 1 && selectedBookmarkIds.includes(clickedBookmarkId)) return selectedBookmarkIds;
+    return [clickedBookmarkId];
+  };
+  const handleBookmarkContextMenu = (bookmarkId: string): void => {
+    if (!selectedBookmarkIds.includes(bookmarkId)) setSelectedBookmarkIds([bookmarkId]);
+  };
+  const openMoveDialogForBookmarkIds = (bookmarkIds: string[]): void => {
+    if (bookmarkIds.length === 0) { toast.warning('Select bookmarks to move.'); return; }
+    setSelectedBookmarkIds(bookmarkIds);
+    setMoveDialogSource(bookmarkIds.length > 1 ? 'bulk' : 'single');
+    setMoveDialogItemIds([]);
+    setMoveDialogOpen(true);
+  };
+  const bookmarkActionProps = {
+    tags,
+    onOpen: (bookmark: BookmarkSummary) => onOpenUrlInBrowser?.(bookmark.url),
+    onToggleFavorite: (ids: string[], isFavorite: boolean) => void handleToggleBookmarkFavoriteByIds(ids, isFavorite),
+    onMove: openMoveDialogForBookmarkIds,
+    onExport: (ids: string[]) => void handleExportBookmarks(ids),
+    onDelete: (ids: string[]) => void handleDeleteBookmarksByIds(ids),
+    onToggleTag: (ids: string[], tagId: number, assigned: boolean) => void handleToggleBookmarkTagByIds(ids, tagId, assigned),
+  };
   const handleBookmarkCardClick = (id: string): void => {
+    setShowInspector(true);
     if (isMultiSelect) {
       toggleSelectedBookmark(id);
     } else {
+      clearSelection();
       setSelectedBookmarkId(id);
     }
   };
@@ -1210,9 +1683,9 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
           onToggleFavoritesOnly={() => setShowFavoritesOnly((prev) => !prev)}
           selectedCount={isBookmarkScope ? selectedBookmarkIds.length : selectedItemIds.length + selectedBookmarkIds.length}
           allSelectedFavorite={
-            !isBookmarkScope &&
-            selectedItemIds.length > 0 &&
-            filteredItems.filter((item) => selectedItemIds.includes(item.id)).every((item) => item.isFavorite)
+            selectedItemIds.length + selectedBookmarkIds.length > 0 &&
+            filteredItems.filter((item) => selectedItemIds.includes(item.id)).every((item) => item.isFavorite) &&
+            bookmarks.filter((bookmark) => selectedBookmarkIds.includes(bookmark.id)).every((bookmark) => bookmark.isFavorite)
           }
           viewMode={viewMode}
           onViewModeChange={setViewMode}
@@ -1237,8 +1710,6 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
           onCreateTag={(color?: string) => void handleCreateTag(color)}
           onDeleteTag={(tagId: number) => void handleDeleteTag(tagId)}
           isBookmarkScope={isBookmarkScope}
-          onExportBookmarks={() => void handleExportBookmarks()}
-          onImportBookmarks={() => void handleImportBookmarks()}
         />
       </div>
 
@@ -1293,10 +1764,13 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
                   <BookmarkCard
                     key={b.id}
                     bookmark={b}
-                    selected={isBookmarkMultiSelect ? selectedBookmarkIds.includes(b.id) : selectedBookmarkId === b.id}
-                    isMultiSelect={isBookmarkMultiSelect}
-                    onClick={() => handleBookmarkCardClick(b.id)}
-                  />
+	                    selected={isBookmarkMultiSelect ? selectedBookmarkIds.includes(b.id) : selectedBookmarkId === b.id}
+	                    isMultiSelect={isBookmarkMultiSelect}
+	                    onClick={() => handleBookmarkCardClick(b.id)}
+	                    onContextMenuOpen={handleBookmarkContextMenu}
+	                    contextTargetIds={resolveBookmarkContextTargetIds(b.id)}
+	                    {...bookmarkActionProps}
+	                  />
                 ))}
               </div>
             ) : (
@@ -1305,10 +1779,107 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
                   <BookmarkListRow
                     key={b.id}
                     bookmark={b}
-                    selected={isBookmarkMultiSelect ? selectedBookmarkIds.includes(b.id) : selectedBookmarkId === b.id}
-                    isMultiSelect={isBookmarkMultiSelect}
-                    onClick={() => handleBookmarkCardClick(b.id)}
-                  />
+	                    selected={isBookmarkMultiSelect ? selectedBookmarkIds.includes(b.id) : selectedBookmarkId === b.id}
+	                    isMultiSelect={isBookmarkMultiSelect}
+	                    onClick={() => handleBookmarkCardClick(b.id)}
+	                    onContextMenuOpen={handleBookmarkContextMenu}
+	                    contextTargetIds={resolveBookmarkContextTargetIds(b.id)}
+	                    {...bookmarkActionProps}
+	                  />
+                ))}
+              </div>
+            )}
+          </div>
+        ) : showBookmarksInMixedView ? (
+          <div
+            style={{ flex: 1, overflowY: 'auto', padding: viewMode === 'grid' ? '16px 20px' : 0 }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget && isMultiSelect) handleEmptyBackgroundClick();
+            }}
+          >
+            {mixedObjects.length === 0 ? (
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                gap: 12, padding: '64px 0',
+                border: `1px dashed ${T.line2}`,
+              }}>
+                <svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke={T.mute2} strokeWidth="1.2">
+                  <rect x="3" y="3" width="12" height="12" /><rect x="21" y="3" width="12" height="12" />
+                  <rect x="3" y="21" width="12" height="12" /><rect x="21" y="21" width="12" height="12" />
+                </svg>
+                <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute2, letterSpacing: '0.06em' }}>No objects match current filters</p>
+              </div>
+            ) : viewMode === 'grid' ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
+                {mixedObjects.map((object) => (
+                  object.kind === 'file' ? (
+                    <GalleryCard
+                      key={object.id}
+                      item={object.item}
+                      thumbnailUrl={thumbnails[object.id]}
+                      isSelected={selectedItemIds.includes(object.id)}
+                      onToggleSelect={handleItemClick}
+                      onOpen={handleOpenViewer}
+                      onToggleFavorite={(itemId, isFavorite) => void handleToggleFavorite(itemId, isFavorite)}
+                      onContextMenuOpen={handleItemContextMenu}
+                      contextTargetIdsForItem={resolveContextTargetIds}
+                      onOpenViewerForIds={handleOpenViewerForIds}
+                      onToggleFavoriteForIds={(itemIds) => void handleToggleFavoriteByIds(itemIds)}
+                      onOpenMoveDialogForIds={openMoveDialogForIds}
+                      onExportForIds={(itemIds) => void handleExportByIds(itemIds)}
+                      onDeleteForIds={(itemIds) => void handleDeleteByIds(itemIds)}
+                      isOpenViewerDisabledForItem={(itemId) => resolveContextTargetIds(itemId).length > 1}
+                      onOpenMoveDialog={openSingleMoveDialog}
+                      onExport={(itemId) => void handleExportItem(itemId)}
+                      onDelete={(itemId) => void handleDeleteItem(itemId)}
+                      onRename={(itemId, newName) => void handleRenameItem(itemId, newName)}
+                      isMultiSelect={isMultiSelect}
+                    />
+                  ) : (
+                    <BookmarkCard
+                      key={object.id}
+                      bookmark={object.bookmark}
+	                      selected={isBookmarkMultiSelect ? selectedBookmarkIds.includes(object.id) : selectedBookmarkId === object.id}
+	                      isMultiSelect={isBookmarkMultiSelect}
+	                      onClick={() => handleBookmarkCardClick(object.id)}
+	                      onContextMenuOpen={handleBookmarkContextMenu}
+	                      contextTargetIds={resolveBookmarkContextTargetIds(object.id)}
+	                      {...bookmarkActionProps}
+	                    />
+                  )
+                ))}
+              </div>
+            ) : (
+              <div>
+                {mixedObjects.map((object) => (
+                  object.kind === 'file' ? (
+                    <FileListRow
+                      key={object.id}
+                      item={object.item}
+                      thumbnailUrl={thumbnails[object.id]}
+                      selected={selectedItemIds.includes(object.id)}
+	                      isMultiSelect={isMultiSelect}
+	                      onClick={(event) => handleItemClick(object.id, event.metaKey || event.ctrlKey)}
+	                      onOpen={() => handleOpenViewer(object.id)}
+	                      onContextMenuOpen={handleItemContextMenu}
+	                      contextTargetIds={resolveContextTargetIds(object.id)}
+	                      onToggleFavorite={(itemIds) => void handleToggleFavoriteByIds(itemIds)}
+	                      onMove={openMoveDialogForIds}
+	                      onExport={(itemIds) => void handleExportByIds(itemIds)}
+	                      onDelete={(itemIds) => void handleDeleteByIds(itemIds)}
+	                    />
+                  ) : (
+                    <BookmarkListRow
+                      key={object.id}
+                      bookmark={object.bookmark}
+	                      selected={isBookmarkMultiSelect ? selectedBookmarkIds.includes(object.id) : selectedBookmarkId === object.id}
+	                      isMultiSelect={isBookmarkMultiSelect}
+	                      onClick={() => handleBookmarkCardClick(object.id)}
+	                      onContextMenuOpen={handleBookmarkContextMenu}
+	                      contextTargetIds={resolveBookmarkContextTargetIds(object.id)}
+	                      {...bookmarkActionProps}
+	                    />
+                  )
                 ))}
               </div>
             )}
@@ -1319,49 +1890,6 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
               <GalleryGrid {...sharedViewProps} />
             ) : (
               <GalleryListView {...sharedViewProps} />
-            )}
-
-            {/* Bookmark section in mixed views (All Objects, Root, Folder) */}
-            {showBookmarksInMixedView && visibleBookmarks.length > 0 && (
-              <div style={{ marginTop: 24 }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
-                  borderTop: `1px solid ${T.line}`, paddingTop: 16,
-                }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.mute2} strokeWidth="1.5">
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                  </svg>
-                  <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2 }}>
-                    Bookmarks · {visibleBookmarks.length}
-                  </span>
-                </div>
-                {viewMode === 'grid' ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-                    {visibleBookmarks.map((b) => (
-                      <BookmarkCard
-                        key={b.id}
-                        bookmark={b}
-                        selected={isBookmarkMultiSelect ? selectedBookmarkIds.includes(b.id) : selectedBookmarkId === b.id}
-                        isMultiSelect={isBookmarkMultiSelect}
-                        onClick={() => handleBookmarkCardClick(b.id)}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div>
-                    {visibleBookmarks.map((b) => (
-                      <BookmarkListRow
-                        key={b.id}
-                        bookmark={b}
-                        selected={isBookmarkMultiSelect ? selectedBookmarkIds.includes(b.id) : selectedBookmarkId === b.id}
-                        isMultiSelect={isBookmarkMultiSelect}
-                        onClick={() => handleBookmarkCardClick(b.id)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
             )}
           </div>
         )}
@@ -1393,24 +1921,22 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
               </button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              {isBookmarkScope ? (
-                selectedBookmark ? (
+              {selectedBookmark ? (
                   <BookmarkInspector
                     bookmark={selectedBookmark}
                     tags={tags}
-                    folders={folders}
                     onDelete={(id) => void handleDeleteBookmark(id)}
                     onRename={(id, title) => void handleRenameBookmark(id, title)}
                     onToggleTag={(bookmarkId, tagId, assigned) => void handleToggleBookmarkTag(bookmarkId, tagId, assigned)}
-                    onAssignFolder={(bookmarkId, folderId) => void handleAssignBookmarkFolder(bookmarkId, folderId)}
+                    onToggleFavorite={(bookmarkId, isFavorite) => void handleToggleBookmarkFavoriteByIds([bookmarkId], isFavorite)}
+                    onSetRating={(bookmarkId, rating) => void handleSetBookmarkRating(bookmarkId, rating)}
                     onOpenInBrowser={onOpenUrlInBrowser}
                     onChangeThumbnail={onScrapeImages ? (b) => setThumbPickerBookmark(b) : undefined}
                   />
-                ) : (
+              ) : isBookmarkScope ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '48px 0', color: T.mute }}>
                     <p style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: T.mute2 }}>Select a bookmark to inspect</p>
                   </div>
-                )
               ) : (
                 <ItemDetailsSidebar {...detailsPanelProps} />
               )}
