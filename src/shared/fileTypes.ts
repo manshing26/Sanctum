@@ -1,0 +1,72 @@
+export type VaultFileKind = 'image' | 'video' | 'document' | 'file';
+
+const EXTENSION_MIME_TYPES: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.heic': 'image/heic',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mkv': 'video/x-matroska',
+  '.mov': 'video/quicktime',
+  '.pdf': 'application/pdf',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.markdown': 'text/markdown',
+  '.rtf': 'application/rtf',
+  '.csv': 'text/csv',
+  '.json': 'application/json',
+  '.xml': 'application/xml',
+  '.html': 'text/html',
+  '.htm': 'text/html',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.odt': 'application/vnd.oasis.opendocument.text',
+  '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
+  '.odp': 'application/vnd.oasis.opendocument.presentation',
+};
+
+const extensionOf = (filename: string): string => {
+  const basename = filename.split(/[\\/]/).pop() ?? filename;
+  const dot = basename.lastIndexOf('.');
+  return dot > -1 ? basename.slice(dot).toLowerCase() : '';
+};
+
+export const getMimeTypeForFilename = (filename: string): string => {
+  return EXTENSION_MIME_TYPES[extensionOf(filename)] ?? 'application/octet-stream';
+};
+
+export const isImageMimeType = (mimeType: string): boolean => mimeType.startsWith('image/');
+
+export const isVideoMimeType = (mimeType: string): boolean => mimeType.startsWith('video/');
+
+export const isMediaMimeType = (mimeType: string): boolean =>
+  isImageMimeType(mimeType) || isVideoMimeType(mimeType);
+
+export const isDocumentMimeType = (mimeType: string): boolean =>
+  mimeType.startsWith('text/') ||
+  mimeType === 'application/pdf' ||
+  mimeType === 'application/json' ||
+  mimeType === 'application/xml' ||
+  mimeType === 'application/rtf' ||
+  mimeType.includes('wordprocessingml') ||
+  mimeType.includes('spreadsheetml') ||
+  mimeType.includes('presentationml') ||
+  mimeType.includes('msword') ||
+  mimeType.includes('ms-excel') ||
+  mimeType.includes('ms-powerpoint') ||
+  mimeType.includes('opendocument');
+
+export const getVaultFileKind = (mimeType: string): VaultFileKind => {
+  if (isImageMimeType(mimeType)) return 'image';
+  if (isVideoMimeType(mimeType)) return 'video';
+  if (isDocumentMimeType(mimeType)) return 'document';
+  return 'file';
+};
+

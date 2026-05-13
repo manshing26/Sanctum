@@ -6,33 +6,7 @@ import { SettingsService } from '../settings/SettingsService';
 import { SecureDeleteService } from '../security/SecureDeleteService';
 import { VaultService } from '../vault/VaultService';
 import type { ConflictResolution, ImportRequest, ImportResult } from '../../../shared/ipc';
-
-const getMimeType = (filename: string): string => {
-  const ext = path.extname(filename).toLowerCase();
-  switch (ext) {
-    case '.jpg':
-    case '.jpeg':
-      return 'image/jpeg';
-    case '.png':
-      return 'image/png';
-    case '.gif':
-      return 'image/gif';
-    case '.webp':
-      return 'image/webp';
-    case '.mp4':
-      return 'video/mp4';
-    case '.webm':
-      return 'video/webm';
-    case '.mkv':
-      return 'video/x-matroska';
-    case '.mov':
-      return 'video/quicktime';
-    case '.heic':
-      return 'image/heic';
-    default:
-      return 'application/octet-stream';
-  }
-};
+import { getMimeTypeForFilename, isMediaMimeType } from '../../../shared/fileTypes';
 
 export type ImportProgressCallback = (progress: {
   total: number;
@@ -85,11 +59,11 @@ export class ImportService {
         }
 
         await fs.promises.access(filePath, fs.constants.R_OK);
-        const mimeType = getMimeType(filePath);
-        const { metadata, warning } = await this.metadataService.extract(filePath);
-        if (warning) {
-          result.warnings?.push(`${filePath}: ${warning}`);
-        }
+        const mimeType = getMimeTypeForFilename(filePath);
+        const { metadata, warning } = isMediaMimeType(mimeType)
+          ? await this.metadataService.extract(filePath)
+          : { metadata: {} };
+        if (warning) result.warnings?.push(`${filePath}: ${warning}`);
 
         const { thumbnail, warning: thumbnailWarning } = await this.thumbnailService.generate(
           filePath,

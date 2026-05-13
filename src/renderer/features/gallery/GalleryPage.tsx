@@ -12,6 +12,7 @@ import { DeleteFolderDialog } from './components/DeleteFolderDialog';
 import { ImportConflictDialog } from './components/ImportConflictDialog';
 import { useGalleryState } from './state/useGalleryState';
 import { MediaViewerOverlay } from '../viewer/MediaViewerOverlay';
+import { isMediaMimeType } from '../../../shared/fileTypes';
 
 const T = {
   bg: '#0a0c0b',
@@ -240,6 +241,7 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
   const handleSelectAllItemsScope = (): void => { setSelectedViewScope('all'); setSelectedFolderId(null); };
   const handleSelectVideoScope = (): void => { setSelectedViewScope('video'); setSelectedFolderId(null); };
   const handleSelectImageScope = (): void => { setSelectedViewScope('image'); setSelectedFolderId(null); };
+  const handleSelectDocumentScope = (): void => { setSelectedViewScope('document'); setSelectedFolderId(null); };
   const handleSelectRootScope = (): void => { setSelectedViewScope('root'); setSelectedFolderId(null); };
   const handleSelectFolderScope = (folderId: number): void => { setSelectedViewScope('folder'); setSelectedFolderId(folderId); };
 
@@ -500,6 +502,11 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
   };
 
   const handleOpenViewer = (itemId: string): void => {
+    const item = allItems.find((entry) => entry.id === itemId) ?? filteredItems.find((entry) => entry.id === itemId);
+    if (item && !isMediaMimeType(item.mimeType)) {
+      void handleExportItem(itemId);
+      return;
+    }
     setSelectedItems([itemId]);
     setViewerItemId(itemId);
   };
@@ -682,6 +689,7 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
             onSelectAllItems={handleSelectAllItemsScope}
             onSelectVideo={handleSelectVideoScope}
             onSelectImage={handleSelectImageScope}
+            onSelectDocuments={handleSelectDocumentScope}
             onSelectRoot={handleSelectRootScope}
             onSelectFolder={handleSelectFolderScope}
             newFolderName={newFolderName}

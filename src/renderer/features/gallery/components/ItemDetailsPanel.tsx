@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { SecuritySettings, TagSummary, VaultItemSummary } from '../../../../shared/ipc';
 import { Sheet, SheetContent, SheetTitle } from '../../../components/ui/Sheet';
 import { StarRating } from '../../../components/ui/StarRating';
+import { getVaultFileKind } from '../../../../shared/fileTypes';
 
 const T = {
   bg: '#0a0c0b',
@@ -122,7 +123,8 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
     );
   }
 
-  const isVid = item.mimeType.startsWith('video/');
+  const fileKind = getVaultFileKind(item.mimeType);
+  const isVid = fileKind === 'video';
 
   return (
     <div style={{ padding: '16px 14px' }}>
@@ -136,10 +138,23 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
               <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke={T.mute2} strokeWidth="1.2">
                 <rect x="2" y="3" width="16" height="22" /><polyline points="18,7 26,4 26,24 18,21" />
               </svg>
-            ) : (
+            ) : fileKind === 'document' ? (
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke={T.mute2} strokeWidth="1.2">
+                <path d="M8 3h8l5 5v17H8z" />
+                <path d="M16 3v6h5" />
+                <line x1="11" y1="14" x2="17" y2="14" />
+                <line x1="11" y1="18" x2="17" y2="18" />
+                <line x1="11" y1="22" x2="15" y2="22" />
+              </svg>
+            ) : fileKind === 'image' ? (
               <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke={T.mute2} strokeWidth="1.2">
                 <rect x="2" y="2" width="24" height="24" /><circle cx="9" cy="9" r="3" />
                 <polyline points="2,19 8,13 13,18 18,14 26,19 26,26 2,26" />
+              </svg>
+            ) : (
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke={T.mute2} strokeWidth="1.2">
+                <path d="M8 3h8l5 5v17H8z" />
+                <path d="M16 3v6h5" />
               </svg>
             )}
           </div>

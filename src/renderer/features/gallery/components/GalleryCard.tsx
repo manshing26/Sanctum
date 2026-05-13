@@ -7,6 +7,7 @@ import {
   ContextMenuItem,
 } from '../../../components/ui/ContextMenu';
 import { RenameItemDialog } from './RenameItemDialog';
+import { getVaultFileKind, isMediaMimeType } from '../../../../shared/fileTypes';
 
 const T = {
   bg: '#0a0c0b',
@@ -61,9 +62,11 @@ const formatFileSize = (bytes: number): string => {
 
 const isVideo = (mimeType: string): boolean => mimeType.startsWith('video/');
 const isGif = (mimeType: string): boolean => mimeType === 'image/gif';
-const typeBadgeLabel = (item: VaultItemSummary): 'IMAGE' | 'VIDEO' | 'FILE' => {
-  if (item.mimeType.startsWith('video/')) return 'VIDEO';
-  if (item.mimeType.startsWith('image/')) return 'IMAGE';
+const typeBadgeLabel = (item: VaultItemSummary): 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'FILE' => {
+  const kind = getVaultFileKind(item.mimeType);
+  if (kind === 'video') return 'VIDEO';
+  if (kind === 'image') return 'IMAGE';
+  if (kind === 'document') return 'DOCUMENT';
   return 'FILE';
 };
 
@@ -249,14 +252,27 @@ export const GalleryCard = ({
           />
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            {mediaType === 'video' ? (
+            {badgeLabel === 'VIDEO' ? (
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={T.mute2} strokeWidth="1.2">
                 <rect x="2" y="3" width="13" height="18" /><polyline points="15,7 22,4 22,20 15,17" />
               </svg>
-            ) : (
+            ) : badgeLabel === 'DOCUMENT' ? (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={T.mute2} strokeWidth="1.2">
+                <path d="M7 3h7l4 4v14H7z" />
+                <path d="M14 3v5h4" />
+                <line x1="10" y1="12" x2="15" y2="12" />
+                <line x1="10" y1="15" x2="15" y2="15" />
+                <line x1="10" y1="18" x2="13" y2="18" />
+              </svg>
+            ) : badgeLabel === 'IMAGE' ? (
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={T.mute2} strokeWidth="1.2">
                 <rect x="2" y="2" width="20" height="20" /><circle cx="8" cy="8" r="2" />
                 <polyline points="2,17 8,11 12,15 16,12 22,17 22,22 2,22" />
+              </svg>
+            ) : (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={T.mute2} strokeWidth="1.2">
+                <path d="M7 3h7l4 4v14H7z" />
+                <path d="M14 3v5h4" />
               </svg>
             )}
           </div>
@@ -309,7 +325,7 @@ export const GalleryCard = ({
               onOpen(item.id);
             }}
           >
-            Open in Viewer
+            {isMediaMimeType(item.mimeType) ? 'Open in Viewer' : 'Export'}
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => {

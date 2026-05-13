@@ -6,6 +6,7 @@ import type {
   VaultItemSummary,
   VaultListSort,
 } from '../../../../shared/ipc';
+import { isDocumentMimeType } from '../../../../shared/fileTypes';
 
 const ALL_ITEMS_LIMIT = 5000;
 const THUMBNAIL_BATCH_SIZE = 20;
@@ -57,7 +58,7 @@ export const useGalleryState = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sort, setSort] = useState<VaultListSort>('newest');
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
-  const [selectedViewScope, setSelectedViewScope] = useState<'all' | 'video' | 'image' | 'root' | 'folder'>('all');
+  const [selectedViewScope, setSelectedViewScope] = useState<'all' | 'video' | 'image' | 'document' | 'root' | 'folder'>('all');
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [primarySelectedId, setPrimarySelectedId] = useState<string | null>(null);
@@ -191,6 +192,10 @@ export const useGalleryState = () => {
         }
       } else if (selectedViewScope === 'image') {
         if (!item.mimeType.startsWith('image/')) {
+          return false;
+        }
+      } else if (selectedViewScope === 'document') {
+        if (!isDocumentMimeType(item.mimeType)) {
           return false;
         }
       }

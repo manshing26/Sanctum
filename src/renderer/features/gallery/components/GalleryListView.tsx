@@ -8,6 +8,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from '../../../components/ui/ContextMenu';
+import { getVaultFileKind, isMediaMimeType } from '../../../../shared/fileTypes';
 
 const T = {
   bg: '#0a0c0b',
@@ -68,9 +69,11 @@ const formatFileSize = (bytes: number): string => {
 };
 
 const isVideo = (mimeType: string): boolean => mimeType.startsWith('video/');
-const typeBadgeLabel = (item: VaultItemSummary): 'IMAGE' | 'VIDEO' | 'FILE' => {
-  if (item.mimeType.startsWith('video/')) return 'VIDEO';
-  if (item.mimeType.startsWith('image/')) return 'IMAGE';
+const typeBadgeLabel = (item: VaultItemSummary): 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'FILE' => {
+  const kind = getVaultFileKind(item.mimeType);
+  if (kind === 'video') return 'VIDEO';
+  if (kind === 'image') return 'IMAGE';
+  if (kind === 'document') return 'DOCUMENT';
   return 'FILE';
 };
 
@@ -202,14 +205,26 @@ const ListRow: React.FC<{
           />
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {isVideo(item.mimeType) ? (
+            {typeLabel === 'VIDEO' ? (
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={T.mute2} strokeWidth="1.3">
                 <rect x="1" y="2" width="8" height="10" /><polyline points="9,4.5 13,3 13,11 9,9.5" />
               </svg>
-            ) : (
+            ) : typeLabel === 'DOCUMENT' ? (
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={T.mute2} strokeWidth="1.3">
+                <path d="M4 1.5h4l2 2V12.5H4z" />
+                <path d="M8 1.5V4h2" />
+                <line x1="5.5" y1="7" x2="8.5" y2="7" />
+                <line x1="5.5" y1="9" x2="8.5" y2="9" />
+              </svg>
+            ) : typeLabel === 'IMAGE' ? (
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={T.mute2} strokeWidth="1.3">
                 <rect x="1" y="1" width="12" height="12" /><circle cx="5" cy="5" r="1.5" />
                 <polyline points="1,10 4,7 7,9 10,7 13,9 13,13 1,13" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={T.mute2} strokeWidth="1.3">
+                <path d="M4 1.5h4l2 2V12.5H4z" />
+                <path d="M8 1.5V4h2" />
               </svg>
             )}
           </div>
@@ -277,7 +292,7 @@ const ListRow: React.FC<{
               onOpen(item.id);
             }}
           >
-            Open in Viewer
+            {isMediaMimeType(item.mimeType) ? 'Open in Viewer' : 'Export'}
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => {

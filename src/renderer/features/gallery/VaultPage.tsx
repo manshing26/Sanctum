@@ -10,6 +10,7 @@ import type {
   VaultItemSummary,
   VaultListSort,
 } from '../../../shared/ipc';
+import { getVaultFileKind, isMediaMimeType } from '../../../shared/fileTypes';
 import { FolderSidebar } from './components/FolderSidebar';
 import { GalleryGrid } from './components/GalleryGrid';
 import { GalleryListView } from './components/GalleryListView';
@@ -156,11 +157,13 @@ const ListSelectionMark: React.FC<{ selected: boolean; visible: boolean }> = ({ 
   </div>
 );
 
-type ObjectTypeLabel = 'IMAGE' | 'VIDEO' | 'FILE' | 'BOOKMARK';
+type ObjectTypeLabel = 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'FILE' | 'BOOKMARK';
 
 const fileTypeLabel = (item: VaultItemSummary): ObjectTypeLabel => {
-  if (item.mimeType.startsWith('image/')) return 'IMAGE';
-  if (item.mimeType.startsWith('video/')) return 'VIDEO';
+  const kind = getVaultFileKind(item.mimeType);
+  if (kind === 'image') return 'IMAGE';
+  if (kind === 'video') return 'VIDEO';
+  if (kind === 'document') return 'DOCUMENT';
   return 'FILE';
 };
 
@@ -566,9 +569,13 @@ const FileListRow: React.FC<{
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.mute2} strokeWidth="1.2">
-              {item.mimeType.startsWith('video/')
+              {typeLabel === 'VIDEO'
                 ? <><rect x="3" y="4" width="12" height="16" /><polyline points="15,8 21,5 21,19 15,16" /></>
-                : <><rect x="3" y="3" width="18" height="18" /><circle cx="9" cy="9" r="2" /><polyline points="3,17 8,12 12,16 16,13 21,17" /></>}
+                : typeLabel === 'DOCUMENT'
+                  ? <><path d="M6 3h7l5 5v13H6z" /><path d="M13 3v6h5" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="16" x2="15" y2="16" /></>
+                : typeLabel === 'IMAGE'
+                  ? <><rect x="3" y="3" width="18" height="18" /><circle cx="9" cy="9" r="2" /><polyline points="3,17 8,12 12,16 16,13 21,17" /></>
+                  : <><path d="M6 3h7l5 5v13H6z" /><path d="M13 3v6h5" /></>}
             </svg>
           </div>
         )}
@@ -604,7 +611,7 @@ const FileListRow: React.FC<{
       <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem disabled={targetIds.length > 1} onClick={onOpen}>
-          Open in Viewer
+          {isMediaMimeType(item.mimeType) ? 'Open in Viewer' : 'Export'}
         </ContextMenuItem>
         <ContextMenuItem onClick={() => onToggleFavorite(targetIds)}>
           {item.isFavorite ? 'Unfavourite' : 'Favourite'}
@@ -1236,7 +1243,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   const [bookmarkFolderId, setBookmarkFolderId] = useState<number | null>(null);
 
   // View scope includes 'bookmark' now
-  type VaultScope = 'all' | 'video' | 'image' | 'root' | 'folder' | 'bookmark';
+  type VaultScope = 'all' | 'video' | 'image' | 'document' | 'root' | 'folder' | 'bookmark';
   const vaultScope = selectedViewScope as VaultScope;
   const isBookmarkScope = vaultScope === 'bookmark';
 
@@ -1549,6 +1556,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   const handleSelectAllItemsScope = (): void => { setSelectedViewScope('all' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); clearBookmarkScopeState(); };
   const handleSelectVideoScope = (): void => { setSelectedViewScope('video' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); clearBookmarkScopeState(); };
   const handleSelectImageScope = (): void => { setSelectedViewScope('image' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); clearBookmarkScopeState(); };
+  const handleSelectDocumentScope = (): void => { setSelectedViewScope('document' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); clearBookmarkScopeState(); };
   const handleSelectRootScope = (): void => { setSelectedViewScope('root' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); clearBookmarkScopeState(); };
   const handleSelectFolderScope = (folderId: number): void => {
     if ((selectedViewScope as string) === 'bookmark') {
@@ -1929,6 +1937,11 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   };
 
   const handleOpenViewer = (itemId: string): void => {
+    const item = allItems.find((entry) => entry.id === itemId) ?? filteredItems.find((entry) => entry.id === itemId);
+    if (item && !isMediaMimeType(item.mimeType)) {
+      void handleExportItem(itemId);
+      return;
+    }
     setSelectedItems([itemId]);
     setViewerItemId(itemId);
   };
@@ -2331,6 +2344,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
             onSelectAllItems={handleSelectAllItemsScope}
             onSelectVideo={handleSelectVideoScope}
             onSelectImage={handleSelectImageScope}
+            onSelectDocuments={handleSelectDocumentScope}
             onSelectRoot={handleSelectRootScope}
             onSelectFolder={handleSelectFolderScope}
             onSelectBookmarks={handleSelectBookmarkScope}
