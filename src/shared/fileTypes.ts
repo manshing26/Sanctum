@@ -7,16 +7,27 @@ const EXTENSION_MIME_TYPES: Record<string, string> = {
   '.gif': 'image/gif',
   '.webp': 'image/webp',
   '.heic': 'image/heic',
+  '.svg': 'image/svg+xml',
   '.mp4': 'video/mp4',
   '.webm': 'video/webm',
   '.mkv': 'video/x-matroska',
   '.mov': 'video/quicktime',
   '.pdf': 'application/pdf',
   '.txt': 'text/plain',
+  '.log': 'text/plain',
   '.md': 'text/markdown',
   '.markdown': 'text/markdown',
+  '.yaml': 'text/yaml',
+  '.yml': 'text/yaml',
+  '.toml': 'text/toml',
+  '.ini': 'text/plain',
+  '.conf': 'text/plain',
+  '.cfg': 'text/plain',
+  '.env': 'text/plain',
   '.rtf': 'application/rtf',
   '.csv': 'text/csv',
+  '.tsv': 'text/tab-separated-values',
+  '.sql': 'application/sql',
   '.json': 'application/json',
   '.xml': 'application/xml',
   '.html': 'text/html',
@@ -54,10 +65,15 @@ export const isPdfMimeType = (mimeType: string): boolean => mimeType === 'applic
 export const isTextDocumentMimeType = (mimeType: string): boolean =>
   mimeType === 'text/plain' ||
   mimeType === 'text/markdown' ||
+  mimeType === 'text/yaml' ||
+  mimeType === 'text/toml' ||
   mimeType === 'text/csv' ||
+  mimeType === 'text/tab-separated-values' ||
   mimeType === 'text/html' ||
+  mimeType === 'application/sql' ||
   mimeType === 'application/json' ||
-  mimeType === 'application/xml';
+  mimeType === 'application/xml' ||
+  mimeType === 'image/svg+xml';
 
 export const isDocxMimeType = (mimeType: string): boolean =>
   mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -70,6 +86,7 @@ export const isPreviewableMimeType = (mimeType: string): boolean =>
 
 export const isDocumentMimeType = (mimeType: string): boolean =>
   mimeType.startsWith('text/') ||
+  isReadableDocumentMimeType(mimeType) ||
   isPdfMimeType(mimeType) ||
   mimeType === 'application/json' ||
   mimeType === 'application/xml' ||

@@ -65,7 +65,7 @@ const sanitizeHtml = (html: string): string => {
   });
 };
 
-const parseCsv = (text: string): string[][] => {
+const parseDelimitedText = (text: string, delimiter: ',' | '\t'): string[][] => {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = '';
@@ -85,7 +85,7 @@ const parseCsv = (text: string): string[][] => {
       continue;
     }
 
-    if (char === ',' && !inQuotes) {
+    if (char === delimiter && !inQuotes) {
       row.push(cell);
       cell = '';
       continue;
@@ -133,8 +133,9 @@ const buildDocumentPreview = async (mimeType: string, bytes: ArrayBuffer): Promi
     }
   }
 
-  if (mimeType === 'text/csv') {
-    const rows = parseCsv(text).map((row) => row.slice(0, CSV_COLUMN_LIMIT));
+  if (mimeType === 'text/csv' || mimeType === 'text/tab-separated-values') {
+    const rows = parseDelimitedText(text, mimeType === 'text/csv' ? ',' : '\t')
+      .map((row) => row.slice(0, CSV_COLUMN_LIMIT));
     return { kind: 'csv', rows, truncated: truncated || rows.length >= CSV_ROW_LIMIT };
   }
 
