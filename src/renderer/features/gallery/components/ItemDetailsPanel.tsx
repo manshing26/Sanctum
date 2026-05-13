@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { SecuritySettings, TagSummary, VaultItemSummary } from '../../../../shared/ipc';
 import { Sheet, SheetContent, SheetTitle } from '../../../components/ui/Sheet';
 import { StarRating } from '../../../components/ui/StarRating';
-import { getVaultFileKind } from '../../../../shared/fileTypes';
+import { getVaultFileKind, isPreviewableMimeType } from '../../../../shared/fileTypes';
 
 const T = {
   bg: '#0a0c0b',
@@ -34,6 +34,7 @@ type ItemDetailsPanelProps = {
   onUpdateSecureDeleteDefault: (enabled: boolean) => void;
   onOpenItem: (itemId: string) => void;
   onDeleteItem: (itemId: string) => void;
+  onExportItem?: (itemId: string) => void;
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
   onRenameItem: (itemId: string, newName: string) => void;
   onSetRating: (itemId: string, rating: number | null) => void;
@@ -75,6 +76,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
   onToggleTag,
   onOpenItem,
   onDeleteItem,
+  onExportItem,
   onToggleFavorite,
   onRenameItem,
   onSetRating,
@@ -125,6 +127,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
 
   const fileKind = getVaultFileKind(item.mimeType);
   const isVid = fileKind === 'video';
+  const canPreview = isPreviewableMimeType(item.mimeType);
 
   return (
     <div style={{ padding: '16px 14px' }}>
@@ -227,7 +230,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
           <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.4">
             <circle cx="5.5" cy="5.5" r="4.5" /><circle cx="5.5" cy="5.5" r="1.8" />
           </svg>
-          Open
+          {canPreview ? 'Open' : 'Open Read-Only Copy'}
         </button>
         <button type="button"
           onClick={() => onToggleFavorite(item.id, !item.isFavorite)}
@@ -244,6 +247,14 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
           </svg>
         </button>
       </div>
+      {fileKind !== 'image' && fileKind !== 'video' && onExportItem && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+          <button type="button" onClick={() => onExportItem(item.id)} style={{ ...actionBtn('ghost'), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.3"><polyline points="5,1 5,6.5" /><polyline points="2.5,4 5,6.5 7.5,4" /><line x1="1.5" y1="8.5" x2="8.5" y2="8.5" /></svg>
+            Export
+          </button>
+        </div>
+      )}
       {item.folderId != null && onGoToFolder && (
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
           <button type="button" onClick={() => onGoToFolder(item.id)} style={{ ...actionBtn('ghost'), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>

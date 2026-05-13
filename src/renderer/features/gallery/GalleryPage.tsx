@@ -12,7 +12,7 @@ import { DeleteFolderDialog } from './components/DeleteFolderDialog';
 import { ImportConflictDialog } from './components/ImportConflictDialog';
 import { useGalleryState } from './state/useGalleryState';
 import { MediaViewerOverlay } from '../viewer/MediaViewerOverlay';
-import { isMediaMimeType } from '../../../shared/fileTypes';
+import { isPreviewableMimeType } from '../../../shared/fileTypes';
 
 const T = {
   bg: '#0a0c0b',
@@ -432,6 +432,14 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
   };
 
   const handleExportItem = async (itemId: string): Promise<void> => { await handleExportByIds([itemId]); };
+  const handleOpenTemporaryFile = async (itemId: string): Promise<void> => {
+    const result = await window.electronAPI.openTemporaryFile({ itemId });
+    if (!result.ok) { toast.error(result.error); return; }
+    toast.success('Opened read-only decrypted copy.', {
+      description: 'External edits are not saved back to Sanctum. Temp copies are cleared on lock or quit.',
+      duration: 7000,
+    });
+  };
   const handleExportSelected = async (): Promise<void> => { await handleExportByIds(selectedItemIds); };
   const handleDeleteSelected = async (): Promise<void> => { await handleDeleteByIds(selectedItemIds); clearSelection(); };
 
@@ -503,8 +511,8 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
 
   const handleOpenViewer = (itemId: string): void => {
     const item = allItems.find((entry) => entry.id === itemId) ?? filteredItems.find((entry) => entry.id === itemId);
-    if (item && !isMediaMimeType(item.mimeType)) {
-      void handleExportItem(itemId);
+    if (item && !isPreviewableMimeType(item.mimeType)) {
+      void handleOpenTemporaryFile(itemId);
       return;
     }
     setSelectedItems([itemId]);
@@ -519,6 +527,7 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
     onToggleTag: (itemId: string, tagId: number, assigned: boolean) => void handleToggleTag(itemId, tagId, assigned),
     onOpenItem: handleOpenViewer,
     onDeleteItem: (itemId: string) => void handleDeleteItem(itemId),
+    onExportItem: (itemId: string) => void handleExportItem(itemId),
     onToggleFavorite: (itemId: string, isFavorite: boolean) => void handleToggleFavorite(itemId, isFavorite),
     onRenameItem: (itemId: string, newName: string) => void handleRenameItem(itemId, newName),
     onSetRating: (itemId: string, rating: number | null) => void handleSetRating(itemId, rating),
@@ -818,6 +827,7 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
           onClose={() => setViewerItemId(null)}
           onNavigate={(itemId) => { setSelectedItems([itemId]); setViewerItemId(itemId); }}
           onMessage={(msg) => toast.info(msg)}
+          onOpenReadOnlyCopy={(itemId) => void handleOpenTemporaryFile(itemId)}
         />
       )}
     </div>

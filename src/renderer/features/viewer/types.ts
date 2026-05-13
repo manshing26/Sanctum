@@ -15,4 +15,5 @@ export type MediaViewerOverlayProps = {
   onClose: () => void;
   onNavigate: (itemId: string) => void;
   onMessage: (message: string) => void;
+  onOpenReadOnlyCopy?: (itemId: string) => void;
 };

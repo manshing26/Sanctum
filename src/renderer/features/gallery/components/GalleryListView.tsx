@@ -8,7 +8,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from '../../../components/ui/ContextMenu';
-import { getVaultFileKind, isMediaMimeType } from '../../../../shared/fileTypes';
+import { getVaultFileKind, isPreviewableMimeType } from '../../../../shared/fileTypes';
 
 const T = {
   bg: '#0a0c0b',
@@ -292,7 +292,7 @@ const ListRow: React.FC<{
               onOpen(item.id);
             }}
           >
-            {isMediaMimeType(item.mimeType) ? 'Open in Viewer' : 'Export'}
+            {isPreviewableMimeType(item.mimeType) ? 'Open in Viewer' : 'Open Read-Only Copy'}
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => {

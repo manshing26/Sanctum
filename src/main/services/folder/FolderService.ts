@@ -248,14 +248,10 @@ export class FolderService {
         }),
       );
 
-      // Deleting vault_objects cascades to vault_items and object_tags.
-      if (itemRows.length > 0) {
-        const itemPlaceholders = itemRows.map(() => '?').join(', ');
-        const itemIds = itemRows.map((r) => r.vault_object_id);
-        this.db.prepare(`DELETE FROM vault_objects WHERE id IN (${itemPlaceholders})`).run(...itemIds);
-      }
+      // Deleting vault_objects cascades to file/bookmark/note children and object_tags.
+      this.db.prepare(`DELETE FROM vault_objects WHERE folder_id IN (${placeholders})`).run(...folderIds);
     } else {
-      // Move all objects (files + bookmarks) in the subtree back to root (NULL folder).
+      // Move all objects in the subtree back to root (NULL folder).
       this.db
         .prepare(`UPDATE vault_objects SET folder_id = NULL WHERE folder_id IN (${placeholders})`)
         .run(...folderIds);

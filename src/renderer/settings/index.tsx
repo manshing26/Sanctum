@@ -4,9 +4,6 @@ import '../../index.css';
 
 const SettingsApp = (): React.JSX.Element => {
   const [version, setVersion] = useState('...');
-  const [statusMessage, setStatusMessage] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
-
   useEffect(() => {
     void window.electronAPI.appVersion().then(setVersion);
   }, []);
@@ -34,42 +31,16 @@ const SettingsApp = (): React.JSX.Element => {
       <section className="mt-5 space-y-3 rounded-xl border border-danger/40 bg-danger/10 p-5">
         <h2 className="text-sm font-medium text-danger">Temporary Test Tools</h2>
         <p className="text-xs text-text-muted">
-          Delete all imported vault items (encrypted files + database rows). This is destructive and
-          intended for test cleanup only.
+          Destructive vault wipe tools are disabled in this legacy settings window. Use the main
+          Settings tab so password confirmation is enforced.
         </p>
         <button
           type="button"
-          disabled={isDeleting}
-          onClick={() => {
-            const confirmed = window.confirm(
-              'Delete all vault items now? This cannot be undone.',
-            );
-            if (!confirmed) {
-              return;
-            }
-
-            setIsDeleting(true);
-            setStatusMessage('');
-
-            void window.electronAPI
-              .clearAllVaultItems()
-              .then((result) => {
-                if (!result.ok) {
-                  setStatusMessage(`Failed: ${result.error}`);
-                  return;
-                }
-
-                setStatusMessage(`Deleted ${result.data.deleted} item(s).`);
-              })
-              .finally(() => {
-                setIsDeleting(false);
-              });
-          }}
+          disabled
           className="rounded-lg border border-danger bg-danger/20 px-4 py-2 text-sm font-semibold text-danger disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isDeleting ? 'Deleting...' : 'Delete All Vault Items'}
+          Delete All Vault Items
         </button>
-        {statusMessage ? <p className="text-xs text-danger">{statusMessage}</p> : null}
       </section>
 
       <button

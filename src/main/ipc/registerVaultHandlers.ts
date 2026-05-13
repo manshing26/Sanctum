@@ -1,12 +1,16 @@
-import { dialog, ipcMain, type OpenDialogOptions, type SaveDialogOptions } from 'electron';
+import fs from 'node:fs';
+import path from 'node:path';
+import { dialog, ipcMain, shell, type OpenDialogOptions, type SaveDialogOptions } from 'electron';
 import {
   IPC_CHANNELS,
   type BackupProgress,
   type BackupVaultInput,
+  type ClearAllVaultItemsInput,
   type DeleteVaultItemInput,
   type ExportItemsInput,
   type ImportRequest,
   type ListItemsQueryInput,
+  type OpenTemporaryFileInput,
   type RenameItemInput,
   type RestoreVaultInput,
   type ScanImportConflictsInput,
@@ -18,18 +22,56 @@ import { ImportService } from '../services/import/ImportService';
 import { VaultService } from '../services/vault/VaultService';
 import { BackupService } from '../services/vault/BackupService';
 import { RestoreService } from '../services/vault/RestoreService';
+import { AuthService } from '../services/auth/AuthService';
 
 type RegisterVaultHandlersParams = {
   importService: ImportService;
   vaultService: VaultService;
+  authService: AuthService;
   backupService: BackupService;
   restoreService: RestoreService;
   mainWindowController: MainWindowController;
 };
 
+const RISK_MARKERS = ['.git', 'package.json', 'pyproject.toml', 'Cargo.toml', 'go.mod', 'node_modules'];
+
+const isRiskyExportTarget = (targetDir: string): boolean => {
+  let cursor = path.resolve(targetDir);
+  const root = path.parse(cursor).root;
+  while (true) {
+    for (const marker of RISK_MARKERS) {
+      if (fs.existsSync(path.join(cursor, marker))) return true;
+    }
+    if (cursor === root) break;
+    cursor = path.dirname(cursor);
+  }
+  return false;
+};
+
+const confirmRiskyExportTarget = async (
+  targetDir: string,
+  owner: Electron.BrowserWindow | null,
+): Promise<boolean> => {
+  if (!isRiskyExportTarget(targetDir)) return true;
+  const options = {
+    type: 'warning' as const,
+    buttons: ['Choose Another Folder', 'Export Anyway'],
+    defaultId: 0,
+    cancelId: 0,
+    title: 'Export into coding workspace?',
+    message: 'This folder looks like a coding workspace.',
+    detail: 'Exported files are decrypted plaintext. AI agents and project tools may scan files placed here.',
+  };
+  const result = owner
+    ? await dialog.showMessageBox(owner, options)
+    : await dialog.showMessageBox(options);
+  return result.response === 1;
+};
+
 export const registerVaultHandlers = ({
   importService,
   vaultService,
+  authService,
   backupService,
   restoreService,
   mainWindowController,
@@ -99,8 +141,15 @@ export const registerVaultHandlers = ({
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.clearAllVaultItems, async () => {
+  ipcMain.handle(IPC_CHANNELS.clearAllVaultItems, async (_event, input: ClearAllVaultItemsInput) => {
     try {
+      if (!input.password) {
+        return { ok: false as const, error: 'Enter your vault password to delete vault data.' };
+      }
+      const valid = await authService.verifyCurrentPassword(input.password);
+      if (!valid) {
+        return { ok: false as const, error: 'Incorrect password.' };
+      }
       const data = await vaultService.clearAllItems();
       return {
         ok: true as const,
@@ -181,6 +230,11 @@ export const registerVaultHandlers = ({
           return { ok: false as const, error: 'Export cancelled.' };
         }
         targetDir = result.filePaths[0];
+        if (!(await confirmRiskyExportTarget(targetDir, window))) {
+          return { ok: false as const, error: 'Export cancelled.' };
+        }
+      } else if (!(await confirmRiskyExportTarget(targetDir, window))) {
+        return { ok: false as const, error: 'Export cancelled.' };
       }
 
       const exportResult = await vaultService.exportItems(input.itemIds, targetDir, (progress) => {
@@ -194,6 +248,20 @@ export const registerVaultHandlers = ({
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to export items.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.openTemporaryFile, async (_event, input: OpenTemporaryFileInput) => {
+    try {
+      const tempPath = await vaultService.openTemporaryFile(input.itemId);
+      const openError = await shell.openPath(tempPath);
+      if (openError) throw new Error(openError);
+      return { ok: true as const, data: { path: tempPath } };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to open temporary file.',
       };
     }
   });

@@ -32,9 +32,15 @@ type VaultItemRow = {
 };
 
 type BookmarkRow = {
-  id: number;
+  vault_object_id: string;
   title_enc: Buffer;
   url_enc: Buffer;
+};
+
+type NoteRow = {
+  vault_object_id: string;
+  title_enc: Buffer;
+  body_enc: Buffer;
 };
 
 type EncryptedPayload = {
@@ -162,6 +168,16 @@ export class AuthService {
       .run();
   }
 
+  async verifyCurrentPassword(password: string): Promise<boolean> {
+    const authState = this.db
+      .prepare('SELECT password_verifier FROM auth_state WHERE id = 1')
+      .get() as Pick<AuthStateRow, 'password_verifier'> | undefined;
+    if (!authState) {
+      throw new Error('Vault not configured.');
+    }
+    return this.cryptoService.verifyPassword(password, authState.password_verifier);
+  }
+
   async changePassword(
     currentPassword: string,
     newPassword: string,
@@ -175,13 +191,7 @@ export class AuthService {
     }
 
     // Verify current password.
-    const authState = this.db
-      .prepare('SELECT password_verifier FROM auth_state WHERE id = 1')
-      .get() as Pick<AuthStateRow, 'password_verifier'> | undefined;
-    if (!authState) {
-      throw new Error('Vault not configured.');
-    }
-    const isValid = await this.cryptoService.verifyPassword(currentPassword, authState.password_verifier);
+    const isValid = await this.verifyCurrentPassword(currentPassword);
     if (!isValid) {
       throw new Error('Current password is incorrect.');
     }
@@ -195,7 +205,7 @@ export class AuthService {
     // Re-encrypt all vault item files on disk and collect new DB values.
     const itemRows = this.db
       .prepare(
-        `SELECT id, encrypted_filename, original_filename_enc,
+        `SELECT vault_object_id AS id, encrypted_filename, original_filename_enc,
                 thumbnail_enc, thumbnail_iv, thumbnail_auth_tag,
                 iv, auth_tag
          FROM vault_items`,
@@ -275,38 +285,54 @@ export class AuthService {
       onProgress?.(itemUpdates.length, total);
     }
 
+    const reEncField = (enc: Buffer): Buffer => {
+      const p = JSON.parse(enc.toString('utf8')) as EncryptedPayload;
+      const dec = this.cryptoService.decryptBuffer(
+        {
+          iv: Buffer.from(p.iv, 'base64'),
+          authTag: Buffer.from(p.authTag, 'base64'),
+          encrypted: Buffer.from(p.data, 'base64'),
+        },
+        oldKey,
+      );
+      const reEnc = this.cryptoService.encryptBuffer(dec, newKey);
+      return Buffer.from(
+        JSON.stringify({
+          iv: reEnc.iv.toString('base64'),
+          authTag: reEnc.authTag.toString('base64'),
+          data: reEnc.encrypted.toString('base64'),
+        }),
+        'utf8',
+      );
+    };
+
     // Re-encrypt bookmarks.
     const bookmarkRows = this.db
-      .prepare('SELECT id, title_enc, url_enc FROM bookmarks')
+      .prepare('SELECT vault_object_id, title_enc, url_enc FROM bookmarks')
       .all() as BookmarkRow[];
 
-    type BookmarkUpdate = { id: number; titleEnc: Buffer; urlEnc: Buffer };
+    type BookmarkUpdate = { id: string; titleEnc: Buffer; urlEnc: Buffer };
     const bookmarkUpdates: BookmarkUpdate[] = [];
     for (const row of bookmarkRows) {
-      const reEncField = (enc: Buffer): Buffer => {
-        const p = JSON.parse(enc.toString('utf8')) as EncryptedPayload;
-        const dec = this.cryptoService.decryptBuffer(
-          {
-            iv: Buffer.from(p.iv, 'base64'),
-            authTag: Buffer.from(p.authTag, 'base64'),
-            encrypted: Buffer.from(p.data, 'base64'),
-          },
-          oldKey,
-        );
-        const reEnc = this.cryptoService.encryptBuffer(dec, newKey);
-        return Buffer.from(
-          JSON.stringify({
-            iv: reEnc.iv.toString('base64'),
-            authTag: reEnc.authTag.toString('base64'),
-            data: reEnc.encrypted.toString('base64'),
-          }),
-          'utf8',
-        );
-      };
       bookmarkUpdates.push({
-        id: row.id,
+        id: row.vault_object_id,
         titleEnc: reEncField(row.title_enc),
         urlEnc: reEncField(row.url_enc),
+      });
+    }
+
+    // Re-encrypt notes.
+    const noteRows = this.db
+      .prepare('SELECT vault_object_id, title_enc, body_enc FROM notes')
+      .all() as NoteRow[];
+
+    type NoteUpdate = { id: string; titleEnc: Buffer; bodyEnc: Buffer };
+    const noteUpdates: NoteUpdate[] = [];
+    for (const row of noteRows) {
+      noteUpdates.push({
+        id: row.vault_object_id,
+        titleEnc: reEncField(row.title_enc),
+        bodyEnc: reEncField(row.body_enc),
       });
     }
 
@@ -343,7 +369,7 @@ export class AuthService {
            SET original_filename_enc = ?,
                thumbnail_enc = ?, thumbnail_iv = ?, thumbnail_auth_tag = ?,
                iv = ?, auth_tag = ?
-           WHERE id = ?`,
+           WHERE vault_object_id = ?`,
         );
         for (const u of itemUpdates) {
           updateItem.run(
@@ -355,10 +381,17 @@ export class AuthService {
         }
 
         const updateBookmark = this.db.prepare(
-          `UPDATE bookmarks SET title_enc = ?, url_enc = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          `UPDATE bookmarks SET title_enc = ?, url_enc = ? WHERE vault_object_id = ?`,
         );
         for (const b of bookmarkUpdates) {
           updateBookmark.run(b.titleEnc, b.urlEnc, b.id);
+        }
+
+        const updateNote = this.db.prepare(
+          `UPDATE notes SET title_enc = ?, body_enc = ? WHERE vault_object_id = ?`,
+        );
+        for (const n of noteUpdates) {
+          updateNote.run(n.titleEnc, n.bodyEnc, n.id);
         }
       })();
 

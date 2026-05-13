@@ -49,9 +49,28 @@ export const isVideoMimeType = (mimeType: string): boolean => mimeType.startsWit
 export const isMediaMimeType = (mimeType: string): boolean =>
   isImageMimeType(mimeType) || isVideoMimeType(mimeType);
 
+export const isPdfMimeType = (mimeType: string): boolean => mimeType === 'application/pdf';
+
+export const isTextDocumentMimeType = (mimeType: string): boolean =>
+  mimeType === 'text/plain' ||
+  mimeType === 'text/markdown' ||
+  mimeType === 'text/csv' ||
+  mimeType === 'text/html' ||
+  mimeType === 'application/json' ||
+  mimeType === 'application/xml';
+
+export const isDocxMimeType = (mimeType: string): boolean =>
+  mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+export const isReadableDocumentMimeType = (mimeType: string): boolean =>
+  isTextDocumentMimeType(mimeType) || isDocxMimeType(mimeType);
+
+export const isPreviewableMimeType = (mimeType: string): boolean =>
+  isMediaMimeType(mimeType) || isPdfMimeType(mimeType) || isReadableDocumentMimeType(mimeType);
+
 export const isDocumentMimeType = (mimeType: string): boolean =>
   mimeType.startsWith('text/') ||
-  mimeType === 'application/pdf' ||
+  isPdfMimeType(mimeType) ||
   mimeType === 'application/json' ||
   mimeType === 'application/xml' ||
   mimeType === 'application/rtf' ||
@@ -69,4 +88,3 @@ export const getVaultFileKind = (mimeType: string): VaultFileKind => {
   if (isDocumentMimeType(mimeType)) return 'document';
   return 'file';
 };
-

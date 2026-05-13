@@ -66,10 +66,10 @@ export class BackupService {
       // Add manifest.
       const manifest = JSON.stringify({
         createdAt: new Date().toISOString(),
-        schemaVersion: 3,
+        schemaVersion: 4,
         itemCount,
         tables: [
-          'vault_objects', 'vault_items', 'bookmarks', 'object_tags',
+          'vault_objects', 'vault_items', 'bookmarks', 'notes', 'object_tags',
           'folders', 'tags', 'passwords', 'schema_meta',
         ],
       }, null, 2);

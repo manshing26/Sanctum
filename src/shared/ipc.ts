@@ -18,6 +18,17 @@ export const IPC_CHANNELS = {
   exportBookmarks:       'vault:bookmarks:export',
   importBookmarks:       'vault:bookmarks:import',
   renameBookmark:        'vault:bookmarks:rename',
+  listNotes:             'vault:notes:list',
+  createNote:            'vault:notes:create',
+  updateNote:            'vault:notes:update',
+  deleteNote:            'vault:notes:delete',
+  assignNoteFolder:      'vault:notes:assign-folder',
+  assignNotesFolder:     'vault:notes:assign-folders',
+  assignNoteTag:         'vault:notes:assign-tag',
+  unassignNoteTag:       'vault:notes:unassign-tag',
+  assignNotesTag:        'vault:notes:assign-tags-bulk',
+  unassignNotesTag:      'vault:notes:unassign-tags-bulk',
+  exportNote:            'vault:notes:export',
   downloadUpdate: 'browser:downloads:update',
   cancelDownload: 'browser:downloads:cancel',
   listExtensions: 'browser:extensions:list',
@@ -35,6 +46,7 @@ export const IPC_CHANNELS = {
   getItemThumbnail: 'vault:get-item-thumbnail',
   openMediaSession: 'vault:open-media-session',
   closeMediaSession: 'vault:close-media-session',
+  openTemporaryFile: 'vault:open-temporary-file',
   pickFiles: 'vault:pick-files',
   clearAllVaultItems: 'vault:clear-all-items',
   deleteVaultItem: 'vault:delete-item',
@@ -214,6 +226,14 @@ export type CloseMediaSessionInput = {
   token: string;
 };
 
+export type OpenTemporaryFileInput = {
+  itemId: string;
+};
+
+export type OpenTemporaryFileResult = {
+  path: string;
+};
+
 export type SecuritySettings = {
   secureDeleteOnImport: boolean;
   autoLockMinutes: number;
@@ -384,6 +404,77 @@ export type ImportBookmarksResult = {
   errors: string[];
 };
 
+export type NoteFormat = 'plain' | 'markdown';
+
+export type NoteSummary = {
+  id: string;
+  title: string;
+  body: string;
+  format: NoteFormat;
+  folderId: number | null;
+  isFavorite: boolean;
+  tags: TagSummary[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CreateNoteInput = {
+  title: string;
+  body?: string;
+  format?: NoteFormat;
+  folderId?: number | null;
+};
+
+export type UpdateNoteInput = {
+  id: string;
+  title: string;
+  body: string;
+  format: NoteFormat;
+};
+
+export type DeleteNoteInput = {
+  id: string;
+};
+
+export type AssignNoteFolderInput = {
+  noteId: string;
+  folderId: number | null;
+};
+
+export type AssignNotesFolderInput = {
+  noteIds: string[];
+  folderId: number | null;
+};
+
+export type AssignNoteTagInput = {
+  noteId: string;
+  tagId: number;
+};
+
+export type UnassignNoteTagInput = {
+  noteId: string;
+  tagId: number;
+};
+
+export type AssignNotesTagInput = {
+  noteIds: string[];
+  tagId: number;
+};
+
+export type UnassignNotesTagInput = {
+  noteIds: string[];
+  tagId: number;
+};
+
+export type ExportNoteInput = {
+  id: string;
+  targetDir?: string;
+};
+
+export type ExportNoteResult = {
+  path: string;
+};
+
 export type PasswordSummary = {
   id: string;
   domain: string;
@@ -414,6 +505,14 @@ export type GetPasswordsForDomainInput = { domain: string };
 
 export type DeleteVaultItemInput = {
   itemId: string;
+};
+
+export type ClearAllVaultItemsInput = {
+  password: string;
+};
+
+export type ClearAllVaultItemsResult = {
+  deleted: number;
 };
 
 export type ToggleFavoriteInput = {
@@ -528,8 +627,9 @@ export type ElectronAPI = {
     input: OpenMediaSessionInput,
   ) => Promise<OperationResult<OpenMediaSessionResult>>;
   closeMediaSession: (input: CloseMediaSessionInput) => Promise<OperationResult>;
+  openTemporaryFile: (input: OpenTemporaryFileInput) => Promise<OperationResult<OpenTemporaryFileResult>>;
   pickFiles: () => Promise<string[]>;
-  clearAllVaultItems: () => Promise<OperationResult<{ deleted: number }>>;
+  clearAllVaultItems: (input: ClearAllVaultItemsInput) => Promise<OperationResult<ClearAllVaultItemsResult>>;
   deleteVaultItem: (input: DeleteVaultItemInput) => Promise<OperationResult>;
   toggleFavorite: (input: ToggleFavoriteInput) => Promise<OperationResult>;
   setRating: (input: SetRatingInput) => Promise<OperationResult>;
@@ -591,6 +691,17 @@ export type ElectronAPI = {
   listBookmarks: () => Promise<OperationResult<BookmarkSummary[]>>;
   deleteBookmark: (input: DeleteBookmarkInput) => Promise<OperationResult>;
   updateBookmarkThumbnail: (input: UpdateBookmarkThumbnailInput) => Promise<OperationResult<BookmarkSummary>>;
+  listNotes: () => Promise<OperationResult<NoteSummary[]>>;
+  createNote: (input: CreateNoteInput) => Promise<OperationResult<NoteSummary>>;
+  updateNote: (input: UpdateNoteInput) => Promise<OperationResult<NoteSummary>>;
+  deleteNote: (input: DeleteNoteInput) => Promise<OperationResult>;
+  assignNoteFolder: (input: AssignNoteFolderInput) => Promise<OperationResult>;
+  assignNotesFolder: (input: AssignNotesFolderInput) => Promise<OperationResult>;
+  assignNoteTag: (input: AssignNoteTagInput) => Promise<OperationResult>;
+  unassignNoteTag: (input: UnassignNoteTagInput) => Promise<OperationResult>;
+  assignNotesTag: (input: AssignNotesTagInput) => Promise<OperationResult>;
+  unassignNotesTag: (input: UnassignNotesTagInput) => Promise<OperationResult>;
+  exportNote: (input: ExportNoteInput) => Promise<OperationResult<ExportNoteResult>>;
 };
 
 export type BrowserAPI = {

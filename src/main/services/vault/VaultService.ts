@@ -411,24 +411,71 @@ export class VaultService {
     return { exported: processed - failed, failed };
   }
 
-  async clearAllItems(): Promise<{ deleted: number }> {
-    const rows = this.db
-      .prepare('SELECT encrypted_filename FROM vault_items')
-      .all() as Array<{ encrypted_filename: string }>;
+  async openTemporaryFile(itemId: string): Promise<string> {
+    const row = this.db
+      .prepare(
+        `SELECT vi.vault_object_id, vi.encrypted_filename, vi.original_filename_enc, vi.iv, vi.auth_tag
+         FROM vault_items vi WHERE vi.vault_object_id = ?`,
+      )
+      .get(itemId) as ExportItemRow | undefined;
 
-    for (const row of rows) {
-      const filePath = path.join(this.vaultPaths.filesDir, row.encrypted_filename);
+    if (!row) throw new Error('Item not found.');
+
+    const encryptedPath = path.join(this.vaultPaths.filesDir, row.encrypted_filename);
+    const encryptedData = await fs.readFile(encryptedPath);
+    const key = this.sessionStore.getMasterKey();
+    const decrypted = this.cryptoService.decryptBuffer(
+      { iv: row.iv, authTag: row.auth_tag, encrypted: encryptedData },
+      key,
+    );
+    const originalName = this.decryptOriginalName(row.original_filename_enc);
+    const safeName = path.basename(originalName && originalName !== 'unknown' ? originalName : row.vault_object_id)
+      .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
+      .trim() || row.vault_object_id;
+    const tempOpenDir = path.join(this.vaultPaths.tempDir, 'opened');
+    await fs.mkdir(tempOpenDir, { recursive: true });
+    const tempPath = path.join(tempOpenDir, `${Date.now()}-${row.vault_object_id}-${safeName}`);
+    await fs.writeFile(tempPath, decrypted, { mode: 0o600 });
+    await fs.chmod(tempPath, 0o444);
+    return tempPath;
+  }
+
+  async clearTemporaryOpenFiles(): Promise<void> {
+    const tempOpenDir = path.join(this.vaultPaths.tempDir, 'opened');
+    await fs.rm(tempOpenDir, { recursive: true, force: true });
+    await fs.mkdir(tempOpenDir, { recursive: true });
+  }
+
+  async clearAllItems(): Promise<{ deleted: number }> {
+    this.ensureUnlocked();
+    const objectCount = (this.db
+      .prepare('SELECT COUNT(1) AS total FROM vault_objects')
+      .get() as { total: number }).total;
+    const passwordCount = (this.db
+      .prepare('SELECT COUNT(1) AS total FROM passwords')
+      .get() as { total: number }).total;
+
+    const fileEntries = await fs.readdir(this.vaultPaths.filesDir);
+    for (const entry of fileEntries) {
+      const filePath = path.join(this.vaultPaths.filesDir, entry);
       try {
-        await fs.unlink(filePath);
+        await fs.rm(filePath, { recursive: true, force: true });
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException;
         if (nodeError.code !== 'ENOENT') throw error;
       }
     }
 
-    // CASCADE on vault_objects deletes vault_items and object_tags rows
-    this.db.prepare("DELETE FROM vault_objects WHERE type = 'file'").run();
-    return { deleted: rows.length };
+    await this.clearTemporaryOpenFiles();
+
+    this.db.transaction(() => {
+      // CASCADE from vault_objects clears files, bookmarks, notes, and object_tags.
+      this.db.prepare('DELETE FROM vault_objects').run();
+      this.db.prepare('DELETE FROM passwords').run();
+      this.db.prepare('DELETE FROM folders').run();
+      this.db.prepare('DELETE FROM tags').run();
+    })();
+    return { deleted: objectCount + passwordCount };
   }
 
   async scanImportConflicts(

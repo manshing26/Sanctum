@@ -634,15 +634,31 @@ const RestoreCard: React.FC = () => {
 const StorageSection: React.FC = () => {
   const [showWipeDialog, setShowWipeDialog] = useState(false);
   const [isWiping, setIsWiping] = useState(false);
+  const [wipePassword, setWipePassword] = useState('');
+  const [wipeError, setWipeError] = useState<string | null>(null);
 
   const handleWipeVault = async (): Promise<void> => {
+    if (!wipePassword) return;
+    setWipeError(null);
     setIsWiping(true);
     try {
-      const r = await window.electronAPI.clearAllVaultItems();
-      if (!r.ok) { toast.error(r.error); return; }
-      toast.success(`Deleted ${r.data.deleted} items from vault.`);
+      const r = await window.electronAPI.clearAllVaultItems({ password: wipePassword });
+      if (!r.ok) {
+        setWipeError(r.error);
+        toast.error(r.error);
+        return;
+      }
+      toast.success(`Vault reset. Deleted ${r.data.deleted} saved object(s).`);
+      setWipePassword('');
       setShowWipeDialog(false);
     } finally { setIsWiping(false); }
+  };
+
+  const closeWipeDialog = (): void => {
+    if (isWiping) return;
+    setShowWipeDialog(false);
+    setWipePassword('');
+    setWipeError(null);
   };
 
   return (
@@ -653,8 +669,8 @@ const StorageSection: React.FC = () => {
       <RestoreCard />
 
       <SettingCard>
-        <CardSection title="Vault Data" description="All files are stored encrypted with AES-256-GCM in your local vault directory.">
-          <DangerBtn onClick={() => setShowWipeDialog(true)}>
+        <CardSection title="Vault Data" description="All files, bookmarks, notes, passwords, folders, and tags are encrypted locally.">
+          <DangerBtn onClick={() => { setWipeError(null); setWipePassword(''); setShowWipeDialog(true); }}>
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="2,3.5 12,3.5"/><path d="M5 3.5V2.5h4v1"/><rect x="3" y="3.5" width="8" height="9"/>
               <line x1="5.5" y1="6" x2="5.5" y2="10"/><line x1="8.5" y1="6" x2="8.5" y2="10"/>
@@ -670,19 +686,33 @@ const StorageSection: React.FC = () => {
           position: 'fixed', inset: 0, zIndex: 9999,
           background: 'rgba(0,0,0,0.7)',
           display: 'grid', placeItems: 'center',
-        }} onClick={() => setShowWipeDialog(false)}>
+        }} onClick={closeWipeDialog}>
           <div style={{
             width: 420, background: T.bg2,
             border: `1px solid ${T.line2}`,
             padding: 28,
           }} onClick={(e) => e.stopPropagation()}>
             <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: 20, color: T.text, margin: '0 0 8px' }}>Delete All Vault Items</p>
-            <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute, margin: '0 0 24px', lineHeight: 1.6 }}>
-              This will permanently delete all encrypted files, thumbnails, and metadata from your vault. This action cannot be undone.
+            <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute, margin: '0 0 18px', lineHeight: 1.6 }}>
+              This will permanently delete encrypted files, bookmarks, notes, passwords, folders, tags, and vault metadata. Your vault password and app settings stay in place.
             </p>
+            <div style={{ marginBottom: 14 }}>
+              <FieldLabel>Current vault password</FieldLabel>
+              <PasswordInput
+                autoFocus
+                value={wipePassword}
+                onChange={(e) => { setWipePassword(e.target.value); setWipeError(null); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && wipePassword && !isWiping) void handleWipeVault(); }}
+                placeholder="Enter vault password"
+                autoComplete="current-password"
+                error={!!wipeError}
+                disabled={isWiping}
+              />
+            </div>
+            {wipeError && <ErrorBanner message={wipeError} />}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <SecondaryBtn onClick={() => setShowWipeDialog(false)}>Cancel</SecondaryBtn>
-              <DangerBtn onClick={() => void handleWipeVault()} disabled={isWiping}>
+              <SecondaryBtn onClick={closeWipeDialog} disabled={isWiping}>Cancel</SecondaryBtn>
+              <DangerBtn onClick={() => void handleWipeVault()} disabled={isWiping || !wipePassword}>
                 {isWiping ? 'Deleting…' : 'Delete Everything'}
               </DangerBtn>
             </div>

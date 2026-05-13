@@ -7,7 +7,7 @@ import {
   ContextMenuItem,
 } from '../../../components/ui/ContextMenu';
 import { RenameItemDialog } from './RenameItemDialog';
-import { getVaultFileKind, isMediaMimeType } from '../../../../shared/fileTypes';
+import { getVaultFileKind, isPreviewableMimeType } from '../../../../shared/fileTypes';
 
 const T = {
   bg: '#0a0c0b',
@@ -325,7 +325,7 @@ export const GalleryCard = ({
               onOpen(item.id);
             }}
           >
-            {isMediaMimeType(item.mimeType) ? 'Open in Viewer' : 'Export'}
+            {isPreviewableMimeType(item.mimeType) ? 'Open in Viewer' : 'Open Read-Only Copy'}
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => {

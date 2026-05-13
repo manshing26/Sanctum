@@ -13,11 +13,13 @@ import { registerPasswordHandlers } from './ipc/registerPasswordHandlers';
 import { registerFolderHandlers } from './ipc/registerFolderHandlers';
 import { registerIpcHandlers } from './ipc/registerIpcHandlers';
 import { registerMediaHandlers } from './ipc/registerMediaHandlers';
+import { registerNoteHandlers } from './ipc/registerNoteHandlers';
 import { registerSettingsHandlers } from './ipc/registerSettingsHandlers';
 import { registerTagHandlers } from './ipc/registerTagHandlers';
 import { registerVaultHandlers } from './ipc/registerVaultHandlers';
 import { AuthService } from './services/auth/AuthService';
 import { BookmarkService } from './services/bookmark/BookmarkService';
+import { NoteService } from './services/note/NoteService';
 import { PasswordService } from './services/password/PasswordService';
 import { CryptoService } from './services/crypto/CryptoService';
 import { DownloadService } from './services/download/DownloadService';
@@ -41,8 +43,8 @@ import { SettingsWindowController } from './windows/SettingsWindowController';
 const applyCspHeaders = (): void => {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const csp = app.isPackaged
-      ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: privatevault-media:; media-src 'self' data: blob: privatevault-media:;"
-      : "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws:; img-src 'self' data: blob: privatevault-media:; media-src 'self' data: blob: privatevault-media:;";
+      ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: privatevault-media:; img-src 'self' data: blob: privatevault-media:; media-src 'self' data: blob: privatevault-media:; frame-src 'self' blob: privatevault-media:; object-src 'self' blob: privatevault-media:;"
+      : "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: blob: privatevault-media:; img-src 'self' data: blob: privatevault-media:; media-src 'self' data: blob: privatevault-media:; frame-src 'self' blob: privatevault-media:; object-src 'self' blob: privatevault-media:;";
 
     callback({
       responseHeaders: {
@@ -210,6 +212,7 @@ export const bootstrapApp = (): void => {
     const folderService = new FolderService(database.getDb(), sessionStore, vaultPaths);
     const tagService = new TagService(database.getDb(), sessionStore);
     const bookmarkService = new BookmarkService(database.getDb(), cryptoService, sessionStore);
+    const noteService = new NoteService(database.getDb(), cryptoService, sessionStore);
     const passwordService = new PasswordService(database.getDb(), cryptoService, sessionStore);
     const vaultService = new VaultService(
       database.getDb(),
@@ -217,6 +220,7 @@ export const bootstrapApp = (): void => {
       sessionStore,
       vaultPaths,
     );
+    void vaultService.clearTemporaryOpenFiles();
     const importService = new ImportService(
       vaultService,
       settingsService,
@@ -282,6 +286,7 @@ export const bootstrapApp = (): void => {
         authService.lockVault();
         browserWindowController.close();
         await mediaSessionService.clearAllSessions();
+        await vaultService.clearTemporaryOpenFiles();
 
         const win = mainWindowController.getWindow();
         if (win && !win.isDestroyed()) {
@@ -317,6 +322,9 @@ export const bootstrapApp = (): void => {
     });
 
     const mainWindow = mainWindowController.create();
+    app.on('before-quit', () => {
+      void vaultService.clearTemporaryOpenFiles();
+    });
     mainWindow.on('minimize', () => {
       if (!securitySettings.lockOnMinimize) {
         return;
@@ -366,8 +374,13 @@ export const bootstrapApp = (): void => {
     registerVaultHandlers({
       importService,
       vaultService,
+      authService,
       backupService,
       restoreService,
+      mainWindowController,
+    });
+    registerNoteHandlers({
+      noteService,
       mainWindowController,
     });
     registerMediaHandlers({

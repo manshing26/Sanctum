@@ -27,11 +27,13 @@ import {
   type UnassignItemsTagInput,
   type CreateVaultPasswordInput,
   type CloseMediaSessionInput,
+  type ClearAllVaultItemsInput,
   type ExportProgress,
   type ImportRequest,
   type ImportProgress,
   type ListItemsQueryInput,
   type OpenMediaSessionInput,
+  type OpenTemporaryFileInput,
   type UnlockVaultInput,
   type UpdateSecuritySettingsInput,
   type UpdateAppearanceSettingsInput,
@@ -51,6 +53,16 @@ import {
   type AssignBookmarksTagInput,
   type UnassignBookmarksTagInput,
   type ImportBookmarksInput,
+  type AssignNoteFolderInput,
+  type AssignNotesFolderInput,
+  type AssignNoteTagInput,
+  type UnassignNoteTagInput,
+  type AssignNotesTagInput,
+  type UnassignNotesTagInput,
+  type CreateNoteInput,
+  type UpdateNoteInput,
+  type DeleteNoteInput,
+  type ExportNoteInput,
 } from '../shared/ipc';
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -79,8 +91,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.openMediaSession, input),
   closeMediaSession: (input: CloseMediaSessionInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.closeMediaSession, input),
+  openTemporaryFile: (input: OpenTemporaryFileInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.openTemporaryFile, input),
   pickFiles: () => ipcRenderer.invoke(IPC_CHANNELS.pickFiles),
-  clearAllVaultItems: () => ipcRenderer.invoke(IPC_CHANNELS.clearAllVaultItems),
+  clearAllVaultItems: (input: ClearAllVaultItemsInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.clearAllVaultItems, input),
   deleteVaultItem: (input: { itemId: string }) =>
     ipcRenderer.invoke(IPC_CHANNELS.deleteVaultItem, input),
   toggleFavorite: (input: ToggleFavoriteInput) => ipcRenderer.invoke(IPC_CHANNELS.toggleFavorite, input),
@@ -194,16 +209,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.assignBookmarksTag, input),
   unassignBookmarksTag: (input: UnassignBookmarksTagInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.unassignBookmarksTag, input),
-  exportBookmarks: () => ipcRenderer.invoke(IPC_CHANNELS.exportBookmarks),
+  exportBookmarks: (input?: { ids?: string[] }) => ipcRenderer.invoke(IPC_CHANNELS.exportBookmarks, input),
   importBookmarks: (input: ImportBookmarksInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.importBookmarks, input),
-  renameBookmark: (input: { id: number; title: string }) =>
+  renameBookmark: (input: { id: string; title: string }) =>
     ipcRenderer.invoke(IPC_CHANNELS.renameBookmark, input),
   listBookmarks: () => ipcRenderer.invoke(IPC_CHANNELS.listBookmarks),
   deleteBookmark: (input: DeleteBookmarkInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.deleteBookmark, input),
   updateBookmarkThumbnail: (input: UpdateBookmarkThumbnailInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.updateBookmarkThumbnail, input),
+  listNotes: () => ipcRenderer.invoke(IPC_CHANNELS.listNotes),
+  createNote: (input: CreateNoteInput) => ipcRenderer.invoke(IPC_CHANNELS.createNote, input),
+  updateNote: (input: UpdateNoteInput) => ipcRenderer.invoke(IPC_CHANNELS.updateNote, input),
+  deleteNote: (input: DeleteNoteInput) => ipcRenderer.invoke(IPC_CHANNELS.deleteNote, input),
+  assignNoteFolder: (input: AssignNoteFolderInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.assignNoteFolder, input),
+  assignNotesFolder: (input: AssignNotesFolderInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.assignNotesFolder, input),
+  assignNoteTag: (input: AssignNoteTagInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.assignNoteTag, input),
+  unassignNoteTag: (input: UnassignNoteTagInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.unassignNoteTag, input),
+  assignNotesTag: (input: AssignNotesTagInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.assignNotesTag, input),
+  unassignNotesTag: (input: UnassignNotesTagInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.unassignNotesTag, input),
+  exportNote: (input: ExportNoteInput) => ipcRenderer.invoke(IPC_CHANNELS.exportNote, input),
 });
 
 contextBridge.exposeInMainWorld('browserAPI', {

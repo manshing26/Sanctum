@@ -23,7 +23,7 @@ const SERIF = "'Fraunces', Georgia, serif";
 
 type FolderSidebarProps = {
   folders: FolderNode[];
-  selectedViewScope: 'all' | 'video' | 'image' | 'document' | 'root' | 'folder' | 'bookmark';
+  selectedViewScope: 'all' | 'video' | 'image' | 'document' | 'root' | 'folder' | 'bookmark' | 'note';
   selectedFolderId: number | null;
   onSelectAllItems: () => void;
   onSelectVideo: () => void;
@@ -32,6 +32,7 @@ type FolderSidebarProps = {
   onSelectRoot: () => void;
   onSelectFolder: (folderId: number) => void;
   onSelectBookmarks?: () => void;
+  onSelectNotes?: () => void;
   newFolderName: string;
   onNewFolderNameChange: (value: string) => void;
   newFolderParentId: number | null;
@@ -86,7 +87,7 @@ const scopeRow = (
 
 const FolderTreeNode: React.FC<{
   folder: FolderNode;
-  selectedViewScope: 'all' | 'video' | 'image' | 'document' | 'root' | 'folder' | 'bookmark';
+  selectedViewScope: 'all' | 'video' | 'image' | 'document' | 'root' | 'folder' | 'bookmark' | 'note';
   selectedFolderId: number | null;
   onSelectFolder: (folderId: number) => void;
   onDeleteFolder: (folderId: number) => void;
@@ -195,6 +196,7 @@ export const FolderSidebar = ({
   onSelectRoot,
   onSelectFolder,
   onSelectBookmarks,
+  onSelectNotes,
   newFolderName,
   onNewFolderNameChange,
   newFolderParentId,
@@ -298,6 +300,14 @@ export const FolderSidebar = ({
       <path d="M2 1h8v10L6 8.5 2 11V1z" />
     </svg>
   );
+  const iconNotes = (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <path d="M3 1.5h5l2 2v7H3z" />
+      <path d="M8 1.5V4h2" />
+      <line x1="4.5" y1="6" x2="8" y2="6" />
+      <line x1="4.5" y1="8" x2="7.2" y2="8" />
+    </svg>
+  );
 
   return (
     <aside style={{ display: 'flex', flexDirection: 'column', height: '100%', background: T.bg, overflowY: 'auto' }}>
@@ -322,6 +332,7 @@ export const FolderSidebar = ({
         {scopeRow('Images', selectedViewScope === 'image', onSelectImage, iconImage)}
         {onSelectDocuments && scopeRow('Documents', selectedViewScope === 'document', onSelectDocuments, iconDocument)}
         {onSelectBookmarks && scopeRow('Bookmarks', selectedViewScope === 'bookmark', onSelectBookmarks, iconBookmarks)}
+        {onSelectNotes && scopeRow('Notes', selectedViewScope === 'note', onSelectNotes, iconNotes)}
       </div>
 
       {/* Folders section */}
