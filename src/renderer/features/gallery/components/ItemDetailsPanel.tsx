@@ -13,6 +13,7 @@ const T = {
   mute2: '#4d524d',
   accent: '#7c9a92',
   accentGlow: 'rgba(124,154,146,0.15)',
+  warn: '#d6a84f',
   danger: '#c36b5f',
 };
 const SERIF = "'Fraunces', Georgia, serif";
@@ -42,9 +43,9 @@ type ItemDetailsPanelProps = {
   selectedCount: number;
 };
 
-const actionBtn = (variant: 'default' | 'ghost' | 'danger'): React.CSSProperties => ({
+const actionBtn = (variant: 'default' | 'ghost' | 'danger' | 'warn'): React.CSSProperties => ({
   height: 28, padding: '0 12px',
-  background: variant === 'default' ? T.accent : variant === 'danger' ? T.danger : 'none',
+  background: variant === 'default' ? T.accent : variant === 'danger' ? T.danger : variant === 'warn' ? T.warn : 'none',
   border: variant === 'ghost' ? `1px solid ${T.line2}` : 'none',
   cursor: 'pointer',
   color: variant === 'ghost' ? T.mute : '#0a0c0b',
@@ -226,7 +227,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
 
       {/* Actions */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-        <button type="button" onClick={() => onOpenItem(item.id)} style={{ ...actionBtn('default'), flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        <button type="button" onClick={() => onOpenItem(item.id)} style={{ ...actionBtn(canPreview ? 'default' : 'warn'), flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
           <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.4">
             <circle cx="5.5" cy="5.5" r="4.5" /><circle cx="5.5" cy="5.5" r="1.8" />
           </svg>

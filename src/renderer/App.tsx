@@ -7,6 +7,7 @@ import { SettingsPage } from './features/settings/SettingsPage';
 import { BrowserWorkspace, type BrowserWorkspaceHandle } from './features/browser/BrowserWorkspace';
 import { RestoreCountdownDialog } from './components/ui/RestoreCountdownDialog';
 import { PasswordManagerPage } from './features/passwords/PasswordManagerPage';
+import { VAULT_PASSWORD_MIN_LENGTH, isVaultPasswordLongEnough } from '../shared/authPolicy';
 
 const T = {
   bg: '#0a0c0b',
@@ -25,19 +26,13 @@ const T = {
 const SERIF = "'Fraunces', Georgia, serif";
 const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace";
 
-const PASSWORD_MIN_LENGTH = 12;
-
 interface PasswordCheck {
   label: string;
   met: boolean;
 }
 
 const getPasswordChecks = (password: string): PasswordCheck[] => [
-  { label: `At least ${PASSWORD_MIN_LENGTH} characters`, met: password.length >= PASSWORD_MIN_LENGTH },
-  { label: 'One uppercase letter', met: /[A-Z]/.test(password) },
-  { label: 'One lowercase letter', met: /[a-z]/.test(password) },
-  { label: 'One number', met: /[0-9]/.test(password) },
-  { label: 'One special character', met: /[^A-Za-z0-9]/.test(password) },
+  { label: `At least ${VAULT_PASSWORD_MIN_LENGTH} characters`, met: isVaultPasswordLongEnough(password) },
 ];
 
 // ── Top Bar ──────────────────────────────────────────────────────────
@@ -61,8 +56,8 @@ const LockIcon: React.FC = () => (
 const TABS: { id: AppTab; label: string; numeral: string }[] = [
   { id: 'gallery',   label: 'Vault',     numeral: 'I'   },
   { id: 'browser',   label: 'Browser',   numeral: 'II'  },
-  { id: 'settings',  label: 'Settings',  numeral: 'III' },
-  { id: 'passwords', label: 'Passwords', numeral: 'IV'  },
+  { id: 'passwords', label: 'Passwords', numeral: 'III' },
+  { id: 'settings',  label: 'Settings',  numeral: 'IV'  },
 ];
 
 const TopBar: React.FC<{
@@ -141,9 +136,9 @@ const TopBar: React.FC<{
           alignItems: 'center',
           gap: 8,
           padding: '7px 14px',
-          background: 'transparent',
-          color: '#e8e6dc',
-          border: '1px solid rgba(220,220,200,0.12)',
+          background: isUnlocked ? T.warn : 'transparent',
+          color: isUnlocked ? T.bg : T.mute,
+          border: isUnlocked ? `1px solid ${T.warn}` : '1px solid rgba(220,220,200,0.12)',
           cursor: isUnlocked ? 'pointer' : 'default',
           fontSize: 10,
           letterSpacing: '0.2em',
@@ -298,7 +293,7 @@ const RestoreFromBackupSection: React.FC = () => {
             <div style={{ height: '100%', background: T.accent, width: `${progressPct}%`, transition: 'width 0.2s' }} />
           </div>
           <p style={{ fontFamily: MONO, fontSize: 9, color: T.mute, margin: 0 }}>
-            Restoring {progress.processed} / {progress.total} files…
+            Restoring {progress.processed} / {progress.total} entries…
           </p>
         </div>
       )}
@@ -483,7 +478,7 @@ const CreateAccountScreen: React.FC<{
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const checks = useMemo(() => getPasswordChecks(password), [password]);
-  const passwordValid = checks.every((c) => c.met);
+  const passwordValid = isVaultPasswordLongEnough(password);
   const passwordsMatch = password === confirmPassword;
   const canSubmit = passwordValid && passwordsMatch && confirmPassword.length > 0 && !isBusy;
 
@@ -532,7 +527,7 @@ const CreateAccountScreen: React.FC<{
                 Create passphrase
               </div>
               <p style={{ margin: '8px 0 0', maxWidth: '38ch', color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
-                Set a strong passphrase to seal your vault. It cannot be recovered if lost — choose something memorable.
+                Set a passphrase with at least {VAULT_PASSWORD_MIN_LENGTH} characters. It cannot be recovered if lost — choose something memorable.
               </p>
             </div>
             <div style={{ fontFamily: MONO, fontSize: 10, lineHeight: 1.8, textAlign: 'right', color: T.mute2 }}>

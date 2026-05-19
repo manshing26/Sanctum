@@ -3,6 +3,9 @@ import { toast } from 'sonner';
 import { RestoreCountdownDialog } from '../../components/ui/RestoreCountdownDialog';
 import { PasswordInput } from '../../components/ui/PasswordInput';
 import type { SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgress, RestoreProgress } from '../../../shared/ipc';
+import { VAULT_PASSWORD_MIN_LENGTH, isVaultPasswordLongEnough } from '../../../shared/authPolicy';
+import type { SearchEngineId } from '../../../shared/browserSearch';
+import { validateCustomSearchTemplate } from '../../../shared/browserSearch';
 
 // ── Design tokens ────────────────────────────────────────────────────
 const T = {
@@ -289,7 +292,7 @@ const ChangePasswordCard: React.FC = () => {
   const timerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
   const passwordsMatch = newPassword === confirmPassword;
-  const newPasswordValid = newPassword.length >= 8;
+  const newPasswordValid = isVaultPasswordLongEnough(newPassword);
   const canSubmit = currentPassword.length > 0 && newPasswordValid && confirmPassword.length > 0 && passwordsMatch && !isSubmitting;
 
   const stopTimer = (): void => {
@@ -336,7 +339,7 @@ const ChangePasswordCard: React.FC = () => {
           <FieldLabel>New password</FieldLabel>
           <PasswordInput value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" autoComplete="new-password" showStrength error={newPassword.length > 0 && !newPasswordValid} disabled={isSubmitting} />
           {newPassword.length > 0 && !newPasswordValid && (
-            <p style={{ fontFamily: MONO, fontSize: 10, color: T.danger, marginTop: 4 }}>Minimum 8 characters.</p>
+            <p style={{ fontFamily: MONO, fontSize: 10, color: T.danger, marginTop: 4 }}>Minimum {VAULT_PASSWORD_MIN_LENGTH} characters.</p>
           )}
         </div>
         <div>
@@ -440,13 +443,6 @@ const AppearanceSection: React.FC = () => {
             options={[{ value: 'small', label: 'Small' }, { value: 'medium', label: 'Medium' }, { value: 'large', label: 'Large' }]}
           />
         </SettingRow>
-        <SettingRow label="Grid density" description="Spacing between items in the gallery.">
-          <SanctumSelect
-            value={settings.gridDensity}
-            onChange={(v) => void update({ gridDensity: v as AppearanceSettings['gridDensity'] })}
-            options={[{ value: 'compact', label: 'Compact' }, { value: 'comfortable', label: 'Comfortable' }, { value: 'spacious', label: 'Spacious' }]}
-          />
-        </SettingRow>
         <SettingRow label="Default view" description="Default gallery layout when opening the app." last>
           <SanctumSelect
             value={settings.defaultView}
@@ -463,6 +459,7 @@ const AppearanceSection: React.FC = () => {
 const BrowserSection: React.FC = () => {
   const [settings, setSettings] = useState<BrowserSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [customTemplateError, setCustomTemplateError] = useState<string | null>(null);
 
   useEffect(() => {
     void window.electronAPI.getBrowserSettings().then((r) => { if (r.ok) setSettings(r.data); setLoading(false); });
@@ -473,6 +470,12 @@ const BrowserSection: React.FC = () => {
     if (!r.ok) { toast.error(r.error); return; }
     setSettings(r.data);
     toast.success('Setting updated.');
+  };
+  const updateCustomSearchTemplate = async (value: string): Promise<void> => {
+    const error = validateCustomSearchTemplate(value);
+    setCustomTemplateError(error);
+    if (error) return;
+    await update({ customSearchTemplate: value });
   };
 
   if (loading || !settings) return <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute }}>Loading…</p>;
@@ -485,20 +488,42 @@ const BrowserSection: React.FC = () => {
         <SettingRow label="Clear data on exit" description="Clear browsing data (cookies, cache, history) when closing the browser.">
           <SanctumSwitch checked={settings.clearOnExit} onCheckedChange={(v) => void update({ clearOnExit: v })} />
         </SettingRow>
-        <SettingRow label="Block pop-ups" description="Prevent websites from opening pop-up windows.">
-          <SanctumSwitch checked={settings.blockPopups} onCheckedChange={(v) => void update({ blockPopups: v })} />
-        </SettingRow>
         <SettingRow label="Block third-party cookies" description="Block cookies from domains other than the current page. Can cause login loops on some sites.">
           <SanctumSwitch checked={settings.blockThirdPartyCookies} onCheckedChange={(v) => void update({ blockThirdPartyCookies: v })} />
         </SettingRow>
-        <SettingRow label="Homepage URL" description="URL to load when opening a new browser tab." last>
-          <SanctumInput
-            value={settings.homepage}
-            onChange={(e) => void update({ homepage: e.target.value })}
-            placeholder="about:blank"
-            style={{ width: 200 }}
+        <SettingRow label="Default search engine" description="Used when the address bar text is not a URL." last={settings.searchEngine !== 'custom'}>
+          <SanctumSelect
+            value={settings.searchEngine}
+            onChange={(v) => void update({ searchEngine: v as SearchEngineId })}
+            options={[
+              { value: 'duckduckgo', label: 'DuckDuckGo' },
+              { value: 'brave', label: 'Brave Search' },
+              { value: 'google', label: 'Google' },
+              { value: 'bing', label: 'Bing' },
+              { value: 'custom', label: 'Custom' },
+            ]}
           />
         </SettingRow>
+        {settings.searchEngine === 'custom' && (
+          <SettingRow label="Custom search URL" description="Use {query} where the search text should be inserted." last>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, alignItems: 'flex-end' }}>
+              <SanctumInput
+                value={settings.customSearchTemplate}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSettings((prev) => prev ? { ...prev, customSearchTemplate: value } : prev);
+                  setCustomTemplateError(validateCustomSearchTemplate(value));
+                }}
+                onBlur={(e) => void updateCustomSearchTemplate(e.target.value)}
+                placeholder="https://example.com/search?q={query}"
+                style={{ width: 280 }}
+              />
+              {customTemplateError && (
+                <span style={{ fontFamily: MONO, fontSize: 9, color: T.danger }}>{customTemplateError}</span>
+              )}
+            </div>
+          </SettingRow>
+        )}
       </SettingCard>
     </div>
   );
@@ -527,7 +552,7 @@ const BackupCard: React.FC = () => {
 
   return (
     <SettingCard>
-      <CardSection title="Backup Vault" description="Create an encrypted backup of your vault. Restoring requires your current password.">
+      <CardSection title="Backup Vault" description="Create an encrypted backup with files, bookmarks, notes, passwords, folders, tags, and metadata.">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <SecondaryBtn onClick={() => void handleBackup()} disabled={isRunning}>
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
@@ -535,7 +560,7 @@ const BackupCard: React.FC = () => {
             </svg>
             {isRunning ? 'Backing up…' : 'Create Backup'}
           </SecondaryBtn>
-          {isRunning && progress && <ProgressBar pct={pct} label={`Backing up ${progress.processed} / ${progress.total} files…`} />}
+          {isRunning && progress && <ProgressBar pct={pct} label={`Backing up ${progress.processed} / ${progress.total} entries…`} />}
           {successPath && !isRunning && (
             <p style={{ fontFamily: MONO, fontSize: 10, color: T.success, wordBreak: 'break-all' }}>Saved to {successPath}</p>
           )}
@@ -546,11 +571,7 @@ const BackupCard: React.FC = () => {
   );
 };
 
-// ── Restore Card ─────────────────────────────────────────────────────
-type RestoreMode = 'replace' | 'merge';
-
 const RestoreCard: React.FC = () => {
-  const [mode, setMode] = useState<RestoreMode | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [replaced, setReplaced] = useState(false);
   const [progress, setProgress] = useState<RestoreProgress | null>(null);
@@ -558,18 +579,18 @@ const RestoreCard: React.FC = () => {
   const [backupPath, setBackupPath] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handlePickFile = async (pickedMode: RestoreMode): Promise<void> => {
+  const handlePickFile = async (): Promise<void> => {
     const picked = await window.electronAPI.pickRestoreFile();
     if (!picked) return;
-    setMode(pickedMode); setBackupPath(picked); setPassword(''); setErrorMsg(null); setReplaced(false);
+    setBackupPath(picked); setPassword(''); setErrorMsg(null); setReplaced(false);
   };
 
   const handleRestore = async (): Promise<void> => {
-    if (!backupPath || !password || !mode) return;
+    if (!backupPath || !password) return;
     setErrorMsg(null); setIsRunning(true); setProgress(null);
     const unsub = window.electronAPI.onRestoreProgress((p) => setProgress(p));
     try {
-      const result = await window.electronAPI.restoreVault({ backupPath, password, mode });
+      const result = await window.electronAPI.restoreVault({ backupPath, password, mode: 'replace' });
       if (result.ok) setReplaced(true); else setErrorMsg(result.error);
     } finally { unsub(); setIsRunning(false); setProgress(null); }
   };
@@ -578,20 +599,14 @@ const RestoreCard: React.FC = () => {
 
   return (
     <SettingCard>
-      <CardSection title="Restore Vault" description="Restore from a .pvbackup file. Requires the backup password.">
+      <CardSection title="Restore Vault" description="Replace the current vault with a .pvbackup file. Requires the backup password.">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', gap: 8 }}>
-            <SecondaryBtn onClick={() => void handlePickFile('replace')} disabled={isRunning}>
+            <SecondaryBtn onClick={() => void handlePickFile()} disabled={isRunning}>
               <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="1.5" y="1.5" width="11" height="11"/><polyline points="4.5,7 7,4.5 9.5,7"/><line x1="7" y1="4.5" x2="7" y2="10"/>
               </svg>
-              Replace vault…
-            </SecondaryBtn>
-            <SecondaryBtn onClick={() => void handlePickFile('merge')} disabled={isRunning}>
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="1.5" y="1.5" width="11" height="11"/><polyline points="4.5,7 7,4.5 9.5,7"/><line x1="7" y1="4.5" x2="7" y2="10"/>
-              </svg>
-              Merge into vault…
+              Choose Backup…
             </SecondaryBtn>
           </div>
 
@@ -609,19 +624,13 @@ const RestoreCard: React.FC = () => {
                   disabled={isRunning}
                 />
               </div>
-              {mode === 'replace' ? (
-                <DangerBtn onClick={() => void handleRestore()} disabled={!password || isRunning} style={{ width: '100%', justifyContent: 'center' }}>
-                  {isRunning ? 'Restoring…' : 'Confirm Replace'}
-                </DangerBtn>
-              ) : (
-                <PrimaryBtn onClick={() => void handleRestore()} disabled={!password || isRunning} full>
-                  {isRunning ? 'Restoring…' : 'Merge into Vault'}
-                </PrimaryBtn>
-              )}
+              <DangerBtn onClick={() => void handleRestore()} disabled={!password || isRunning} style={{ width: '100%', justifyContent: 'center' }}>
+                {isRunning ? 'Restoring…' : 'Replace Current Vault'}
+              </DangerBtn>
             </div>
           )}
 
-          {isRunning && progress && <ProgressBar pct={pct} label={`Restoring ${progress.processed} / ${progress.total} files…`} />}
+          {isRunning && progress && <ProgressBar pct={pct} label={`Restoring ${progress.processed} / ${progress.total} entries…`} />}
           {replaced && <RestoreCountdownDialog />}
           {errorMsg && !isRunning && <ErrorBanner message={errorMsg} />}
         </div>

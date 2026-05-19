@@ -8,6 +8,10 @@ import {
 } from '../crypto/CryptoService';
 import { SessionStore } from '../../state/SessionStore';
 import type { VaultPaths } from '../vault/VaultPaths';
+import {
+  VAULT_PASSWORD_MIN_LENGTH_MESSAGE,
+  isVaultPasswordLongEnough,
+} from '../../../shared/authPolicy';
 
 type AuthStateRow = {
   password_verifier: string;
@@ -71,6 +75,9 @@ export class AuthService {
     const existing = this.db.prepare('SELECT id FROM auth_state WHERE id = 1').get();
     if (existing) {
       throw new Error('Vault password is already set.');
+    }
+    if (!isVaultPasswordLongEnough(password)) {
+      throw new Error(VAULT_PASSWORD_MIN_LENGTH_MESSAGE);
     }
 
     const passwordVerifier = await this.cryptoService.createPasswordVerifier(password);
@@ -188,6 +195,9 @@ export class AuthService {
     }
     if (!this.vaultPaths) {
       throw new Error('VaultPaths not available.');
+    }
+    if (!isVaultPasswordLongEnough(newPassword)) {
+      throw new Error(VAULT_PASSWORD_MIN_LENGTH_MESSAGE);
     }
 
     // Verify current password.

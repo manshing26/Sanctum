@@ -39,15 +39,6 @@ const config: ForgeConfig = {
             },
           },
           {
-            html: './src/renderer/settings/index.html',
-            js: './src/renderer/settings/index.tsx',
-            name: 'settings_window',
-            preload: {
-              js: './src/preload/index.ts',
-              config: './webpack.preload.config.ts',
-            },
-          },
-          {
             html: './src/renderer/browser/index.html',
             js: './src/renderer/browser/index.tsx',
             name: 'browser_window',

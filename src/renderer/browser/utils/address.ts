@@ -1,4 +1,6 @@
-export const DEFAULT_SEARCH_ENGINE = 'https://duckduckgo.com/?q=%s';
+import { SEARCH_ENGINE_TEMPLATES } from '../../../shared/browserSearch';
+
+export const DEFAULT_SEARCH_ENGINE = SEARCH_ENGINE_TEMPLATES.duckduckgo;
 
 const DOMAIN_PATTERN =
   /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+(?:[/:?#].*)?$/i;
@@ -13,7 +15,7 @@ const isHttpUrl = (value: string): boolean => {
 };
 
 const buildSearchUrl = (value: string, template: string): string => {
-  return template.replace('%s', encodeURIComponent(value));
+  return template.split('{query}').join(encodeURIComponent(value));
 };
 
 export const normalizeAddressInput = (

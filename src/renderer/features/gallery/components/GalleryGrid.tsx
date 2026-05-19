@@ -39,6 +39,7 @@ type GalleryGridProps = {
   sentinelRef: React.RefObject<HTMLDivElement | null>;
   isMultiSelect: boolean;
   tags?: TagSummary[];
+  gridMinCardWidth?: number;
 };
 
 export const GalleryGrid = ({
@@ -69,6 +70,7 @@ export const GalleryGrid = ({
   sentinelRef,
   isMultiSelect,
   tags,
+  gridMinCardWidth = 200,
 }: GalleryGridProps): React.JSX.Element => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const { isSelecting, overlayStyle, onMouseDown } = useMarqueeSelection({
@@ -103,7 +105,7 @@ export const GalleryGrid = ({
     >
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+        gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCardWidth}px, 1fr))`,
         gap: 20,
       }}>
         {items.map((item) => (

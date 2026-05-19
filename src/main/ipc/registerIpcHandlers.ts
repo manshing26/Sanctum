@@ -1,23 +1,13 @@
 import { app, ipcMain } from 'electron';
 import { IPC_CHANNELS } from '../../shared/ipc';
-import { MainWindowController } from '../windows/MainWindowController';
-import { SettingsWindowController } from '../windows/SettingsWindowController';
 
-type RegisterIpcHandlersParams = {
-  mainWindowController: MainWindowController;
-  settingsWindowController: SettingsWindowController;
-};
-
-export const registerIpcHandlers = ({
-  mainWindowController,
-  settingsWindowController,
-}: RegisterIpcHandlersParams): void => {
+export const registerIpcHandlers = (): void => {
   ipcMain.handle(IPC_CHANNELS.openSettings, () => {
-    settingsWindowController.open(mainWindowController.getWindow());
+    // Settings now live in the main application tab.
   });
 
   ipcMain.handle(IPC_CHANNELS.closeSettings, () => {
-    settingsWindowController.close();
+    // Legacy settings window has been removed.
   });
 
   ipcMain.handle(IPC_CHANNELS.getVersion, () => app.getVersion());

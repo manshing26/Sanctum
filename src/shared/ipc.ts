@@ -255,6 +255,8 @@ export type BrowserSettings = {
   blockPopups: boolean;
   blockThirdPartyCookies: boolean;
   homepage: string;
+  searchEngine: import('./browserSearch').SearchEngineId;
+  customSearchTemplate: string;
 };
 
 export type UpdateBrowserSettingsInput = Partial<BrowserSettings>;
@@ -565,12 +567,10 @@ export type BackupVaultInput = {
   outputPath: string;
 };
 
-export type RestoreMode = 'replace' | 'merge';
-
 export type RestoreVaultInput = {
   backupPath: string;
   password: string;
-  mode: RestoreMode;
+  mode?: 'replace';
 };
 
 export type RestoreProgress = {

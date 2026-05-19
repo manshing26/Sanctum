@@ -9,7 +9,8 @@ import type {
   FolderNode,
   PasswordDetail,
 } from '../../../shared/ipc';
-import { DEFAULT_SEARCH_ENGINE, normalizeAddressInput } from '../../browser/utils/address';
+import { normalizeAddressInput } from '../../browser/utils/address';
+import { resolveSearchTemplate } from '../../../shared/browserSearch';
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -312,7 +313,8 @@ const NewTabPage: React.FC<{
   bookmarks: BookmarkSummary[];
   folders: FolderNode[];
   onNavigate: (url: string) => void;
-}> = ({ bookmarks, folders, onNavigate }) => {
+  searchTemplate: string;
+}> = ({ bookmarks, folders, onNavigate, searchTemplate }) => {
   const [query, setQuery] = React.useState('');
   const [selectedFolderId, setSelectedFolderId] = React.useState<number | null | 'all'>('all');
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -324,7 +326,7 @@ const NewTabPage: React.FC<{
   const handleSearch = (e: React.FormEvent): void => {
     e.preventDefault();
     if (!query.trim()) return;
-    const normalized = normalizeAddressInput(query.trim(), DEFAULT_SEARCH_ENGINE);
+    const normalized = normalizeAddressInput(query.trim(), searchTemplate);
     if (normalized.ok) onNavigate(normalized.url);
   };
 
@@ -595,9 +597,33 @@ export const BrowserWorkspace = ({
     void window.browserAPI.listFoldersTree().then((r) => { if (r.ok) setFolders(r.data); });
   }, []);
 
-  useEffect(() => {
-    void window.browserAPI.getBrowserSettings().then((r) => { if (r.ok) setBrowserSettings(r.data); });
+  const refreshBrowserSettings = useCallback(async (): Promise<void> => {
+    const r = await window.browserAPI.getBrowserSettings();
+    if (r.ok) setBrowserSettings(r.data);
   }, []);
+
+  useEffect(() => {
+    void refreshBrowserSettings();
+  }, [refreshBrowserSettings]);
+
+  useEffect(() => {
+    if (isWorkspaceActive) {
+      void refreshBrowserSettings();
+    }
+  }, [isWorkspaceActive, refreshBrowserSettings]);
+
+  useEffect(() => {
+    const handleFocus = (): void => { void refreshBrowserSettings(); };
+    const handleVisibilityChange = (): void => {
+      if (document.visibilityState === 'visible') void refreshBrowserSettings();
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [refreshBrowserSettings]);
 
   const refreshExtensionStartupErrors = async (): Promise<void> => {
     const r = await window.browserAPI.listExtensionStartupErrors();
@@ -648,7 +674,13 @@ export const BrowserWorkspace = ({
   const handleAddressSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
     if (!addressInput.trim()) return;
-    const normalized = normalizeAddressInput(addressInput, DEFAULT_SEARCH_ENGINE);
+    const normalized = normalizeAddressInput(
+      addressInput,
+      resolveSearchTemplate(
+        browserSettings?.searchEngine ?? 'duckduckgo',
+        browserSettings?.customSearchTemplate ?? '',
+      ),
+    );
     if (!normalized.ok) return;
     loadInActiveTab(normalized.url);
   };
@@ -1297,7 +1329,15 @@ export const BrowserWorkspace = ({
                 </div>
               )}
               {!isSuspended && isNewTab(tab.url) ? (
-                <NewTabPage bookmarks={bookmarks} folders={folders} onNavigate={loadInActiveTab} />
+                <NewTabPage
+                  bookmarks={bookmarks}
+                  folders={folders}
+                  onNavigate={loadInActiveTab}
+                  searchTemplate={resolveSearchTemplate(
+                    browserSettings?.searchEngine ?? 'duckduckgo',
+                    browserSettings?.customSearchTemplate ?? '',
+                  )}
+                />
               ) : (
               <div style={{ display: isSuspended ? 'none' : 'flex', minHeight: 0, minWidth: 0, flex: 1 }}>
                 <TabWebView

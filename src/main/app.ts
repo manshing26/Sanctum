@@ -38,7 +38,6 @@ import { VaultService } from './services/vault/VaultService';
 import { SessionStore } from './state/SessionStore';
 import { MainWindowController } from './windows/MainWindowController';
 import { BROWSER_PARTITION, BrowserWindowController } from './windows/BrowserWindowController';
-import { SettingsWindowController } from './windows/SettingsWindowController';
 
 const applyCspHeaders = (): void => {
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -114,7 +113,6 @@ export const bootstrapApp = (): void => {
 
   const mainWindowController = new MainWindowController();
   const browserWindowController = new BrowserWindowController();
-  const settingsWindowController = new SettingsWindowController();
 
   app.on('second-instance', () => {
     const window = mainWindowController.getWindow();
@@ -151,6 +149,12 @@ export const bootstrapApp = (): void => {
     };
     const applySecuritySettings = (settings: SecuritySettings): void => {
       securitySettings = settings;
+    };
+    const clearBrowserData = (): void => {
+      void browserSession.clearStorageData({
+        storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage', 'websql'],
+      });
+      void browserSession.clearCache();
     };
     browserSession.setPermissionCheckHandler(() => false);
     browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
@@ -236,7 +240,7 @@ export const bootstrapApp = (): void => {
       sessionStore,
     );
     const backupService = new BackupService(database.getDb(), vaultPaths, sessionStore);
-    const restoreService = new RestoreService(database.getDb(), folderService, cryptoService, vaultPaths);
+    const restoreService = new RestoreService(database.getDb(), cryptoService, vaultPaths);
     const mediaSessionService = new MediaSessionService(vaultService, vaultPaths);
     mediaSessionService.start();
 
@@ -262,10 +266,9 @@ export const bootstrapApp = (): void => {
     }
 
     browserWindowController.setOnClosed(() => {
-      void browserSession.clearStorageData({
-        storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage', 'websql'],
-      });
-      void browserSession.clearCache();
+      if (settingsService.getBrowserSettings().clearOnExit) {
+        clearBrowserData();
+      }
     });
 
     let isLocking = false;
@@ -342,10 +345,7 @@ export const bootstrapApp = (): void => {
       void performGlobalLock('window_minimize');
     });
 
-    registerIpcHandlers({
-      mainWindowController,
-      settingsWindowController,
-    });
+    registerIpcHandlers();
     registerBrowserHandlers({
       browserWindowController,
       mainWindowController,
@@ -437,10 +437,9 @@ export const bootstrapApp = (): void => {
     app.once('before-quit', () => {
       clearInterval(idleLockInterval);
       void mediaSessionService.stop();
-      void browserSession.clearStorageData({
-        storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage', 'websql'],
-      });
-      void browserSession.clearCache();
+      if (settingsService.getBrowserSettings().clearOnExit) {
+        clearBrowserData();
+      }
       session.defaultSession.protocol.unhandle('privatevault-media');
     });
   });

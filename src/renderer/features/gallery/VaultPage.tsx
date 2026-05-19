@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type {
+  AppearanceSettings,
   BookmarkSummary,
   ConflictItem,
   ConflictResolution,
@@ -52,6 +53,12 @@ const T = {
 };
 const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace";
 const SERIF = "'Fraunces', Georgia, serif";
+
+const THUMBNAIL_GRID_MIN_WIDTH: Record<AppearanceSettings['thumbnailSize'], number> = {
+  small: 160,
+  medium: 200,
+  large: 260,
+};
 
 const MIXED_LIST_STYLES = `
   .pv-mixed-list {
@@ -1971,6 +1978,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   const [showInspector, setShowInspector] = useState(true);
   const [viewerItemId, setViewerItemId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [thumbnailSize, setThumbnailSize] = useState<AppearanceSettings['thumbnailSize']>('medium');
   const [isMultiSelect, setIsMultiSelect] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const importToastIdRef = useRef<string | number | null>(null);
@@ -1990,6 +1998,18 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     folderId: number | null;
     deleteOriginals: boolean;
   } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void window.electronAPI.getAppearanceSettings().then((result) => {
+      if (!active || !result.ok) return;
+      setViewMode(result.data.defaultView);
+      setThumbnailSize(result.data.thumbnailSize);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const gridMinCardWidth = THUMBNAIL_GRID_MIN_WIDTH[thumbnailSize];
 
   const RENDER_PAGE = 100;
   const [renderCount, setRenderCount] = useState(RENDER_PAGE);
@@ -2962,6 +2982,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     sentinelRef,
     isMultiSelect,
     tags,
+    gridMinCardWidth,
   };
 
   // Toolbar title for bookmark scope
@@ -3216,7 +3237,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
                 onCreateNote={() => void handleCreateNote()}
               />
             ) : viewMode === 'grid' ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCardWidth}px, 1fr))`, gap: 12 }}>
                 {visibleNotes.map((note) => (
                   <NoteCard
                     key={note.id}
@@ -3275,7 +3296,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
                 onClearFilters={handleClearFilters}
               />
             ) : viewMode === 'grid' ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCardWidth}px, 1fr))`, gap: 12 }}>
                 {visibleBookmarks.map((b) => (
                   <BookmarkCard
                     key={b.id}
@@ -3340,7 +3361,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
                 onCreateFolder={() => setShowNewFolderDialog(true)}
               />
             ) : viewMode === 'grid' ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCardWidth}px, 1fr))`, gap: 20 }}>
                 {renderedMixedObjects.map((object) => (
                   object.kind === 'file' ? (
                     <GalleryCard

@@ -1,67 +1,97 @@
-# privateVault
+# Sanctum / privateVault
 
-A privacy-first, local-only media vault with a built-in private browser. All files are encrypted at rest with AES-256-GCM. Nothing leaves your machine.
+A local-first encrypted vault for files, bookmarks, secure notes, passwords, and private browsing. Vault content is encrypted at rest with AES-256-GCM and stays on the local machine.
 
 ---
 
 ## Features
 
-### Vault
-- **Encrypted storage** — every file encrypted with AES-256-GCM; filenames encrypted separately
-- **Argon2id key derivation** — random salt per vault; master key in memory only, never on disk
-- **Auto-lock** — configurable idle timeout; optional lock on window minimise
-- **Failed login lockout** — 5 attempts triggers a 15-minute lockout
-- **Change password** — re-derives key from fresh salt, re-encrypts all vault items and bookmarks atomically
-- **Import** — drag-and-drop or file picker; SHA-256 duplicate detection; conflict resolution dialog (replace / keep both / skip)
-- **Secure delete on import** — 3-pass overwrite of source files before deletion
-- **Export** — decrypt selected files to any directory
-- **Media viewer** — full-screen image and video viewer with keyboard navigation
-- **Grid and list views** — configurable thumbnail size and grid density
-- **Folders** — nested folder tree with create, rename, delete; files and bookmarks share the same folder tree
-- **Tags** — colour-coded tags; multi-tag filtering; tags work across both files and bookmarks
-- **Ratings** — 1–5 star rating per item
-- **Favourites** — mark/filter by favourite
-- **Search** — full-text search across filename, tags, and folder path
-- **Thumbnail generation** — automatic thumbnails via `sharp` (images) and `ffmpeg` (video first-frame)
-- **Marquee selection** — click-drag to select multiple items in the gallery
-- **Mixed gallery view** — files and bookmarks appear together in "All Objects" and folder views
+### Vault Objects
+- **Mixed object gallery** — files, bookmarks, and secure notes appear together in All Objects and folder views.
+- **Encrypted files** — imported files are stored as encrypted blobs; original filenames are encrypted separately.
+- **Encrypted bookmarks** — bookmark title, URL, and thumbnail metadata are stored in the encrypted vault database.
+- **Secure notes** — encrypted note title/body stored in SQLite; supports plain text and Markdown mode.
+- **Folders** — shared nested folder tree for files, bookmarks, and notes.
+- **Tags** — shared colour-coded tags across vault objects.
+- **Favourites** — favourite files, bookmarks, and notes.
+- **Ratings** — 1-5 star rating for files and bookmarks.
+- **Search and filters** — search across mixed vault objects, including tags; filter by scope, tags, and favourites.
+- **Grid and list views** — mixed file/bookmark/note layouts with object type badges.
+- **Bulk workflows** — select by checkbox, select all, or drag box; bulk move, favourite, export, and delete.
 
-### Backup & Restore
-- **Backup** — creates a `.pvbackup` zip (encrypted DB + all `.enc` files + manifest); requires vault to be unlocked
-- **Replace restore** — verifies backup password, wipes current vault, restores backup DB and files, forces clean restart via countdown dialog
-- **Merge restore** — imports backup items into live vault under a new root folder named `Restored YYYY-MM-DD`; preserves tags, ratings, and favourites; skips items whose UUID already exists; forces clean restart
+### File Import, Preview, and Export
+- **Import** — drag-and-drop or file picker; SHA-256 duplicate detection; conflict handling for replace / keep both / skip.
+- **Secure delete on import** — optional 3-pass overwrite of source files before deletion.
+- **Read-only external copies** — unsupported files open as read-only temporary decrypted copies; external edits are not saved back.
+- **Export** — decrypt selected files to a chosen directory.
+- **Document preview** — in-app read-only preview for:
+  - PDF via PDF.js canvas rendering
+  - DOCX via Mammoth readable HTML conversion
+  - TXT, Markdown, CSV, TSV, JSON, XML, HTML
+  - LOG, YAML/YML, TOML, INI, CONF, CFG, ENV, SQL
+  - SVG as source text, not executable rendered SVG
+- **Media viewer** — full-screen image and video viewer with keyboard navigation.
+- **Thumbnail generation** — automatic thumbnails via `sharp` for images and `ffmpeg` for video first frames.
 
-### Bookmark Gallery
-- Dedicated full-page tab showing saved bookmarks as a thumbnail grid or list
-- Thumbnails fetched automatically from each site's Open Graph (`og:image`) meta tag at save time — fetched inside the browser session to bypass bot-blocking; can be replaced manually via an image picker that scrapes the live tab
-- Encrypted and stored as BLOBs in the vault DB (AES-256-GCM, same key as vault)
-- Fallback card with a deterministic gradient + domain initial when no `og:image` is available
-- Click any card to open the URL in a new browser tab
-- Inspector panel — rename, assign folder, assign tags, change thumbnail
-- Multi-select — bulk delete, bulk move to folder
-- Export to Netscape HTML bookmark file (all bookmarks, or selected only); import from browser-exported HTML
-- Bookmarks appear alongside files in "All Objects" and folder views in the vault gallery
-- Client-side search by title or domain; tag filtering
-- Tab persistence — open tabs survive app restarts (URLs saved to `localStorage`)
+### Secure Notes
+- Notes are first-class vault objects.
+- Stored encrypted in the database, not as loose text files.
+- Create/edit notes in a large in-app editor modal.
+- Inspector shows a compact read-only summary and note actions.
+- Supports copy body and single-note export as `.txt` or `.md`.
+
+### Bookmark Workflow
+- Save browser pages as encrypted bookmarks.
+- Fetch thumbnails from Open Graph metadata when available.
+- Replace bookmark thumbnails manually from scraped page images.
+- Open bookmarks in the built-in browser.
+- Import/export Netscape HTML bookmark files; selected bookmark export is supported.
+- Bookmarks share folders, tags, favourites, and mixed vault views with files.
+
+### Password Manager
+- Dedicated password UI separate from the vault gallery.
+- Password records are encrypted in SQLite.
+- Browser integration can surface saved credentials for the active domain.
 
 ### Built-in Private Browser
-- Chromium-based `webview` sandboxed in a separate Electron session partition
-- Multi-tab support with address bar, back/forward/reload
-- Encrypted bookmarks (AES-GCM, stored in vault DB); save current page via star button or sidebar form
-- Right-click → "Save to Vault" on images and videos; auto-imports and secure-deletes temp file
-- Blocks all permissions (camera, microphone, notifications, etc.)
-- Optional third-party cookie blocking (applies immediately without restart)
-- Pop-up blocker
-- Configurable homepage
-- Clear-on-exit: cookies, cache, localStorage, IndexedDB, service workers
-- Browser extension support (manual load, dev mode only)
+- Chromium `webview` in a separate Electron session partition.
+- Multi-tab browsing with address bar, back/forward/reload.
+- Save images/videos from the browser directly into the vault.
+- Blocks camera, microphone, notifications, and other permission requests.
+- Optional third-party cookie blocking and pop-up blocking.
+- Configurable homepage.
+- Clear-on-exit for cookies, cache, localStorage, IndexedDB, service workers, and related web storage.
+- Browser extension support for manual/dev use.
+
+### Backup, Restore, and Wipe
+- **Backup** — creates a `.pvbackup` ZIP containing the encrypted DB, encrypted files, and manifest.
+- **Replace restore** — verifies backup password, replaces current vault content, and restarts cleanly.
+- **Merge restore** — imports backup items into a new `Restored YYYY-MM-DD` root folder.
+- **Delete all vault items** — password-confirmed content reset that deletes files, bookmarks, notes, passwords, folders, tags, and metadata while preserving the vault password and app settings.
 
 ### Settings
-- **Security** — auto-lock timeout, lock on minimise, change password
-- **Appearance** — thumbnail size, grid density, default view (grid/list)
-- **Browser** — homepage, block pop-ups, block third-party cookies, clear on exit
-- **Storage** — create backup, replace vault, merge vault, delete all vault items
-- **About** — app version, encryption/KDF info
+- **Security** — auto-lock timeout, lock on minimize, secure-delete default, change password.
+- **Appearance** — thumbnail size, grid density, default view.
+- **Browser** — homepage, pop-ups, third-party cookies, clear-on-exit.
+- **Storage** — backup, replace restore, merge restore, full vault-content wipe.
+- **About** — app version and crypto/KDF information.
+
+---
+
+## Security Model
+
+- Master key is derived on unlock with Argon2id and kept only in memory.
+- File content uses AES-256-GCM with per-file IV/auth tag.
+- Original filenames are encrypted separately.
+- Thumbnails are encrypted and stored as database BLOBs.
+- Bookmarks, notes, and passwords are encrypted in SQLite.
+- Failed unlock attempts trigger lockout.
+- Temporary opened files are cleared on lock/quit and opened as read-only copies when possible.
+- In-app document preview fetches decrypted bytes through a temporary session URL; supported previews render in memory.
+- HTML/DOCX preview output is sanitized before rendering; SVG is displayed as source text.
+- The built-in browser runs in an isolated Electron partition separate from vault state.
+
+Sanctum protects data at rest and reduces accidental plaintext exposure. It does not protect decrypted content from software with full access to the unlocked user session or operating system.
 
 ---
 
@@ -69,118 +99,111 @@ A privacy-first, local-only media vault with a built-in private browser. All fil
 
 | Layer | Technology |
 |---|---|
-| Shell | Electron 36 (context isolation, no `nodeIntegration`) |
+| Shell | Electron 40 with context isolation and no renderer `nodeIntegration` |
 | Main process | Node.js + TypeScript |
 | Renderer | React 19 + TypeScript + Tailwind CSS v4 |
 | UI components | Radix UI primitives + CVA |
-| Database | SQLite via `better-sqlite3` (WAL mode) |
-| Encryption | Node.js `crypto` — AES-256-GCM |
-| KDF | `argon2` (Argon2id) |
-| Thumbnails | `sharp` (images), `ffmpeg-static` + `ffprobe-static` (video) |
-| Backup/zip | `archiver` (write), `adm-zip` (read) |
+| Database | SQLite via `better-sqlite3` with WAL mode |
+| Encryption | Node.js `crypto` AES-256-GCM |
+| KDF | `argon2` Argon2id |
+| Thumbnails | `sharp`, `ffmpeg-static`, `ffprobe-static` |
+| Document preview | `pdfjs-dist`, `mammoth`, `dompurify` |
+| Backup/zip | `archiver`, `adm-zip` |
 | Bundler | Webpack via Electron Forge |
 
 ---
 
 ## Project Structure
 
-```
+```text
 src/
-├── main/                        # Electron main process
-│   ├── app.ts                   # Bootstrap: service wiring, window lifecycle, IPC registration
-│   ├── db/
-│   │   └── Database.ts          # SQLite schema, migrations, getDb()
-│   ├── ipc/                     # IPC handler registration (one file per domain)
+├── main/
+│   ├── app.ts                         # App bootstrap, services, windows, IPC registration
+│   ├── db/Database.ts                 # SQLite schema and migrations
+│   ├── ipc/                           # IPC handlers by domain
 │   ├── services/
-│   │   ├── auth/AuthService.ts      # Vault create, unlock, lock, change password, lockout
-│   │   ├── crypto/CryptoService.ts  # AES-256-GCM encrypt/decrypt, Argon2id derive/verify
-│   │   ├── vault/
-│   │   │   ├── VaultService.ts          # Item CRUD, import, export, search, thumbnails
-│   │   │   ├── BackupService.ts         # .pvbackup creation
-│   │   │   ├── RestoreService.ts        # Replace restore + merge restore
-│   │   │   ├── MediaSessionService.ts   # privatevault-media:// protocol handler
-│   │   │   └── VaultPaths.ts            # Centralised path resolution
-│   │   ├── folder/FolderService.ts      # Folder tree CRUD, move (cycle detection), assign items
-│   │   ├── tag/TagService.ts            # Tag CRUD, assign to items
-│   │   ├── bookmark/BookmarkService.ts  # Encrypted bookmark CRUD
-│   │   ├── import/
-│   │   │   ├── ImportService.ts         # Conflict detection, import orchestration
-│   │   │   ├── MetadataService.ts       # ffprobe metadata extraction
-│   │   │   └── ThumbnailService.ts      # sharp + ffmpeg thumbnail generation
-│   │   ├── download/DownloadService.ts  # Browser download → vault import pipeline
-│   │   ├── security/SecureDeleteService.ts  # 3-pass overwrite + delete
-│   │   └── settings/SettingsService.ts      # Key-value settings store
-│   ├── state/SessionStore.ts    # In-memory master key, session status
-│   └── windows/                 # MainWindowController, BrowserWindowController, SettingsWindowController
-├── preload/
-│   ├── index.ts                 # Main window contextBridge — full electronAPI
-│   └── browser.ts               # Browser window contextBridge — browserAPI
+│   │   ├── auth/                      # Vault create/unlock/lock/change password
+│   │   ├── bookmark/                  # Encrypted bookmark CRUD
+│   │   ├── folder/                    # Shared folder tree
+│   │   ├── note/                      # Encrypted secure notes
+│   │   ├── password/                  # Encrypted password records
+│   │   ├── tag/                       # Shared tag CRUD
+│   │   ├── import/                    # Import, metadata, thumbnails
+│   │   ├── security/                  # Secure delete
+│   │   ├── settings/                  # App settings
+│   │   └── vault/                     # File storage, backup/restore, media sessions
+│   ├── state/SessionStore.ts          # In-memory master key/session state
+│   └── windows/                       # Main, browser, settings window controllers
+├── preload/                           # contextBridge APIs
 ├── renderer/
-│   ├── App.tsx                  # Auth screens (unlock / create), main layout, session management
+│   ├── App.tsx                        # Auth screens, top nav, session state
 │   ├── features/
-│   │   ├── gallery/             # GalleryPage, grid/list, folder sidebar, toolbar, item details
-│   │   ├── viewer/              # Full-screen image/video viewer overlay
-│   │   ├── browser/             # BrowserWorkspace (webview wrapper), BookmarkGalleryPage
-│   │   └── settings/            # SettingsPage (tabbed settings)
-│   └── components/ui/           # Shared Radix-based UI primitives
+│   │   ├── gallery/                   # Vault tab, mixed object UI, inspector
+│   │   ├── viewer/                    # Media/document preview overlay
+│   │   ├── browser/                   # Private browser workspace
+│   │   ├── passwords/                 # Password manager
+│   │   └── settings/                  # Settings page
+│   └── components/ui/                 # Shared UI primitives
 └── shared/
-    ├── ipc.ts                   # All IPC channel names and TypeScript types
-    └── global.d.ts              # Window type augmentation (electronAPI)
+    ├── fileTypes.ts                   # MIME detection and previewability
+    ├── ipc.ts                         # IPC channel names and shared types
+    └── global.d.ts                    # Window API types
 ```
 
 ---
 
-## Data Layout (on disk)
+## Data Layout
 
-All data is stored in Electron's `userData` directory:
+All app data is stored under Electron `userData`:
 
-```
+```text
 {userData}/
-├── privatevault.db          # SQLite database (WAL mode)
+├── privatevault.db
 ├── privatevault.db-wal
 ├── privatevault.db-shm
 └── vault/
-    ├── version.json         # Vault format version
-    ├── files/               # {uuid}.enc per item
-    └── temp/                # Temporary files used during restore/verify
+    ├── version.json
+    ├── files/                         # encrypted file blobs
+    └── temp/                          # temporary sessions, opened copies, restore work
 ```
 
-### Database Schema (v3)
+### Database Schema v4
 
-Files and bookmarks share a parent `vault_objects` table so they can be organised under the same folder tree, tagged with the same tags, and sorted together in the gallery.
+Files, bookmarks, and notes share `vault_objects` so they can be mixed in gallery views and share folders/tags/favourites.
 
 | Table | Purpose |
 |---|---|
-| `auth_state` | Argon2id password verifier, failed attempts, lockout timestamp |
+| `auth_state` | Argon2id verifier, failed attempts, lockout timestamp |
 | `vault_config` | KDF salt and Argon2id parameters |
-| `vault_objects` | Parent row for every gallery object — holds `type` (`file`/`bookmark`), `folder_id`, `is_favorite`, `rating`, `created_at`, `updated_at` |
-| `vault_items` | File-specific metadata: encrypted filename, mime type, dimensions, thumbnail blob (enc), IV, auth tag, content hash — FK → `vault_objects` |
-| `bookmarks` | Bookmark-specific data: encrypted title, URL, og:image thumbnail blob — FK → `vault_objects` |
-| `folders` | Nested folder tree (adjacency list, `parent_id`); shared by files and bookmarks |
-| `tags` | Tag name and colour |
-| `object_tags` | Many-to-many junction: `vault_objects` ↔ `tags` (replaces old `item_tags`/`bookmark_tags`) |
-| `passwords` | Encrypted saved passwords |
-| `schema_meta` | Internal version key (`schema_version`) |
-| `settings` | Key-value application settings |
+| `vault_objects` | Parent row for `file`, `bookmark`, and `note` objects |
+| `vault_items` | File metadata, encrypted filename, encrypted blob metadata, thumbnails, hashes |
+| `bookmarks` | Encrypted title, URL, and thumbnail data |
+| `notes` | Encrypted note title/body and note format |
+| `folders` | Shared nested folder tree |
+| `tags` | Shared tag names and colours |
+| `object_tags` | Many-to-many object/tag assignments |
+| `passwords` | Encrypted password records |
+| `settings` | App settings |
+| `schema_meta` | Internal schema version |
 
-Automatic migration from v2 (flat `vault_items` + separate `bookmarks`) to v3 runs at startup inside a single transaction.
+Migrations from older schemas run at startup. v3 introduced mixed vault objects; v4 adds notes.
 
 ---
 
-## Backup Format (.pvbackup)
+## Backup Format
 
-A `.pvbackup` file is a ZIP archive:
+`.pvbackup` files are ZIP archives:
 
+```text
+privatevault.db
+vault/version.json
+vault/files/*.enc
+backup_manifest.json
 ```
-privatevault.db          # Full database snapshot (WAL checkpointed before backup)
-vault/version.json       # Version marker
-vault/files/*.enc        # All encrypted item files
-backup_manifest.json     # { createdAt, schemaVersion, itemCount, tables }
-```
 
-- **Replace restore** requires the password active when the backup was created
-- **Merge restore** also requires the backup password; existing items (matched by UUID) are skipped; items placed in a new root folder `Restored YYYY-MM-DD`
-- Backups include a `schemaVersion` field; v2 and v3 backups are both supported for merge restore
+- Replace restore requires the password that was active when the backup was created.
+- Merge restore also requires the backup password and places imported content under `Restored YYYY-MM-DD`.
+- Backups include encrypted files and encrypted database content, not plaintext exports.
 
 ---
 
@@ -188,20 +211,27 @@ backup_manifest.json     # { createdAt, schemaVersion, itemCount, tables }
 
 ```bash
 npm install
-npm start          # Start in development mode (Webpack + Electron)
+npm start          # Start in development mode
+npx tsc --noEmit   # Type check
+npm test           # Run tests
 npm run make       # Package for the current platform
-npx tsc --noEmit   # Type check without emitting
 ```
+
+Notes:
+- `npm run package` / `npm run make` may need network access for Electron packaging metadata or platform assets.
+- Build artifacts such as `.webpack/`, `out/`, and `dist/` can be large and should not be treated as source size.
 
 ---
 
-## Security Notes
+## Current Preview Support
 
-- The master key is derived fresh on every unlock and held only in `SessionStore` (in-memory). It is never written to disk.
-- Every `.enc` file uses a unique random IV; the IV and GCM auth tag are stored in `vault_items`.
-- Original filenames are encrypted separately from file content, also with a unique IV.
-- Thumbnails are encrypted with the same master key and stored as BLOBs in the database — never as readable image files on disk.
-- The password verifier is an Argon2id hash — the plaintext password is never stored.
-- Backup files contain the encrypted database and encrypted `.enc` files. Without the backup password, the contents cannot be decrypted.
-- The built-in browser runs in a sandboxed Electron session partition, isolated from the vault session.
-- 5 failed unlock attempts triggers a 15-minute lockout to prevent brute-force attacks.
+| Category | Formats |
+|---|---|
+| Media | common image/video MIME types |
+| PDF | `.pdf` |
+| Word | `.docx` |
+| Text/data | `.txt`, `.md`, `.csv`, `.tsv`, `.json`, `.xml`, `.html` |
+| Source/config | `.log`, `.yaml`, `.yml`, `.toml`, `.ini`, `.conf`, `.cfg`, `.env`, `.sql` |
+| SVG | `.svg` as source text |
+| External read-only fallback | `.doc`, `.rtf`, `.xls/.xlsx`, `.ppt/.pptx`, ODF, unknown binary files |
+

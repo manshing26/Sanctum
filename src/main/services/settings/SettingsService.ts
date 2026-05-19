@@ -7,6 +7,11 @@ import type {
   BrowserSettings,
   UpdateBrowserSettingsInput,
 } from '../../../shared/ipc';
+import {
+  DEFAULT_SEARCH_ENGINE_ID,
+  type SearchEngineId,
+  validateCustomSearchTemplate,
+} from '../../../shared/browserSearch';
 
 const SECURE_DELETE_KEY = 'security.secure_delete_on_import';
 const AUTO_LOCK_MINUTES_KEY = 'security.auto_lock_minutes';
@@ -30,6 +35,8 @@ const BROWSER_KEYS = {
   blockPopups: 'browser.block_popups',
   blockThirdPartyCookies: 'browser.block_third_party_cookies',
   homepage: 'browser.homepage',
+  searchEngine: 'browser.search_engine',
+  customSearchTemplate: 'browser.custom_search_template',
 } as const;
 
 const BROWSER_DEFAULTS: BrowserSettings = {
@@ -37,6 +44,8 @@ const BROWSER_DEFAULTS: BrowserSettings = {
   blockPopups: true,
   blockThirdPartyCookies: false,
   homepage: '',
+  searchEngine: DEFAULT_SEARCH_ENGINE_ID,
+  customSearchTemplate: '',
 };
 
 const parseBoolean = (value: string | undefined): boolean => value === 'true';
@@ -44,6 +53,11 @@ const parseNumber = (value: string | undefined, fallback: number): number => {
   if (value === undefined) return fallback;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+const parseSearchEngine = (value: string | undefined): SearchEngineId => {
+  return value === 'duckduckgo' || value === 'brave' || value === 'google' || value === 'bing' || value === 'custom'
+    ? value
+    : DEFAULT_SEARCH_ENGINE_ID;
 };
 
 export class SettingsService {
@@ -122,6 +136,8 @@ export class SettingsService {
       blockPopups: parseBoolean(this.getSetting(BROWSER_KEYS.blockPopups) ?? String(BROWSER_DEFAULTS.blockPopups)),
       blockThirdPartyCookies: parseBoolean(this.getSetting(BROWSER_KEYS.blockThirdPartyCookies) ?? String(BROWSER_DEFAULTS.blockThirdPartyCookies)),
       homepage: this.getSetting(BROWSER_KEYS.homepage) ?? BROWSER_DEFAULTS.homepage,
+      searchEngine: parseSearchEngine(this.getSetting(BROWSER_KEYS.searchEngine)),
+      customSearchTemplate: this.getSetting(BROWSER_KEYS.customSearchTemplate) ?? BROWSER_DEFAULTS.customSearchTemplate,
     };
   }
 
@@ -137,6 +153,14 @@ export class SettingsService {
     }
     if (typeof input.homepage === 'string') {
       this.setSetting(BROWSER_KEYS.homepage, input.homepage);
+    }
+    if (input.searchEngine !== undefined) {
+      this.setSetting(BROWSER_KEYS.searchEngine, parseSearchEngine(input.searchEngine));
+    }
+    if (typeof input.customSearchTemplate === 'string') {
+      const error = validateCustomSearchTemplate(input.customSearchTemplate);
+      if (error) throw new Error(error);
+      this.setSetting(BROWSER_KEYS.customSearchTemplate, input.customSearchTemplate.trim());
     }
     return this.getBrowserSettings();
   }
