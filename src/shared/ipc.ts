@@ -4,6 +4,7 @@ export const IPC_CHANNELS = {
   getVersion: 'app:get-version',
   openBrowserWindow: 'browser:open-window',
   closeBrowserWindow: 'browser:close-window',
+  browserCommand: 'browser:command',
   clearBrowserData: 'browser:clear-data',
   listBookmarks: 'browser:bookmarks:list',
   createBookmark: 'browser:bookmarks:create',
@@ -707,6 +708,7 @@ export type ElectronAPI = {
 
 export type BrowserAPI = {
   closeBrowserWindow: () => Promise<void>;
+  onBrowserCommand: (handler: (command: BrowserCommand) => void) => () => void;
   clearData: () => Promise<OperationResult>;
   listBookmarks: () => Promise<OperationResult<BookmarkSummary[]>>;
   createBookmark: (input: CreateBookmarkInput) => Promise<OperationResult<BookmarkSummary>>;
@@ -722,6 +724,14 @@ export type BrowserAPI = {
   listFoldersTree: () => Promise<OperationResult<FolderNode[]>>;
   listTags: () => Promise<OperationResult<TagSummary[]>>;
 };
+
+export type BrowserCommand =
+  | 'history-back'
+  | 'history-forward'
+  | 'new-tab'
+  | 'close-active-tab'
+  | 'reload-or-stop'
+  | 'focus-address';
 
 export type AuthScreenMode = 'login' | 'create-account' | 'loading';
 

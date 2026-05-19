@@ -1,5 +1,7 @@
 import { app, BrowserWindow, Menu, powerMonitor, protocol, session, webContents } from 'electron';
+import type { Input } from 'electron';
 import type {
+  BrowserCommand,
   BrowserSettings,
   ExtensionStartupError,
   SecuritySettings,
@@ -113,6 +115,83 @@ export const bootstrapApp = (): void => {
 
   const mainWindowController = new MainWindowController();
   const browserWindowController = new BrowserWindowController();
+  const sendBrowserCommandToWindow = (window: BrowserWindow | null, command: BrowserCommand): void => {
+    if (!window || window.isDestroyed()) {
+      return;
+    }
+    window.webContents.send(IPC_CHANNELS.browserCommand, command);
+  };
+  const commandFromKeyboardInput = (input: Input): BrowserCommand | null => {
+    if (input.type !== 'keyDown') {
+      return null;
+    }
+
+    const key = input.key.toLowerCase();
+    const code = input.code.toLowerCase();
+    const isLeft = key === 'arrowleft' || key === 'left' || code === 'arrowleft';
+    const isRight = key === 'arrowright' || key === 'right' || code === 'arrowright';
+    const isMac = process.platform === 'darwin';
+
+    if (isMac && input.meta && !input.alt && !input.control) {
+      if (isLeft || key === '[') return 'history-back';
+      if (isRight || key === ']') return 'history-forward';
+      if (key === 't') return 'new-tab';
+      if (key === 'w') return 'close-active-tab';
+      if (key === 'r') return 'reload-or-stop';
+      if (key === 'l') return 'focus-address';
+    }
+
+    if (!isMac && input.alt && !input.control && !input.meta) {
+      if (isLeft) return 'history-back';
+      if (isRight) return 'history-forward';
+    }
+
+    if (!isMac && input.control && !input.alt && !input.meta) {
+      if (key === 't') return 'new-tab';
+      if (key === 'w') return 'close-active-tab';
+      if (key === 'r') return 'reload-or-stop';
+      if (key === 'l') return 'focus-address';
+    }
+
+    return null;
+  };
+  const commandFromAppCommand = (command: string): BrowserCommand | null => {
+    if (command === 'browser-backward') return 'history-back';
+    if (command === 'browser-forward') return 'history-forward';
+    return null;
+  };
+  const commandFromSwipeDirection = (direction: string): BrowserCommand | null => {
+    if (direction === 'right') return 'history-back';
+    if (direction === 'left') return 'history-forward';
+    return null;
+  };
+  const wireBrowserWindowShortcuts = (window: BrowserWindow): void => {
+    window.webContents.on('before-input-event', (event, input) => {
+      const command = commandFromKeyboardInput(input);
+      if (!command) {
+        return;
+      }
+      event.preventDefault();
+      sendBrowserCommandToWindow(window, command);
+    });
+    window.on('app-command', (event, command) => {
+      const browserCommand = commandFromAppCommand(command);
+      if (!browserCommand) {
+        return;
+      }
+      event.preventDefault();
+      sendBrowserCommandToWindow(window, browserCommand);
+    });
+    window.on('swipe', (event, direction) => {
+      const command = commandFromSwipeDirection(direction);
+      if (!command) {
+        return;
+      }
+      event.preventDefault();
+      sendBrowserCommandToWindow(window, command);
+    });
+  };
+  browserWindowController.setOnCreated(wireBrowserWindowShortcuts);
 
   app.on('second-instance', () => {
     const window = mainWindowController.getWindow();
@@ -420,6 +499,14 @@ export const bootstrapApp = (): void => {
       }
 
       contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+      contents.on('before-input-event', (event, input) => {
+        const command = commandFromKeyboardInput(input);
+        if (!command) {
+          return;
+        }
+        event.preventDefault();
+        sendBrowserCommandToWindow(BrowserWindow.fromWebContents(contents), command);
+      });
 
       contents.on('context-menu', (_eventMenu, params) => {
         const targetUrl = params.srcURL || params.linkURL || '';

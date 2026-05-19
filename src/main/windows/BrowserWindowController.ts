@@ -7,14 +7,17 @@ declare const BROWSER_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
 type BrowserWindowControllerOptions = {
   onClosed?: () => void;
+  onCreated?: (window: BrowserWindow) => void;
 };
 
 export class BrowserWindowController {
   private window: BrowserWindow | null = null;
   private onClosed: (() => void) | undefined;
+  private onCreated: ((window: BrowserWindow) => void) | undefined;
 
   constructor(options: BrowserWindowControllerOptions = {}) {
     this.onClosed = options.onClosed;
+    this.onCreated = options.onCreated;
   }
 
   open(parent: BrowserWindow | null): BrowserWindow {
@@ -43,6 +46,8 @@ export class BrowserWindowController {
         backgroundThrottling: false,
       },
     });
+
+    this.onCreated?.(this.window);
 
     this.window.loadURL(BROWSER_WINDOW_WEBPACK_ENTRY);
 
@@ -79,5 +84,9 @@ export class BrowserWindowController {
 
   setOnClosed(handler: (() => void) | undefined): void {
     this.onClosed = handler;
+  }
+
+  setOnCreated(handler: ((window: BrowserWindow) => void) | undefined): void {
+    this.onCreated = handler;
   }
 }

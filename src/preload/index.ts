@@ -4,6 +4,7 @@ import {
   type AssignItemsFolderInput,
   type AssignItemTagInput,
   type AssignItemsTagInput,
+  type BrowserCommand,
   type BackupProgress,
   type BackupVaultInput,
   type RestoreProgress,
@@ -240,6 +241,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 contextBridge.exposeInMainWorld('browserAPI', {
   closeBrowserWindow: () => ipcRenderer.invoke(IPC_CHANNELS.closeBrowserWindow),
+  onBrowserCommand: (handler: (command: BrowserCommand) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, command: BrowserCommand) => {
+      handler(command);
+    };
+    ipcRenderer.on(IPC_CHANNELS.browserCommand, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.browserCommand, listener);
+    };
+  },
   clearData: () => ipcRenderer.invoke(IPC_CHANNELS.clearBrowserData),
   listBookmarks: () => ipcRenderer.invoke(IPC_CHANNELS.listBookmarks),
   createBookmark: (input: CreateBookmarkInput) =>

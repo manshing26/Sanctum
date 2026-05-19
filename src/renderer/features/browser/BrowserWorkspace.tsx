@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, us
 import { toast } from 'sonner';
 import type {
   BookmarkSummary,
+  BrowserCommand,
   BrowserSettings,
   DownloadProgress,
   ExtensionStartupError,
@@ -75,6 +76,40 @@ type TabWebViewProps = {
 };
 
 type NavigationSample = { url: string; at: number };
+
+const isMacPlatform = (): boolean =>
+  /Mac|iPhone|iPad|iPod/.test(window.navigator.platform);
+
+const browserCommandFromKeyboardEvent = (event: KeyboardEvent): BrowserCommand | null => {
+  const key = event.key.toLowerCase();
+  const code = event.code.toLowerCase();
+  const isLeft = key === 'arrowleft' || key === 'left' || code === 'arrowleft';
+  const isRight = key === 'arrowright' || key === 'right' || code === 'arrowright';
+  const isMac = isMacPlatform();
+
+  if (isMac && event.metaKey && !event.altKey && !event.ctrlKey) {
+    if (isLeft || key === '[') return 'history-back';
+    if (isRight || key === ']') return 'history-forward';
+    if (key === 't') return 'new-tab';
+    if (key === 'w') return 'close-active-tab';
+    if (key === 'r') return 'reload-or-stop';
+    if (key === 'l') return 'focus-address';
+  }
+
+  if (!isMac && event.altKey && !event.ctrlKey && !event.metaKey) {
+    if (isLeft) return 'history-back';
+    if (isRight) return 'history-forward';
+  }
+
+  if (!isMac && event.ctrlKey && !event.altKey && !event.metaKey) {
+    if (key === 't') return 'new-tab';
+    if (key === 'w') return 'close-active-tab';
+    if (key === 'r') return 'reload-or-stop';
+    if (key === 'l') return 'focus-address';
+  }
+
+  return null;
+};
 
 // ── Helpers ──────────────────────────────────────────────────────────
 const getDomainLabel = (rawUrl: string): string => {
@@ -514,6 +549,8 @@ export const BrowserWorkspace = ({
   const [pwSaveForm, setPwSaveForm] = useState<{ username: string; password: string; label: string } | null>(null);
   const [pwSaving, setPwSaving] = useState(false);
   const webviewRefs = useRef<Record<string, WebviewTag | null>>({});
+  const addressInputRef = useRef<HTMLInputElement | null>(null);
+  const gestureCooldownRef = useRef(0);
 
   const scrapeImagesFromTab = useCallback(async (tabId: string): Promise<string[]> => {
     const webview = webviewRefs.current[tabId];
@@ -722,6 +759,111 @@ export const BrowserWorkspace = ({
     if (activeTab.isLoading) { wv.stop(); applyTabPatch(activeTab.id, { isLoading: false }); }
     else { wv.reload(); applyTabPatch(activeTab.id, { isLoading: true }); }
   };
+
+  const runBrowserCommand = useCallback((command: BrowserCommand): void => {
+    if (command === 'history-back') {
+      if (activeTab?.canGoBack) handleGoBack();
+      return;
+    }
+    if (command === 'history-forward') {
+      if (activeTab?.canGoForward) handleGoForward();
+      return;
+    }
+    if (command === 'new-tab') {
+      handleOpenNewTab();
+      return;
+    }
+    if (command === 'close-active-tab') {
+      if (activeTab) handleCloseTab(activeTab.id);
+      return;
+    }
+    if (command === 'reload-or-stop') {
+      handleReload();
+      return;
+    }
+    if (command === 'focus-address') {
+      addressInputRef.current?.focus();
+      addressInputRef.current?.select();
+    }
+  }, [activeTab, activeTabId, applyTabPatch]);
+
+  useEffect(() => {
+    const unsubscribe = window.browserAPI.onBrowserCommand((command) => {
+      if (!isWorkspaceActive) {
+        return;
+      }
+      runBrowserCommand(command);
+    });
+    return unsubscribe;
+  }, [isWorkspaceActive, runBrowserCommand]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (!isWorkspaceActive) {
+        return;
+      }
+      const command = browserCommandFromKeyboardEvent(event);
+      if (!command) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      runBrowserCommand(command);
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [isWorkspaceActive, runBrowserCommand]);
+
+  const runHistoryGestureCommand = useCallback((command: BrowserCommand): boolean => {
+    if (command === 'history-back' && activeTab?.canGoBack) {
+      runBrowserCommand(command);
+      return true;
+    }
+    if (command === 'history-forward' && activeTab?.canGoForward) {
+      runBrowserCommand(command);
+      return true;
+    }
+    return false;
+  }, [activeTab?.canGoBack, activeTab?.canGoForward, runBrowserCommand]);
+
+  const handleBrowserWheel = useCallback((event: React.WheelEvent<HTMLDivElement>): void => {
+    if (!isWorkspaceActive) {
+      return;
+    }
+    const absX = Math.abs(event.deltaX);
+    const absY = Math.abs(event.deltaY);
+    if (absX < 80 || absX < absY * 1.4) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - gestureCooldownRef.current < 650) {
+      return;
+    }
+    const command: BrowserCommand = event.deltaX < 0 ? 'history-back' : 'history-forward';
+    if (!runHistoryGestureCommand(command)) {
+      return;
+    }
+    gestureCooldownRef.current = now;
+    event.preventDefault();
+    event.stopPropagation();
+  }, [isWorkspaceActive, runHistoryGestureCommand]);
+
+  const handleBrowserMouseUp = useCallback((event: React.MouseEvent<HTMLDivElement>): void => {
+    if (!isWorkspaceActive) {
+      return;
+    }
+    const command: BrowserCommand | null =
+      event.button === 3 ? 'history-back' : event.button === 4 ? 'history-forward' : null;
+    if (!command || !runHistoryGestureCommand(command)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+  }, [isWorkspaceActive, runHistoryGestureCommand]);
 
   const updateStrictCookieBlocking = async (strict: boolean, options?: { reloadCurrentTab?: boolean; silent?: boolean }): Promise<void> => {
     const r = await window.browserAPI.updateBrowserSettings({ blockThirdPartyCookies: strict });
@@ -1031,14 +1173,18 @@ export const BrowserWorkspace = ({
   );
 
   return (
-    <div style={{ display: 'flex', minHeight: 0, minWidth: 0, flex: 1, flexDirection: 'column', background: T.bg, color: T.text, ...(mode === 'legacy-window' ? { height: '100vh' } : {}) }}>
+    <div
+      onWheelCapture={handleBrowserWheel}
+      onMouseUpCapture={handleBrowserMouseUp}
+      style={{ display: 'flex', minHeight: 0, minWidth: 0, flex: 1, flexDirection: 'column', background: T.bg, color: T.text, ...(mode === 'legacy-window' ? { height: '100vh' } : {}) }}
+    >
       {/* ── Toolbar ── */}
       <header style={{ borderBottom: `1px solid ${T.line}`, background: T.bg2, padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {/* Nav row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <NavBtn onClick={handleGoBack} disabled={!activeTab?.canGoBack} title="Back"><IcoBack /></NavBtn>
-          <NavBtn onClick={handleGoForward} disabled={!activeTab?.canGoForward} title="Forward"><IcoForward /></NavBtn>
-          <NavBtn onClick={handleReload} title={activeTab?.isLoading ? 'Stop' : 'Reload'}>
+          <NavBtn onClick={handleGoBack} disabled={!activeTab?.canGoBack} title="Back (Cmd+Left / Alt+Left)"><IcoBack /></NavBtn>
+          <NavBtn onClick={handleGoForward} disabled={!activeTab?.canGoForward} title="Forward (Cmd+Right / Alt+Right)"><IcoForward /></NavBtn>
+          <NavBtn onClick={handleReload} title={activeTab?.isLoading ? 'Stop (Cmd/Ctrl+R)' : 'Reload (Cmd/Ctrl+R)'}>
             {activeTab?.isLoading ? <IcoStop /> : <IcoReload />}
           </NavBtn>
 
@@ -1048,9 +1194,11 @@ export const BrowserWorkspace = ({
               {activeIsHttps ? <IcoLock /> : <IcoGlobe />}
             </span>
             <input
+              ref={addressInputRef}
               value={addressInput}
               onChange={(e) => setAddressInput(e.target.value)}
               placeholder="Enter URL or search"
+              title="Address and search (Cmd/Ctrl+L)"
               style={{
                 flex: 1, height: 28, padding: '0 36px 0 30px',
                 background: T.bg, border: `1px solid ${T.line2}`,
@@ -1152,6 +1300,7 @@ export const BrowserWorkspace = ({
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleCloseTab(tab.id); }}
                   aria-label="Close tab"
+                  title="Close tab (Cmd/Ctrl+W)"
                   style={{ background: 'none', border: 'none', color: T.mute2, cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0, flexShrink: 0 }}
                 >
                   <IcoStop />
@@ -1159,7 +1308,7 @@ export const BrowserWorkspace = ({
               </div>
             );
           })}
-          <button type="button" onClick={handleOpenNewTab} aria-label="New tab" style={{ width: 28, height: 26, background: 'none', border: 'none', color: T.mute, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <button type="button" onClick={handleOpenNewTab} aria-label="New tab" title="New tab (Cmd/Ctrl+T)" style={{ width: 28, height: 26, background: 'none', border: 'none', color: T.mute, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <IcoPlus />
           </button>
         </div>

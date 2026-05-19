@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import {
+  type BrowserCommand,
   IPC_CHANNELS,
   type UpdateBrowserSettingsInput,
   type CreateBookmarkInput,
@@ -9,6 +10,15 @@ import {
 
 contextBridge.exposeInMainWorld('browserAPI', {
   closeBrowserWindow: () => ipcRenderer.invoke(IPC_CHANNELS.closeBrowserWindow),
+  onBrowserCommand: (handler: (command: BrowserCommand) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, command: BrowserCommand) => {
+      handler(command);
+    };
+    ipcRenderer.on(IPC_CHANNELS.browserCommand, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.browserCommand, listener);
+    };
+  },
   clearData: () => ipcRenderer.invoke(IPC_CHANNELS.clearBrowserData),
   listBookmarks: () => ipcRenderer.invoke(IPC_CHANNELS.listBookmarks),
   createBookmark: (input: CreateBookmarkInput) =>
