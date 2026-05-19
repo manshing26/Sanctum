@@ -13,6 +13,7 @@ import {
   RotateCw,
   Maximize2,
   Minimize2,
+  Keyboard,
   Loader2,
   AlertCircle,
 } from 'lucide-react';
@@ -461,6 +462,46 @@ const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMe
 
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
+const ShortcutHelp = ({ onClose }: { onClose: () => void }): React.JSX.Element => {
+  const groups = [
+    { title: 'General', rows: [['Close', 'Esc'], ['Previous item', 'Left'], ['Next item', 'Right'], ['Fullscreen', 'F'], ['Shortcuts', '?']] },
+    { title: 'Image', rows: [['Zoom in', '+ / ='], ['Zoom out', '-'], ['Rotate', 'R'], ['Reset', '0']] },
+    { title: 'Video', rows: [['Play / pause', 'Space'], ['Seek back 5s', 'Shift + Left'], ['Seek forward 5s', 'Shift + Right'], ['Mute', 'M'], ['Reset speed', '0']] },
+    { title: 'PDF / Documents', rows: [['PDF zoom in', '+ / ='], ['PDF zoom out', '-'], ['PDF reset zoom', '0'], ['Scroll document', 'Mouse / trackpad']] },
+  ];
+
+  return (
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-2xl border border-white/15 bg-zinc-950/95 p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-white/40">Viewer</p>
+            <h2 className="text-lg font-medium text-white">Keyboard Shortcuts</h2>
+          </div>
+          <Button variant="ghost" size="icon-sm" onClick={onClose} className="text-white hover:bg-white/10" aria-label="Close shortcuts">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {groups.map((group) => (
+            <section key={group.title}>
+              <h3 className="mb-2 font-mono text-[10px] uppercase tracking-[0.16em] text-white/45">{group.title}</h3>
+              <div className="space-y-1">
+                {group.rows.map(([label, key]) => (
+                  <div key={label} className="flex items-center justify-between gap-4 border border-white/5 bg-white/[0.03] px-3 py-2">
+                    <span className="text-xs text-white/70">{label}</span>
+                    <kbd className="font-mono text-[10px] text-white/90">{key}</kbd>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const MediaViewerOverlay = ({
   items,
   currentItemId,
@@ -483,6 +524,7 @@ export const MediaViewerOverlay = ({
   const [playbackRate, setPlaybackRate] = useState(1);
   const [pdfScale, setPdfScale] = useState(1.15);
   const [showControls, setShowControls] = useState(true);
+  const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const hideTimerRef = useRef<number | null>(null);
 
   const currentIndex = useMemo(
@@ -569,6 +611,10 @@ export const MediaViewerOverlay = ({
   }, [currentItemId]);
 
   const closeViewer = (): void => {
+    if (showShortcutHelp) {
+      setShowShortcutHelp(false);
+      return;
+    }
     if (document.fullscreenElement) {
       void document.exitFullscreen();
       return;
@@ -598,6 +644,18 @@ export const MediaViewerOverlay = ({
   const seekBy = (seconds: number): void => {
     if (!videoRef.current) return;
     videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime + seconds);
+  };
+
+  const zoomPdfIn = (): void => {
+    setPdfScale((value) => Math.min(2.5, Number((value + 0.15).toFixed(2))));
+  };
+
+  const zoomPdfOut = (): void => {
+    setPdfScale((value) => Math.max(0.5, Number((value - 0.15).toFixed(2))));
+  };
+
+  const resetPdf = (): void => {
+    setPdfScale(1.15);
   };
 
   const toggleMute = (): void => {
@@ -646,14 +704,18 @@ export const MediaViewerOverlay = ({
     onPrev: navigatePrev,
     onNext: navigateNext,
     onPlayPause: isVideo ? togglePlayPause : undefined,
-    onSeekBackward: isVideo ? () => seekBy(-5) : undefined,
-    onSeekForward: isVideo ? () => seekBy(5) : undefined,
+    onVideoSeekBackward: isVideo ? () => seekBy(-5) : undefined,
+    onVideoSeekForward: isVideo ? () => seekBy(5) : undefined,
     onToggleMute: isVideo ? toggleMute : undefined,
     onToggleFullscreen: toggleFullscreen,
     onZoomIn: isImage ? viewerControls.zoomIn : undefined,
     onZoomOut: isImage ? viewerControls.zoomOut : undefined,
+    onPdfZoomIn: isPdf ? zoomPdfIn : undefined,
+    onPdfZoomOut: isPdf ? zoomPdfOut : undefined,
+    onPdfReset: isPdf ? resetPdf : undefined,
     onRotate: isImage ? viewerControls.rotateClockwise : undefined,
-    onReset: isImage ? viewerControls.reset : undefined,
+    onReset: isImage ? viewerControls.reset : isVideo ? () => setPlaybackRate(1) : undefined,
+    onToggleHelp: () => setShowShortcutHelp((open) => !open),
   });
 
   return createPortal(
@@ -689,6 +751,20 @@ export const MediaViewerOverlay = ({
             <span className="text-xs text-white/70">
               {currentIndex + 1} / {items.length}
             </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setShowShortcutHelp(true)}
+                  className="text-white hover:bg-white/10"
+                  aria-label="Keyboard shortcuts"
+                >
+                  <Keyboard className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Shortcuts (?)</TooltipContent>
+            </Tooltip>
             <Button
               variant="ghost"
               size="icon-sm"
@@ -711,6 +787,7 @@ export const MediaViewerOverlay = ({
               showControls ? 'opacity-100' : 'opacity-0',
             )}
             aria-label="Previous"
+            title="Previous (Left)"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
@@ -724,10 +801,13 @@ export const MediaViewerOverlay = ({
               showControls ? 'opacity-100' : 'opacity-0',
             )}
             aria-label="Next"
+            title="Next (Right)"
           >
             <ChevronRight className="h-6 w-6" />
           </button>
         )}
+
+        {showShortcutHelp && <ShortcutHelp onClose={() => setShowShortcutHelp(false)} />}
 
         {/* Content area */}
         <div className="flex flex-1 items-center justify-center overflow-hidden">
@@ -886,13 +966,13 @@ export const MediaViewerOverlay = ({
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => setPdfScale((value) => Math.max(0.5, Number((value - 0.15).toFixed(2))))}
+                      onClick={zoomPdfOut}
                       className="text-white hover:bg-white/10"
                     >
                       <ZoomOut className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Zoom out</TooltipContent>
+                  <TooltipContent>Zoom out (-)</TooltipContent>
                 </Tooltip>
 
                 <span className="min-w-[3rem] text-center text-xs text-white/70">
@@ -904,13 +984,13 @@ export const MediaViewerOverlay = ({
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => setPdfScale((value) => Math.min(2.5, Number((value + 0.15).toFixed(2))))}
+                      onClick={zoomPdfIn}
                       className="text-white hover:bg-white/10"
                     >
                       <ZoomIn className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Zoom in</TooltipContent>
+                  <TooltipContent>Zoom in (+)</TooltipContent>
                 </Tooltip>
               </>
             )}

@@ -112,7 +112,7 @@ export type SessionState = {
   hasVault: boolean;
 };
 
-export type SessionChangeReason = 'manual' | 'idle_timeout' | 'window_minimize';
+export type SessionChangeReason = 'manual' | 'idle_timeout' | 'window_minimize' | 'system_lock' | 'system_sleep';
 
 export type SessionChangedPayload = {
   state: SessionState;
@@ -238,6 +238,7 @@ export type SecuritySettings = {
   secureDeleteOnImport: boolean;
   autoLockMinutes: number;
   lockOnMinimize: boolean;
+  lockOnSystemSleepOrLock: boolean;
 };
 
 export type UpdateSecuritySettingsInput = Partial<SecuritySettings>;

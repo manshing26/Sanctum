@@ -53,6 +53,7 @@ export const useGalleryState = () => {
     secureDeleteOnImport: false,
     autoLockMinutes: 10,
     lockOnMinimize: true,
+    lockOnSystemSleepOrLock: true,
   });
 
   const [searchTerm, setSearchTerm] = useState('');

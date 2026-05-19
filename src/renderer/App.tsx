@@ -662,6 +662,10 @@ export const App: React.FC = () => {
         toast.warning('Vault locked due to inactivity.');
       } else if (reason === 'window_minimize') {
         toast.info('Vault locked on minimize.');
+      } else if (reason === 'system_lock') {
+        toast.warning('Vault locked because computer was locked.');
+      } else if (reason === 'system_sleep') {
+        toast.warning('Vault locked before sleep.');
       }
     });
     return unsubscribe;

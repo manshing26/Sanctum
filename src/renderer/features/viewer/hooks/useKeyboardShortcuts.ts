@@ -5,14 +5,18 @@ type KeyboardHandlers = {
   onPrev: () => void;
   onNext: () => void;
   onPlayPause?: () => void;
-  onSeekBackward?: () => void;
-  onSeekForward?: () => void;
+  onVideoSeekBackward?: () => void;
+  onVideoSeekForward?: () => void;
   onToggleMute?: () => void;
   onToggleFullscreen?: () => void;
   onZoomIn?: () => void;
   onZoomOut?: () => void;
+  onPdfZoomIn?: () => void;
+  onPdfZoomOut?: () => void;
+  onPdfReset?: () => void;
   onRotate?: () => void;
   onReset?: () => void;
+  onToggleHelp?: () => void;
 };
 
 const isTypingElement = (target: EventTarget | null): boolean => {
@@ -35,6 +39,12 @@ export const useKeyboardShortcuts = (handlers: KeyboardHandlers): void => {
         return;
       }
 
+      if (event.key === '?' || (event.key === '/' && event.shiftKey)) {
+        event.preventDefault();
+        handlers.onToggleHelp?.();
+        return;
+      }
+
       if (event.key === '[') {
         event.preventDefault();
         handlers.onPrev();
@@ -49,13 +59,21 @@ export const useKeyboardShortcuts = (handlers: KeyboardHandlers): void => {
 
       if (event.key === 'ArrowLeft') {
         event.preventDefault();
-        handlers.onSeekBackward?.();
+        if (event.shiftKey) {
+          handlers.onVideoSeekBackward?.();
+        } else {
+          handlers.onPrev();
+        }
         return;
       }
 
       if (event.key === 'ArrowRight') {
         event.preventDefault();
-        handlers.onSeekForward?.();
+        if (event.shiftKey) {
+          handlers.onVideoSeekForward?.();
+        } else {
+          handlers.onNext();
+        }
         return;
       }
 
@@ -77,15 +95,17 @@ export const useKeyboardShortcuts = (handlers: KeyboardHandlers): void => {
         return;
       }
 
-      if (event.key === '+') {
+      if (event.key === '+' || event.key === '=') {
         event.preventDefault();
         handlers.onZoomIn?.();
+        handlers.onPdfZoomIn?.();
         return;
       }
 
       if (event.key === '-') {
         event.preventDefault();
         handlers.onZoomOut?.();
+        handlers.onPdfZoomOut?.();
         return;
       }
 
@@ -98,6 +118,7 @@ export const useKeyboardShortcuts = (handlers: KeyboardHandlers): void => {
       if (event.key === '0') {
         event.preventDefault();
         handlers.onReset?.();
+        handlers.onPdfReset?.();
       }
     };
 

@@ -141,6 +141,7 @@ export const bootstrapApp = (): void => {
       secureDeleteOnImport: false,
       autoLockMinutes: 10,
       lockOnMinimize: true,
+      lockOnSystemSleepOrLock: true,
     };
     const applyBrowserSettingsToPolicy = (settings: BrowserSettings): void => {
       browserNetworkPolicy.strictCrossSiteCookieBlocking = Boolean(settings.blockThirdPartyCookies);
@@ -343,6 +344,18 @@ export const bootstrapApp = (): void => {
         reason: 'window_minimize',
       } satisfies import('../shared/ipc').SessionChangedPayload);
       void performGlobalLock('window_minimize');
+    });
+    powerMonitor.on('lock-screen', () => {
+      if (!securitySettings.lockOnSystemSleepOrLock) {
+        return;
+      }
+      void performGlobalLock('system_lock');
+    });
+    powerMonitor.on('suspend', () => {
+      if (!securitySettings.lockOnSystemSleepOrLock) {
+        return;
+      }
+      void performGlobalLock('system_sleep');
     });
 
     registerIpcHandlers();
