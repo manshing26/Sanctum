@@ -13,7 +13,12 @@ import type {
   VaultItemSummary,
   VaultListSort,
 } from '../../../shared/ipc';
-import { getVaultFileKind, isPreviewableMimeType } from '../../../shared/fileTypes';
+import {
+  getMimeTypeForFilename,
+  getVaultFileKind,
+  isPreviewableMimeType,
+  isVideoMimeType,
+} from '../../../shared/fileTypes';
 import { FolderSidebar } from './components/FolderSidebar';
 import { GalleryGrid } from './components/GalleryGrid';
 import { GalleryListView } from './components/GalleryListView';
@@ -2269,18 +2274,31 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     deleteOriginals = false,
     conflictResolutions?: ConflictResolution[],
   ): Promise<void> => {
+    const includesVideo = filePaths.some((filePath) =>
+      isVideoMimeType(getMimeTypeForFilename(filePath)),
+    );
+    const dismissImportToast = (): void => {
+      if (importToastIdRef.current === null) return;
+      toast.dismiss(importToastIdRef.current);
+      importToastIdRef.current = null;
+    };
+    if (includesVideo && importToastIdRef.current === null) {
+      importToastIdRef.current = toast('Importing video...', { duration: Infinity });
+    }
+
     if (!conflictResolutions) {
       const scanResult = await window.electronAPI.scanImportConflicts({ filePaths, folderId });
-      if (!scanResult.ok) { toast.error(scanResult.error); return; }
+      if (!scanResult.ok) { dismissImportToast(); toast.error(scanResult.error); return; }
       if (scanResult.data.conflicts.length > 0) {
+        dismissImportToast();
         setConflictDialog({ conflicts: scanResult.data.conflicts, filePaths, folderId, deleteOriginals });
         return;
       }
     }
     const importResult = await window.electronAPI.importFiles({ filePaths, folderId, deleteOriginals: deleteOriginals || undefined, conflictResolutions });
-    if (!importResult.ok) { toast.error(importResult.error); return; }
+    if (!importResult.ok) { dismissImportToast(); toast.error(importResult.error); return; }
     const refreshed = await refresh();
-    if (!refreshed.ok) { toast.error(refreshed.error); return; }
+    if (!refreshed.ok) { dismissImportToast(); toast.error(refreshed.error); return; }
     const { imported, skipped, failed } = importResult.data;
     const parts = [`Imported ${imported} file(s)`];
     if (skipped > 0) parts.push(`${skipped} skipped`);

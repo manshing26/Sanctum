@@ -61,7 +61,7 @@ export class ImportService {
         await fs.promises.access(filePath, fs.constants.R_OK);
         const mimeType = getMimeTypeForFilename(filePath);
         const { metadata, warning } = isMediaMimeType(mimeType)
-          ? await this.metadataService.extract(filePath)
+          ? await this.metadataService.extract(filePath, mimeType)
           : { metadata: {} };
         if (warning) result.warnings?.push(`${filePath}: ${warning}`);
 

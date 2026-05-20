@@ -7,6 +7,7 @@ import {
   type CreateBookmarkInput,
   type DeleteBookmarkInput,
   type DownloadProgress,
+  type ImportPageCaptureInput,
 } from '../shared/ipc';
 
 contextBridge.exposeInMainWorld('browserAPI', {
@@ -27,6 +28,8 @@ contextBridge.exposeInMainWorld('browserAPI', {
       error?: string;
     }>,
   clearData: () => ipcRenderer.invoke(IPC_CHANNELS.clearBrowserData),
+  importPageCapture: (input: ImportPageCaptureInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.importPageCapture, input),
   listBookmarks: () => ipcRenderer.invoke(IPC_CHANNELS.listBookmarks),
   createBookmark: (input: CreateBookmarkInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.createBookmark, input),

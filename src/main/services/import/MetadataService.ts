@@ -3,6 +3,8 @@ import { constants } from 'node:fs';
 import { access, chmod } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import ffprobeStatic from 'ffprobe-static';
+import sharp from 'sharp';
+import { isImageMimeType, isVideoMimeType } from '../../../shared/fileTypes';
 
 const execFileAsync = promisify(execFile);
 
@@ -28,6 +30,27 @@ export type ExtractedMetadata = {
 };
 
 export class MetadataService {
+  private async extractImageMetadata(
+    filePath: string,
+  ): Promise<{ metadata: ExtractedMetadata; warning?: string }> {
+    try {
+      const metadata = await sharp(filePath).metadata();
+      return {
+        metadata: {
+          width: metadata.width,
+          height: metadata.height,
+        },
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown image metadata extraction failure';
+      return {
+        metadata: {},
+        warning: `Metadata extraction skipped: ${message}`,
+      };
+    }
+  }
+
   private async ensureExecutable(binaryPath: string): Promise<void> {
     if (process.platform === 'win32') {
       return;
@@ -75,7 +98,9 @@ export class MetadataService {
     }
   }
 
-  async extract(filePath: string): Promise<{ metadata: ExtractedMetadata; warning?: string }> {
+  private async extractVideoMetadata(
+    filePath: string,
+  ): Promise<{ metadata: ExtractedMetadata; warning?: string }> {
     if (!ffprobeStatic.path) {
       return {
         metadata: {},
@@ -124,5 +149,20 @@ export class MetadataService {
         warning: `Metadata extraction skipped: ${message}`,
       };
     }
+  }
+
+  async extract(
+    filePath: string,
+    mimeType: string,
+  ): Promise<{ metadata: ExtractedMetadata; warning?: string }> {
+    if (isImageMimeType(mimeType)) {
+      return this.extractImageMetadata(filePath);
+    }
+
+    if (isVideoMimeType(mimeType)) {
+      return this.extractVideoMetadata(filePath);
+    }
+
+    return { metadata: {} };
   }
 }

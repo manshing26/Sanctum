@@ -198,6 +198,12 @@ const IcoStar = () => (
     <polygon points="6.5,1 8.1,4.8 12.3,5.1 9.2,7.8 10.2,12 6.5,9.8 2.8,12 3.8,7.8 0.7,5.1 4.9,4.8"/>
   </svg>
 );
+const IcoCamera = () => (
+  <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4.5 4l1-1.5h3L9.5 4H12a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h2.5z"/>
+    <circle cx="7" cy="7.7" r="2.1"/>
+  </svg>
+);
 const IcoBookmark = () => (
   <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
     <path d="M2.5 1.5h8v10l-4-2.5-4 2.5z"/>
@@ -544,6 +550,7 @@ export const BrowserWorkspace = ({
   const [extensionStartupErrors, setExtensionStartupErrors] = useState<ExtensionStartupError[]>([]);
   const [browserSettings, setBrowserSettings] = useState<BrowserSettings | null>(null);
   const [isCleaningWeb, setIsCleaningWeb] = useState(false);
+  const [isCapturingPage, setIsCapturingPage] = useState(false);
   const [pwPanelOpen, setPwPanelOpen] = useState(false);
   const [pwPanelEntries, setPwPanelEntries] = useState<PasswordDetail[]>([]);
   const [pwPanelLoading, setPwPanelLoading] = useState(false);
@@ -759,6 +766,42 @@ export const BrowserWorkspace = ({
     if (!wv) return;
     if (activeTab.isLoading) { wv.stop(); applyTabPatch(activeTab.id, { isLoading: false }); }
     else { wv.reload(); applyTabPatch(activeTab.id, { isLoading: true }); }
+  };
+
+  const handleCaptureVisiblePage = async (): Promise<void> => {
+    if (!activeTab || activeTab.hasCrashed) {
+      toast.error('Cannot capture this page.');
+      return;
+    }
+    const webview = webviewRefs.current[activeTab.id];
+    if (!webview) {
+      toast.error('Cannot capture this page.');
+      return;
+    }
+
+    const toastId = toast('Capturing page...', { duration: Infinity });
+    setIsCapturingPage(true);
+    try {
+      const image = await webview.capturePage();
+      const dataUrl = image.toDataURL();
+      const pngBase64 = dataUrl.replace(/^data:image\/png;base64,/, '');
+      if (!pngBase64) throw new Error('Empty capture.');
+
+      const result = await window.browserAPI.importPageCapture({
+        pngBase64,
+        pageTitle: activeTab.title,
+        pageUrl: activeTab.url,
+      });
+      if (!result.ok) {
+        toast.error('Capture failed.', { id: toastId });
+        return;
+      }
+      toast.success('Captured to Vault.', { id: toastId });
+    } catch {
+      toast.error('Capture failed.', { id: toastId });
+    } finally {
+      setIsCapturingPage(false);
+    }
   };
 
   const runBrowserCommand = useCallback((command: BrowserCommand): void => {
@@ -1215,6 +1258,24 @@ export const BrowserWorkspace = ({
               <IcoStar />
             </button>
           </form>
+
+          <button
+            type="button"
+            onClick={() => void handleCaptureVisiblePage()}
+            disabled={isCapturingPage || Boolean(activeTab?.hasCrashed)}
+            title="Capture visible page"
+            style={{
+              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: isCapturingPage ? T.accentGlow : 'none',
+              border: `1px solid ${isCapturingPage ? T.accent : 'transparent'}`,
+              color: isCapturingPage ? T.accent : T.mute,
+              cursor: isCapturingPage || activeTab?.hasCrashed ? 'default' : 'pointer',
+              opacity: activeTab?.hasCrashed ? 0.45 : 1,
+              flexShrink: 0,
+            }}
+          >
+            <IcoCamera />
+          </button>
 
           {/* Password manager toggle */}
           <button

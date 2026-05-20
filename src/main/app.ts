@@ -443,6 +443,7 @@ export const bootstrapApp = (): void => {
       mainWindowController,
       bookmarkService,
       downloadService,
+      importService,
       settingsService,
       browserSession,
       getExtensionStartupErrors: () => [...extensionStartupErrors],

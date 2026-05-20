@@ -6,6 +6,7 @@ export const IPC_CHANNELS = {
   closeBrowserWindow: 'browser:close-window',
   browserCommand: 'browser:command',
   clearBrowserData: 'browser:clear-data',
+  importPageCapture: 'browser:import-page-capture',
   listBookmarks: 'browser:bookmarks:list',
   createBookmark: 'browser:bookmarks:create',
   deleteBookmark: 'browser:bookmarks:delete',
@@ -133,6 +134,12 @@ export type ImportResult = {
   failed: number;
   errors: string[];
   warnings?: string[];
+};
+
+export type ImportPageCaptureInput = {
+  pngBase64: string;
+  pageTitle?: string;
+  pageUrl?: string;
 };
 
 export type ConflictType = 'exact_duplicate' | 'name_conflict';
@@ -712,6 +719,7 @@ export type BrowserAPI = {
   onBrowserCommand: (handler: (command: BrowserCommand) => void) => () => void;
   getAppearanceSettings: () => Promise<OperationResult<AppearanceSettings>>;
   clearData: () => Promise<OperationResult>;
+  importPageCapture: (input: ImportPageCaptureInput) => Promise<OperationResult<ImportResult>>;
   listBookmarks: () => Promise<OperationResult<BookmarkSummary[]>>;
   createBookmark: (input: CreateBookmarkInput) => Promise<OperationResult<BookmarkSummary>>;
   deleteBookmark: (input: DeleteBookmarkInput) => Promise<OperationResult>;

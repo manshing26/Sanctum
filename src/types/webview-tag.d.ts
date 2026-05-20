@@ -16,6 +16,7 @@ declare global {
     getZoomFactor(): number;
     setZoomLevel(level: number): void;
     getZoomLevel(): number;
+    capturePage(): Promise<Electron.NativeImage>;
     setVisualZoomLevelLimits(minimumLevel: number, maximumLevel: number): Promise<void>;
     setAutoResize(options: { width?: boolean; height?: boolean; horizontal?: boolean; vertical?: boolean }): void;
     executeJavaScript(code: string): Promise<unknown>;

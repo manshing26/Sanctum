@@ -1,9 +1,12 @@
 import { app, dialog, ipcMain } from 'electron';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import {
   IPC_CHANNELS,
   type CreateBookmarkInput,
   type DeleteBookmarkInput,
   type UpdateBookmarkThumbnailInput,
+  type ImportPageCaptureInput,
   type AssignBookmarkFolderInput,
   type AssignBookmarksFolderInput,
   type AssignBookmarkTagInput,
@@ -16,6 +19,7 @@ import {
 } from '../../shared/ipc';
 import { BookmarkService } from '../services/bookmark/BookmarkService';
 import { DownloadService } from '../services/download/DownloadService';
+import { ImportService } from '../services/import/ImportService';
 import { SettingsService } from '../services/settings/SettingsService';
 import { BrowserWindowController } from '../windows/BrowserWindowController';
 import { MainWindowController } from '../windows/MainWindowController';
@@ -26,6 +30,7 @@ type RegisterBrowserHandlersParams = {
   mainWindowController: MainWindowController;
   bookmarkService: BookmarkService;
   downloadService: DownloadService;
+  importService: ImportService;
   settingsService: SettingsService;
   browserSession: Session;
   getExtensionStartupErrors?: () => ExtensionStartupError[];
@@ -36,6 +41,7 @@ export const registerBrowserHandlers = ({
   mainWindowController,
   bookmarkService,
   downloadService,
+  importService,
   settingsService,
   browserSession,
   getExtensionStartupErrors,
@@ -60,6 +66,49 @@ export const registerBrowserHandlers = ({
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to clear browser data.',
       };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.importPageCapture, async (_event, input: ImportPageCaptureInput) => {
+    const base64 = input.pngBase64.replace(/^data:image\/png;base64,/, '');
+    const buffer = Buffer.from(base64, 'base64');
+    if (buffer.byteLength === 0) {
+      return { ok: false as const, error: 'Capture failed.' };
+    }
+
+    const tempDir = path.join(app.getPath('temp'), 'sanctum-captures');
+    const timestamp = new Date().toISOString().slice(0, 19).replace('T', '-').replace(/:/g, '-');
+    const source = input.pageUrl || input.pageTitle || 'page';
+    const domain = (() => {
+      try {
+        return new URL(source).hostname;
+      } catch {
+        return source;
+      }
+    })()
+      .toLowerCase()
+      .replace(/^www\./, '')
+      .replace(/[^a-z0-9.-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 48) || 'page';
+    const tempPath = path.join(tempDir, `capture-${domain}-${timestamp}.png`);
+
+    try {
+      await fs.mkdir(tempDir, { recursive: true });
+      await fs.writeFile(tempPath, buffer);
+      const importResult = await importService.importFiles({
+        filePaths: [tempPath],
+        folderId: null,
+        deleteOriginals: false,
+      });
+      return { ok: true as const, data: importResult };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to import capture.',
+      };
+    } finally {
+      await fs.unlink(tempPath).catch(() => undefined);
     }
   });
 
