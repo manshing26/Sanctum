@@ -1,4 +1,5 @@
 import React from 'react';
+import { fontSize } from '../../../theme/typography';
 
 const T = {
   bg:       '#0a0c0b',
@@ -45,8 +46,8 @@ export const DeleteFolderDialog = ({
       >
         {/* Header */}
         <div style={{ padding: '18px 24px 14px', borderBottom: `1px solid ${T.line}` }}>
-          <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: 20, color: T.text, margin: '0 0 4px' }}>Delete folder</p>
-          <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0 }}>
+          <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: fontSize(20), color: T.text, margin: '0 0 4px' }}>Delete folder</p>
+          <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0 }}>
             "{folderName}" contains files. What would you like to do with them?
           </p>
         </div>
@@ -72,8 +73,8 @@ export const DeleteFolderDialog = ({
               <path d="M1 3.5h5l1.5 1.5H13v7H1z"/>
             </svg>
             <div>
-              <p style={{ fontFamily: MONO, fontSize: 11, color: T.text, margin: '0 0 3px' }}>Keep files</p>
-              <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0 }}>Files are moved to root and the folder is removed.</p>
+              <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.text, margin: '0 0 3px' }}>Keep files</p>
+              <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0 }}>Files are moved to root and the folder is removed.</p>
             </div>
           </button>
 
@@ -94,8 +95,8 @@ export const DeleteFolderDialog = ({
               <line x1="5.5" y1="6" x2="5.5" y2="10"/><line x1="8.5" y1="6" x2="8.5" y2="10"/>
             </svg>
             <div>
-              <p style={{ fontFamily: MONO, fontSize: 11, color: T.danger, margin: '0 0 3px' }}>Delete files</p>
-              <p style={{ fontFamily: MONO, fontSize: 10, color: T.danger, opacity: 0.7, margin: 0 }}>Permanently delete the folder and all files inside. Cannot be undone.</p>
+              <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.danger, margin: '0 0 3px' }}>Delete files</p>
+              <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.danger, opacity: 0.7, margin: 0 }}>Permanently delete the folder and all files inside. Cannot be undone.</p>
             </div>
           </button>
         </div>
@@ -106,7 +107,7 @@ export const DeleteFolderDialog = ({
             type="button"
             onClick={() => onOpenChange(false)}
             disabled={isBusy}
-            style={{ height: 32, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isBusy ? 'default' : 'pointer' }}
+            style={{ height: 32, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isBusy ? 'default' : 'pointer' }}
           >
             Cancel
           </button>

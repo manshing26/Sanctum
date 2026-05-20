@@ -38,6 +38,7 @@ import { ImportConflictDialog } from './components/ImportConflictDialog';
 import { useGalleryState } from './state/useGalleryState';
 import { useMarqueeSelection } from './hooks/useMarqueeSelection';
 import { MediaViewerOverlay } from '../viewer/MediaViewerOverlay';
+import { fontSize } from '../../theme/typography';
 
 const T = {
   bg: '#0a0c0b',
@@ -201,7 +202,7 @@ const GridRating: React.FC<{ rating?: number }> = ({ rating }) => {
   const value = rating ?? 0;
   if (value <= 0) return null;
   return (
-    <span title={`${value}/5 rating`} style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9, color: T.accent, flexShrink: 0 }}>
+    <span title={`${value}/5 rating`} style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: fontSize(9), color: T.accent, flexShrink: 0 }}>
       {'·'.repeat(value)}
     </span>
   );
@@ -213,7 +214,7 @@ const ListRating: React.FC<{ rating?: number }> = ({ rating }) => (
     title={`${rating ?? 0}/5 rating`}
     style={{
       fontFamily: MONO,
-      fontSize: 10,
+      fontSize: fontSize(10),
       letterSpacing: '0.02em',
       color: rating && rating > 0 ? '#e3c94f' : T.mute2,
       whiteSpace: 'nowrap',
@@ -285,11 +286,11 @@ const MixedListHeader: React.FC<{
   <div className="pv-list-row pv-list-header">
     <HeaderSelectBox visible={isMultiSelect} checked={allVisibleSelected} onToggle={onToggleSelectAllVisible} />
     <span />
-    <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Title</span>
-    <span className="pv-list-col-rating" style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Rating</span>
-    <span className="pv-list-col-tags" style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Tags</span>
-    <span className="pv-list-col-fav" style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Fav</span>
-    <span className="pv-list-col-date" style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Date</span>
+    <span style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Title</span>
+    <span className="pv-list-col-rating" style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Rating</span>
+    <span className="pv-list-col-tags" style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Tags</span>
+    <span className="pv-list-col-fav" style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Fav</span>
+    <span className="pv-list-col-date" style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Date</span>
   </div>
 );
 
@@ -298,7 +299,7 @@ const ListTagChip: React.FC<{ tag: Pick<TagSummary, 'id' | 'name' | 'color'> }> 
     display: 'inline-flex', alignItems: 'center', gap: 3,
     padding: '1px 5px',
     background: T.accentGlow, border: `1px solid ${T.line2}`,
-    fontFamily: MONO, fontSize: 8, color: T.accent,
+    fontFamily: MONO, fontSize: fontSize(8), color: T.accent,
   }}>
     {tag.color && <span style={{ width: 5, height: 5, borderRadius: '50%', background: tag.color, flexShrink: 0 }} />}
     {tag.name}
@@ -325,26 +326,26 @@ const EmptyVaultState: React.FC<{
       <rect x="3" y="3" width="12" height="12" /><rect x="21" y="3" width="12" height="12" />
       <rect x="3" y="21" width="12" height="12" /><rect x="21" y="21" width="12" height="12" />
     </svg>
-    <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute2, letterSpacing: '0.06em', margin: 0 }}>{message}</p>
+    <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.mute2, letterSpacing: '0.06em', margin: 0 }}>{message}</p>
     {(canImport || canCreateFolder || canClearFilters || canCreateNote) && (
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
         {canClearFilters && (
-          <button type="button" onClick={onClearFilters} style={{ height: 28, padding: '0 12px', border: `1px solid ${T.line2}`, background: 'none', color: T.mute, fontFamily: MONO, fontSize: 10, cursor: 'pointer' }}>
+          <button type="button" onClick={onClearFilters} style={{ height: 28, padding: '0 12px', border: `1px solid ${T.line2}`, background: 'none', color: T.mute, fontFamily: MONO, fontSize: fontSize(10), cursor: 'pointer' }}>
             Clear Search/Filters
           </button>
         )}
         {canImport && (
-          <button type="button" onClick={onImport} style={{ height: 28, padding: '0 12px', border: 'none', background: T.accent, color: '#0a0c0b', fontFamily: MONO, fontSize: 10, cursor: 'pointer' }}>
+          <button type="button" onClick={onImport} style={{ height: 28, padding: '0 12px', border: 'none', background: T.accent, color: '#0a0c0b', fontFamily: MONO, fontSize: fontSize(10), cursor: 'pointer' }}>
             Import Files
           </button>
         )}
         {canCreateFolder && (
-          <button type="button" onClick={onCreateFolder} style={{ height: 28, padding: '0 12px', border: `1px solid ${T.line2}`, background: 'none', color: T.mute, fontFamily: MONO, fontSize: 10, cursor: 'pointer' }}>
+          <button type="button" onClick={onCreateFolder} style={{ height: 28, padding: '0 12px', border: `1px solid ${T.line2}`, background: 'none', color: T.mute, fontFamily: MONO, fontSize: fontSize(10), cursor: 'pointer' }}>
             Create Folder
           </button>
         )}
         {canCreateNote && (
-          <button type="button" onClick={onCreateNote} style={{ height: 28, padding: '0 12px', border: 'none', background: T.accent, color: '#0a0c0b', fontFamily: MONO, fontSize: 10, cursor: 'pointer' }}>
+          <button type="button" onClick={onCreateNote} style={{ height: 28, padding: '0 12px', border: 'none', background: T.accent, color: '#0a0c0b', fontFamily: MONO, fontSize: fontSize(10), cursor: 'pointer' }}>
             Create Note
           </button>
         )}
@@ -356,23 +357,23 @@ const EmptyVaultState: React.FC<{
 const BulkInspectorSummary: React.FC<{ total: number; files: number; bookmarks: number; notes: number }> = ({ total, files, bookmarks, notes }) => (
   <div style={{ padding: '18px 14px' }}>
     <div style={{ border: `1px solid ${T.line2}`, background: T.accentGlow, padding: 14 }}>
-      <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 10 }}>· Selection ·</div>
-      <p style={{ margin: 0, fontFamily: SERIF, fontSize: 20, color: T.text }}>{total} objects selected</p>
+      <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 10 }}>· Selection ·</div>
+      <p style={{ margin: 0, fontFamily: SERIF, fontSize: fontSize(20), color: T.text }}>{total} objects selected</p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 14 }}>
         <div style={{ border: `1px solid ${T.line}`, padding: 10 }}>
-          <div style={{ fontFamily: MONO, fontSize: 18, color: T.text }}>{files}</div>
-          <div style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Files</div>
+          <div style={{ fontFamily: MONO, fontSize: fontSize(18), color: T.text }}>{files}</div>
+          <div style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Files</div>
         </div>
         <div style={{ border: `1px solid ${T.line}`, padding: 10 }}>
-          <div style={{ fontFamily: MONO, fontSize: 18, color: T.text }}>{bookmarks}</div>
-          <div style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Bookmarks</div>
+          <div style={{ fontFamily: MONO, fontSize: fontSize(18), color: T.text }}>{bookmarks}</div>
+          <div style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Bookmarks</div>
         </div>
         <div style={{ border: `1px solid ${T.line}`, padding: 10 }}>
-          <div style={{ fontFamily: MONO, fontSize: 18, color: T.text }}>{notes}</div>
-          <div style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Notes</div>
+          <div style={{ fontFamily: MONO, fontSize: fontSize(18), color: T.text }}>{notes}</div>
+          <div style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Notes</div>
         </div>
       </div>
-      <p style={{ margin: '14px 0 0', fontFamily: MONO, fontSize: 9, color: T.mute2, lineHeight: 1.6 }}>
+      <p style={{ margin: '14px 0 0', fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, lineHeight: 1.6 }}>
         Use the toolbar actions for this selection.
       </p>
     </div>
@@ -447,10 +448,10 @@ const BookmarkListRow: React.FC<{
       </div>
       {/* Title + hostname */}
       <div className="pv-list-col-title">
-        <p className="pv-list-title" style={{ margin: 0, fontFamily: MONO, fontSize: 11, color: T.text }}>
+        <p className="pv-list-title" style={{ margin: 0, fontFamily: MONO, fontSize: fontSize(11), color: T.text }}>
           {bookmark.title}
         </p>
-        <div className="pv-list-subtitle" style={{ margin: '1px 0 0', display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 9, color: T.mute }}>
+        <div className="pv-list-subtitle" style={{ margin: '1px 0 0', display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: fontSize(9), color: T.mute }}>
           <TypeBadge label="BOOKMARK" />
           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hostname}</span>
         </div>
@@ -470,7 +471,7 @@ const BookmarkListRow: React.FC<{
         }}
       />
       {/* Date */}
-      <span className="pv-list-col-date" style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, whiteSpace: 'nowrap' }}>
+      <span className="pv-list-col-date" style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, whiteSpace: 'nowrap' }}>
         {new Date(bookmark.createdAt).toLocaleDateString()}
       </span>
     </div>
@@ -601,7 +602,7 @@ const FileListRow: React.FC<{
         )}
       </div>
       <div className="pv-list-col-title">
-        <p className="pv-list-title" style={{ margin: 0, fontFamily: MONO, fontSize: 11, color: T.text }}>
+        <p className="pv-list-title" style={{ margin: 0, fontFamily: MONO, fontSize: fontSize(11), color: T.text }}>
           {item.originalName}
         </p>
         <div className="pv-list-subtitle" style={{ margin: '1px 0 0', display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -621,7 +622,7 @@ const FileListRow: React.FC<{
           onToggleFavorite([item.id]);
         }}
       />
-      <span className="pv-list-col-date" style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, whiteSpace: 'nowrap' }}>
+      <span className="pv-list-col-date" style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, whiteSpace: 'nowrap' }}>
         {new Date(item.createdAt).toLocaleDateString()}
       </span>
     </div>
@@ -792,7 +793,7 @@ const BookmarkCard: React.FC<{
             padding: '2px 6px',
             background: 'rgba(0,0,0,0.75)',
             fontFamily: MONO,
-            fontSize: 9,
+            fontSize: fontSize(9),
             letterSpacing: '0.04em',
             color: T.mute,
             display: 'flex',
@@ -812,11 +813,11 @@ const BookmarkCard: React.FC<{
       </div>
       {/* Footer */}
       <div style={{ padding: '8px 10px', borderTop: `1px solid ${T.line}` }}>
-        <p style={{ margin: 0, fontFamily: SERIF, fontSize: 13, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <p style={{ margin: 0, fontFamily: SERIF, fontSize: fontSize(13), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {bookmark.title}
         </p>
         <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-          <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute, letterSpacing: '0.04em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute, letterSpacing: '0.04em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {hostname}
           </span>
           <GridRating rating={bookmark.rating} />
@@ -923,8 +924,8 @@ const NoteListRow: React.FC<{
         <NoteGlyph size={14} />
       </div>
       <div className="pv-list-col-title">
-        <p className="pv-list-title" style={{ margin: 0, fontFamily: MONO, fontSize: 11, color: T.text }}>{note.title}</p>
-        <div className="pv-list-subtitle" style={{ margin: '1px 0 0', display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: 9, color: T.mute }}>
+        <p className="pv-list-title" style={{ margin: 0, fontFamily: MONO, fontSize: fontSize(11), color: T.text }}>{note.title}</p>
+        <div className="pv-list-subtitle" style={{ margin: '1px 0 0', display: 'flex', alignItems: 'center', gap: 5, fontFamily: MONO, fontSize: fontSize(9), color: T.mute }}>
           <TypeBadge label="NOTE" />
           <span>{noteFormatLabel(note.format)}</span>
         </div>
@@ -940,7 +941,7 @@ const NoteListRow: React.FC<{
           onToggleFavorite([note.id], !note.isFavorite);
         }}
       />
-      <span className="pv-list-col-date" style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, whiteSpace: 'nowrap' }}>
+      <span className="pv-list-col-date" style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, whiteSpace: 'nowrap' }}>
         {new Date(note.createdAt).toLocaleDateString()}
       </span>
     </div>
@@ -1069,7 +1070,7 @@ const NoteCard: React.FC<{
             padding: '2px 6px',
             background: 'rgba(0,0,0,0.75)',
             fontFamily: MONO,
-            fontSize: 9,
+            fontSize: fontSize(9),
             color: T.mute,
             display: 'flex',
             alignItems: 'center',
@@ -1081,11 +1082,11 @@ const NoteCard: React.FC<{
         )}
       </div>
       <div style={{ padding: '8px 10px', borderTop: `1px solid ${T.line}` }}>
-        <p style={{ margin: 0, fontFamily: SERIF, fontSize: 13, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <p style={{ margin: 0, fontFamily: SERIF, fontSize: fontSize(13), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {note.title}
         </p>
         <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-          <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute, letterSpacing: '0.04em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute, letterSpacing: '0.04em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {noteFormatLabel(note.format)}
           </span>
         </div>
@@ -1148,7 +1149,7 @@ const NoteInspector: React.FC<{
     border: variant === 'ghost' ? `1px solid ${T.line2}` : 'none',
     cursor: 'pointer',
     color: variant === 'ghost' ? T.mute : '#0a0c0b',
-    fontFamily: MONO, fontSize: 10,
+    fontFamily: MONO, fontSize: fontSize(10),
     letterSpacing: '0.06em', textTransform: 'uppercase' as const,
     borderRadius: 0,
   });
@@ -1156,10 +1157,10 @@ const NoteInspector: React.FC<{
   return (
     <div style={{ padding: '16px 14px' }}>
       <div style={{ marginBottom: 14 }}>
-        <p style={{ margin: 0, fontFamily: SERIF, fontSize: 18, color: T.text, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <p style={{ margin: 0, fontFamily: SERIF, fontSize: fontSize(18), color: T.text, lineHeight: 1.25, overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {note.title}
         </p>
-        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontFamily: MONO, fontSize: 9, color: T.mute }}>
+        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontFamily: MONO, fontSize: fontSize(9), color: T.mute }}>
           <TypeBadge label="NOTE" />
           <span>{noteFormatLabel(note.format)}</span>
         </div>
@@ -1195,23 +1196,23 @@ const NoteInspector: React.FC<{
       </div>
       <div style={{ borderTop: `1px solid ${T.line}`, margin: '14px 0' }} />
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 10 }}>· Info ·</div>
+        <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 10 }}>· Info ·</div>
         <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 6 }}>
-          <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, textTransform: 'uppercase' }}>Type</span>
-          <span style={{ fontFamily: MONO, fontSize: 10, color: T.text }}>{noteFormatLabel(note.format)}</span>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, textTransform: 'uppercase' }}>Type</span>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text }}>{noteFormatLabel(note.format)}</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 6 }}>
-          <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, textTransform: 'uppercase' }}>Updated</span>
-          <span style={{ fontFamily: MONO, fontSize: 10, color: T.text }}>{new Date(note.updatedAt).toLocaleDateString()}</span>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, textTransform: 'uppercase' }}>Updated</span>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text }}>{new Date(note.updatedAt).toLocaleDateString()}</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8 }}>
-          <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, textTransform: 'uppercase' }}>Cipher</span>
-          <span style={{ fontFamily: MONO, fontSize: 10, color: T.accent }}>aes-256-gcm</span>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, textTransform: 'uppercase' }}>Cipher</span>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.accent }}>aes-256-gcm</span>
         </div>
       </div>
       <div style={{ borderTop: `1px solid ${T.line}`, marginBottom: 14 }} />
       <div>
-        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Tags ·</div>
+        <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Tags ·</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {tags.map((tag) => {
             const assigned = note.tags.some((t) => t.id === tag.id);
@@ -1222,14 +1223,14 @@ const NoteInspector: React.FC<{
                 background: assigned ? T.accentGlow : 'none',
                 border: `1px solid ${assigned ? T.accent : T.line2}`,
                 cursor: 'pointer', color: assigned ? T.accent : T.mute,
-                fontFamily: MONO, fontSize: 10, borderRadius: 0,
+                fontFamily: MONO, fontSize: fontSize(10), borderRadius: 0,
               }}>
                 {tag.color && <span style={{ width: 6, height: 6, borderRadius: '50%', background: tag.color, flexShrink: 0 }} />}
                 {tag.name}
               </button>
             );
           })}
-          {tags.length === 0 && <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2 }}>No tags</p>}
+          {tags.length === 0 && <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>No tags</p>}
         </div>
       </div>
     </div>
@@ -1300,8 +1301,8 @@ const NoteEditorModal: React.FC<{
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderBottom: `1px solid ${T.line}` }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2 }}>· Secure Note ·</div>
-            <div style={{ marginTop: 4, fontFamily: SERIF, fontSize: 20, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title.trim() || 'Untitled note'}</div>
+            <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2 }}>· Secure Note ·</div>
+            <div style={{ marginTop: 4, fontFamily: SERIF, fontSize: fontSize(20), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title.trim() || 'Untitled note'}</div>
           </div>
           <button type="button" onClick={requestClose} title="Close" style={{ width: 28, height: 28, background: 'none', border: `1px solid ${T.line2}`, color: T.mute, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="2" y1="2" x2="10" y2="10" /><line x1="10" y1="2" x2="2" y2="10" /></svg>
@@ -1309,21 +1310,21 @@ const NoteEditorModal: React.FC<{
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 12, padding: 16, borderBottom: `1px solid ${T.line}` }}>
           <div>
-            <label style={{ display: 'block', fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 6 }}>Title</label>
+            <label style={{ display: 'block', fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 6 }}>Title</label>
             <input
               autoFocus
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Untitled note"
-              style={{ width: '100%', height: 34, boxSizing: 'border-box', background: '#0d0f0d', border: `1px solid ${title.trim() ? T.line2 : T.danger}`, color: T.text, fontFamily: SERIF, fontSize: 17, padding: '0 10px', outline: 'none', borderRadius: 0 }}
+              style={{ width: '100%', height: 34, boxSizing: 'border-box', background: '#0d0f0d', border: `1px solid ${title.trim() ? T.line2 : T.danger}`, color: T.text, fontFamily: SERIF, fontSize: fontSize(17), padding: '0 10px', outline: 'none', borderRadius: 0 }}
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 6 }}>Format</label>
+            <label style={{ display: 'block', fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 6 }}>Format</label>
             <select
               value={format}
               onChange={(event) => setFormat(event.target.value as NoteFormat)}
-              style={{ width: '100%', height: 34, background: '#0d0f0d', border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 11, padding: '0 8px', outline: 'none', boxSizing: 'border-box', borderRadius: 0 }}
+              style={{ width: '100%', height: 34, background: '#0d0f0d', border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(11), padding: '0 8px', outline: 'none', boxSizing: 'border-box', borderRadius: 0 }}
             >
               <option value="plain">Plain text</option>
               <option value="markdown">Markdown</option>
@@ -1335,18 +1336,18 @@ const NoteEditorModal: React.FC<{
             value={body}
             onChange={(event) => setBody(event.target.value)}
             placeholder="Write a secure note..."
-            style={{ width: '100%', height: '100%', resize: 'none', boxSizing: 'border-box', background: '#0d0f0d', border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 12, lineHeight: 1.7, padding: 12, outline: 'none', borderRadius: 0 }}
+            style={{ width: '100%', height: '100%', resize: 'none', boxSizing: 'border-box', background: '#0d0f0d', border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(12), lineHeight: 1.7, padding: 12, outline: 'none', borderRadius: 0 }}
           />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderTop: `1px solid ${T.line}` }}>
-          <span style={{ fontFamily: MONO, fontSize: 9, color: dirty ? T.accent : T.mute2, letterSpacing: '0.06em' }}>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: dirty ? T.accent : T.mute2, letterSpacing: '0.06em' }}>
             {dirty ? 'Unsaved changes' : 'Saved'}
           </span>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={requestClose} disabled={isSaving} style={{ height: 30, padding: '0 12px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: 10, cursor: isSaving ? 'default' : 'pointer' }}>
+            <button type="button" onClick={requestClose} disabled={isSaving} style={{ height: 30, padding: '0 12px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(10), cursor: isSaving ? 'default' : 'pointer' }}>
               Cancel
             </button>
-            <button type="button" onClick={() => void save()} disabled={!canSave} style={{ height: 30, padding: '0 14px', background: T.accent, border: 'none', color: '#0a0c0b', fontFamily: MONO, fontSize: 10, cursor: canSave ? 'pointer' : 'default', opacity: canSave ? 1 : 0.5 }}>
+            <button type="button" onClick={() => void save()} disabled={!canSave} style={{ height: 30, padding: '0 14px', background: T.accent, border: 'none', color: '#0a0c0b', fontFamily: MONO, fontSize: fontSize(10), cursor: canSave ? 'pointer' : 'default', opacity: canSave ? 1 : 0.5 }}>
               {isSaving ? 'Saving...' : 'Save'}
             </button>
           </div>
@@ -1390,15 +1391,15 @@ const BookmarkInspector: React.FC<{
     border: variant === 'ghost' ? `1px solid ${T.line2}` : 'none',
     cursor: 'pointer',
     color: variant === 'ghost' ? T.mute : '#0a0c0b',
-    fontFamily: MONO, fontSize: 10,
+    fontFamily: MONO, fontSize: fontSize(10),
     letterSpacing: '0.06em', textTransform: 'uppercase' as const,
     borderRadius: 0,
   });
 
   const fieldRow = (label: string, value: React.ReactNode): React.ReactNode => (
     <div key={label} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 6, alignItems: 'start' }}>
-      <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, paddingTop: 1 }}>{label}</span>
-      <span style={{ fontFamily: MONO, fontSize: 10, color: T.text, wordBreak: 'break-all' }}>{value}</span>
+      <span style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, paddingTop: 1 }}>{label}</span>
+      <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text, wordBreak: 'break-all' }}>{value}</span>
     </div>
   );
 
@@ -1426,7 +1427,7 @@ const BookmarkInspector: React.FC<{
               autoFocus
               value={titleDraft}
               onChange={(e) => setTitleDraft(e.target.value)}
-              style={{ flex: 1, height: 26, background: 'transparent', border: `1px solid ${T.accent}`, color: T.text, fontFamily: MONO, fontSize: 11, padding: '0 6px', outline: 'none', borderRadius: 0 }}
+              style={{ flex: 1, height: 26, background: 'transparent', border: `1px solid ${T.accent}`, color: T.text, fontFamily: MONO, fontSize: fontSize(11), padding: '0 6px', outline: 'none', borderRadius: 0 }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') { if (titleDraft.trim() && titleDraft !== bookmark.title) onRename(bookmark.id, titleDraft.trim()); setIsRenaming(false); }
                 if (e.key === 'Escape') { setTitleDraft(bookmark.title); setIsRenaming(false); }
@@ -1444,7 +1445,7 @@ const BookmarkInspector: React.FC<{
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <p style={{ flex: 1, minWidth: 0, fontFamily: SERIF, fontSize: 15, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
+            <p style={{ flex: 1, minWidth: 0, fontFamily: SERIF, fontSize: fontSize(15), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
               {bookmark.title}
             </p>
             <button type="button" onClick={() => setIsRenaming(true)} title="Rename" style={iconBtn()}>
@@ -1501,7 +1502,7 @@ const BookmarkInspector: React.FC<{
 
       {/* Info */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 10 }}>· Info ·</div>
+        <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 10 }}>· Info ·</div>
         {fieldRow('URL', <a href="#" onClick={(e) => { e.preventDefault(); onOpenInBrowser?.(bookmark.url); }} style={{ color: T.accent, textDecoration: 'none', wordBreak: 'break-all' }}>{bookmark.url}</a>)}
         {fieldRow('Added', new Date(bookmark.createdAt).toLocaleDateString())}
         {fieldRow('Cipher', <span style={{ color: T.accent }}>aes-256-gcm</span>)}
@@ -1511,7 +1512,7 @@ const BookmarkInspector: React.FC<{
 
       {/* Rating */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Rating ·</div>
+        <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Rating ·</div>
         <StarRating value={bookmark.rating} onChange={(rating) => onSetRating(bookmark.id, rating)} />
       </div>
 
@@ -1519,7 +1520,7 @@ const BookmarkInspector: React.FC<{
 
       {/* Tags */}
       <div>
-        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Tags ·</div>
+        <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Tags ·</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {tags.map((tag) => {
             const assigned = bookmark.tags.some((t) => t.id === tag.id);
@@ -1531,7 +1532,7 @@ const BookmarkInspector: React.FC<{
                   background: assigned ? T.accentGlow : 'none',
                   border: `1px solid ${assigned ? T.accent : T.line2}`,
                   cursor: 'pointer', color: assigned ? T.accent : T.mute,
-                  fontFamily: MONO, fontSize: 10, borderRadius: 0,
+                  fontFamily: MONO, fontSize: fontSize(10), borderRadius: 0,
                 }}
               >
                 {tag.color && <span style={{ width: 6, height: 6, borderRadius: '50%', background: tag.color, flexShrink: 0 }} />}
@@ -1540,7 +1541,7 @@ const BookmarkInspector: React.FC<{
               </button>
             );
           })}
-          {tags.length === 0 && <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2 }}>No tags</p>}
+          {tags.length === 0 && <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>No tags</p>}
         </div>
       </div>
     </div>
@@ -1566,7 +1567,7 @@ const ThumbnailPicker: React.FC<{
     <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)' }}>
       <div style={{ background: '#14160f', border: `1px solid ${T.line2}`, width: 480, maxHeight: '70vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${T.line}` }}>
-          <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute }}>Choose thumbnail — {bookmark.title}</span>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute }}>Choose thumbnail — {bookmark.title}</span>
           <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 0 }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="1" y1="1" x2="11" y2="11" /><line x1="11" y1="1" x2="1" y2="11" /></svg>
           </button>
@@ -1575,10 +1576,10 @@ const ThumbnailPicker: React.FC<{
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '32px 0', color: T.mute }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke={T.accent} strokeWidth="1.5" style={{ animation: 'spin 1s linear infinite' }}><path d="M14 8A6 6 0 1 1 8 2" /></svg>
-              <span style={{ fontFamily: MONO, fontSize: 10 }}>Scraping page images…</span>
+              <span style={{ fontFamily: MONO, fontSize: fontSize(10) }}>Scraping page images…</span>
             </div>
           ) : candidates.length === 0 ? (
-            <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2, textAlign: 'center', padding: '32px 0' }}>No images found on the active tab.</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, textAlign: 'center', padding: '32px 0' }}>No images found on the active tab.</p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 84px)', gap: 8 }}>
               {candidates.map((src, i) => (
@@ -3118,7 +3119,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
             </svg>
-            <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            <span style={{ fontFamily: MONO, fontSize: fontSize(11), letterSpacing: '0.06em', textTransform: 'uppercase' }}>
               Drop files to import
             </span>
           </div>
@@ -3224,7 +3225,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
             style={{ flex: 1, overflowY: 'auto', padding: viewMode === 'grid' ? '16px 20px' : 0, position: 'relative', userSelect: 'none' }}
           >
             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: viewMode === 'grid' ? '0 0 12px' : '8px 12px', borderBottom: viewMode === 'list' ? `1px solid ${T.line}` : 'none' }}>
-              <button type="button" onClick={() => void handleCreateNote()} style={{ height: 26, padding: '0 10px', border: 'none', background: T.accent, color: '#0a0c0b', fontFamily: MONO, fontSize: 10, cursor: 'pointer' }}>
+              <button type="button" onClick={() => void handleCreateNote()} style={{ height: 26, padding: '0 10px', border: 'none', background: T.accent, color: '#0a0c0b', fontFamily: MONO, fontSize: fontSize(10), cursor: 'pointer' }}>
                 New Note
               </button>
             </div>
@@ -3510,7 +3511,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
               borderBottom: `1px solid ${T.line}`,
               flexShrink: 0,
             }}>
-              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute }}>Inspector</span>
+              <span style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute }}>Inspector</span>
               <button
                 type="button"
                 onClick={() => setShowInspector(false)}
@@ -3550,11 +3551,11 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
                   />
               ) : isBookmarkScope ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '48px 0', color: T.mute }}>
-                    <p style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: T.mute2 }}>Select a bookmark to inspect</p>
+                    <p style={{ fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', color: T.mute2 }}>Select a bookmark to inspect</p>
                   </div>
               ) : isNoteScope ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '48px 0', color: T.mute }}>
-                    <p style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: T.mute2 }}>Select a note to inspect</p>
+                    <p style={{ fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', color: T.mute2 }}>Select a note to inspect</p>
                   </div>
               ) : (
                 <ItemDetailsSidebar {...detailsPanelProps} />

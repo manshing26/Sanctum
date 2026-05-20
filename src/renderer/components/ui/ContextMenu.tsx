@@ -161,7 +161,7 @@ if (typeof document !== 'undefined') {
   gap: 10px;
   padding: 7px 14px;
   font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
-  font-size: 11px;
+  font-size: calc(11px * var(--sanctum-text-scale, 1));
   letter-spacing: 0.02em;
   color: #c4c9c5;
   cursor: pointer;
@@ -218,7 +218,7 @@ if (typeof document !== 'undefined') {
 .sanctum-ctx-label {
   padding: 5px 14px 4px;
   font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace;
-  font-size: 9px;
+  font-size: calc(9px * var(--sanctum-text-scale, 1));
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #4d524d;

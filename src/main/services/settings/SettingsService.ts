@@ -23,12 +23,14 @@ const APPEARANCE_KEYS = {
   thumbnailSize: 'appearance.thumbnail_size',
   gridDensity: 'appearance.grid_density',
   defaultView: 'appearance.default_view',
+  textSize: 'appearance.text_size',
 } as const;
 
 const APPEARANCE_DEFAULTS: AppearanceSettings = {
   thumbnailSize: 'medium',
   gridDensity: 'comfortable',
   defaultView: 'grid',
+  textSize: 'small',
 };
 
 const BROWSER_KEYS = {
@@ -59,6 +61,11 @@ const parseSearchEngine = (value: string | undefined): SearchEngineId => {
   return value === 'duckduckgo' || value === 'brave' || value === 'google' || value === 'bing' || value === 'custom'
     ? value
     : DEFAULT_SEARCH_ENGINE_ID;
+};
+const parseTextSize = (value: string | undefined): AppearanceSettings['textSize'] => {
+  return value === 'small' || value === 'medium' || value === 'large'
+    ? value
+    : APPEARANCE_DEFAULTS.textSize;
 };
 
 export class SettingsService {
@@ -117,6 +124,7 @@ export class SettingsService {
       thumbnailSize: (this.getSetting(APPEARANCE_KEYS.thumbnailSize) as AppearanceSettings['thumbnailSize']) ?? APPEARANCE_DEFAULTS.thumbnailSize,
       gridDensity: (this.getSetting(APPEARANCE_KEYS.gridDensity) as AppearanceSettings['gridDensity']) ?? APPEARANCE_DEFAULTS.gridDensity,
       defaultView: (this.getSetting(APPEARANCE_KEYS.defaultView) as AppearanceSettings['defaultView']) ?? APPEARANCE_DEFAULTS.defaultView,
+      textSize: parseTextSize(this.getSetting(APPEARANCE_KEYS.textSize)),
     };
   }
 
@@ -129,6 +137,9 @@ export class SettingsService {
     }
     if (input.defaultView !== undefined) {
       this.setSetting(APPEARANCE_KEYS.defaultView, input.defaultView);
+    }
+    if (input.textSize !== undefined) {
+      this.setSetting(APPEARANCE_KEYS.textSize, parseTextSize(input.textSize));
     }
     return this.getAppearanceSettings();
   }

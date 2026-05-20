@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { FolderNode } from '../../../../shared/ipc';
+import { fontSize } from '../../../theme/typography';
 
 const T = {
   bg:         '#0a0c0b',
@@ -126,7 +127,7 @@ export const ImportSettingsDialog = ({
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke={isSelected ? T.accent : T.mute2} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
               <path d="M1 3.5h5l1.5 1.5H13v7H1z"/>
             </svg>
-            <span style={{ fontFamily: MONO, fontSize: 10, color: isSelected ? T.accent : T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
+            <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: isSelected ? T.accent : T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
           </button>
         </div>
         {hasChildren && isExpanded && (
@@ -151,14 +152,14 @@ export const ImportSettingsDialog = ({
       >
         {/* Header */}
         <div style={{ padding: '18px 24px 14px', borderBottom: `1px solid ${T.line}` }}>
-          <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: 20, color: T.text, margin: '0 0 4px' }}>Import Settings</p>
-          <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0 }}>Choose a target folder and secure-delete option before selecting files.</p>
+          <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: fontSize(20), color: T.text, margin: '0 0 4px' }}>Import Settings</p>
+          <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0 }}>Choose a target folder and secure-delete option before selecting files.</p>
         </div>
 
         <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Folder picker */}
           <div>
-            <p style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, margin: '0 0 8px' }}>Target folder</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, margin: '0 0 8px' }}>Target folder</p>
 
             {/* Search */}
             <div style={{ position: 'relative', marginBottom: 6 }}>
@@ -170,7 +171,7 @@ export const ImportSettingsDialog = ({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search folders…"
-                style={{ width: '100%', height: 30, paddingLeft: 28, paddingRight: 10, background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 10, outline: 'none', boxSizing: 'border-box' }}
+                style={{ width: '100%', height: 30, paddingLeft: 28, paddingRight: 10, background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
 
@@ -190,17 +191,17 @@ export const ImportSettingsDialog = ({
                 <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke={importFolderId === null ? T.accent : T.mute2} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M1 3.5h5l1.5 1.5H13v7H1z"/>
                 </svg>
-                <span style={{ fontFamily: MONO, fontSize: 10, color: importFolderId === null ? T.accent : T.text }}>Root</span>
+                <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: importFolderId === null ? T.accent : T.text }}>Root</span>
               </div>
               {visibleFolders.length > 0 ? (
                 <ul style={{ margin: 0, padding: 0 }}>
                   {visibleFolders.map((f) => <FolderTreeNode key={f.id} node={f} depth={0} />)}
                 </ul>
               ) : (
-                <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2, padding: '10px 16px', margin: 0 }}>No folders match your search.</p>
+                <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, padding: '10px 16px', margin: 0 }}>No folders match your search.</p>
               )}
             </div>
-            <p style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, margin: '5px 0 0' }}>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, margin: '5px 0 0' }}>
               Selected: <span style={{ color: T.text }}>{selectedFolderName}</span>
             </p>
           </div>
@@ -211,12 +212,12 @@ export const ImportSettingsDialog = ({
           {/* Secure delete */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
             <div>
-              <p style={{ fontFamily: MONO, fontSize: 11, color: T.text, margin: '0 0 3px' }}>Secure delete originals</p>
-              <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0 }}>Overwrite source files with 3-pass erase after importing.</p>
+              <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.text, margin: '0 0 3px' }}>Secure delete originals</p>
+              <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0 }}>Overwrite source files with 3-pass erase after importing.</p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
               <span style={{
-                fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase',
+                fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.08em', textTransform: 'uppercase',
                 padding: '2px 8px',
                 border: `1px solid ${secureDelete ? T.danger : T.line2}`,
                 background: secureDelete ? T.dangerGlow : 'none',
@@ -252,14 +253,14 @@ export const ImportSettingsDialog = ({
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            style={{ height: 32, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+            style={{ height: 32, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={() => { onOpenChange(false); onImport(); }}
-            style={{ height: 32, padding: '0 14px', background: T.accent, border: `1px solid ${T.accent}`, color: T.bg, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+            style={{ height: 32, padding: '0 14px', background: T.accent, border: `1px solid ${T.accent}`, color: T.bg, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
           >
             <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="4,6.5 7,3.5 10,6.5"/><line x1="7" y1="3.5" x2="7" y2="11"/><line x1="2" y1="12.5" x2="12" y2="12.5"/>

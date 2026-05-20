@@ -2,6 +2,7 @@ import React from 'react';
 import type { TagSummary, VaultItemSummary } from '../../../../shared/ipc';
 import { GalleryCard } from './GalleryCard';
 import { useMarqueeSelection } from '../hooks/useMarqueeSelection';
+import { fontSize } from '../../../theme/typography';
 
 const T = {
   line2: 'rgba(220,220,200,0.12)',
@@ -92,7 +93,7 @@ export const GalleryGrid = ({
           <rect x="3" y="3" width="12" height="12" /><rect x="21" y="3" width="12" height="12" />
           <rect x="3" y="21" width="12" height="12" /><rect x="21" y="21" width="12" height="12" />
         </svg>
-        <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute2, letterSpacing: '0.06em' }}>No objects match current filters</p>
+        <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.mute2, letterSpacing: '0.06em' }}>No objects match current filters</p>
       </div>
     );
   }

@@ -248,6 +248,7 @@ export type AppearanceSettings = {
   thumbnailSize: 'small' | 'medium' | 'large';
   gridDensity: 'compact' | 'comfortable' | 'spacious';
   defaultView: 'grid' | 'list';
+  textSize: 'small' | 'medium' | 'large';
 };
 
 export type UpdateAppearanceSettingsInput = Partial<AppearanceSettings>;
@@ -709,6 +710,7 @@ export type ElectronAPI = {
 export type BrowserAPI = {
   closeBrowserWindow: () => Promise<void>;
   onBrowserCommand: (handler: (command: BrowserCommand) => void) => () => void;
+  getAppearanceSettings: () => Promise<OperationResult<AppearanceSettings>>;
   clearData: () => Promise<OperationResult>;
   listBookmarks: () => Promise<OperationResult<BookmarkSummary[]>>;
   createBookmark: (input: CreateBookmarkInput) => Promise<OperationResult<BookmarkSummary>>;

@@ -18,6 +18,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from '../../components/ui/ContextMenu';
+import { fontSize } from '../../theme/typography';
 
 // ── Design tokens ────────────────────────────────────────────────────
 const T = {
@@ -397,7 +398,7 @@ const NewTabPage: React.FC<{
   const tabBtn = (active: boolean): React.CSSProperties => ({
     background: 'none', border: 'none', borderBottom: active ? `1px solid ${T.accent}` : '1px solid transparent',
     cursor: 'pointer', color: active ? T.accent : T.mute,
-    fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase',
+    fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase',
     padding: '4px 10px', paddingBottom: 8, flexShrink: 0,
   });
 
@@ -405,8 +406,8 @@ const NewTabPage: React.FC<{
     <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', background: T.bg, overflowY: 'auto', padding: '0 24px 48px' }}>
       {/* Brand */}
       <div style={{ marginTop: 72, marginBottom: 40, textAlign: 'center' }}>
-        <div style={{ fontFamily: SERIF, fontSize: 36, fontWeight: 300, letterSpacing: '0.18em', color: T.text }}>Sanctum</div>
-        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.32em', textTransform: 'uppercase', color: T.mute, marginTop: 8 }}>private vault · browser</div>
+        <div style={{ fontFamily: SERIF, fontSize: fontSize(36), fontWeight: 300, letterSpacing: '0.18em', color: T.text }}>Sanctum</div>
+        <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.32em', textTransform: 'uppercase', color: T.mute, marginTop: 8 }}>private vault · browser</div>
       </div>
 
       {/* Search bar */}
@@ -420,10 +421,10 @@ const NewTabPage: React.FC<{
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search or enter address…"
-            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: T.text, fontFamily: MONO, fontSize: 12, letterSpacing: '0.02em' }}
+            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: T.text, fontFamily: MONO, fontSize: fontSize(12), letterSpacing: '0.02em' }}
           />
           {query && (
-            <button type="submit" style={{ background: T.accent, border: 'none', color: T.bg, fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '4px 10px', cursor: 'pointer' }}>
+            <button type="submit" style={{ background: T.accent, border: 'none', color: T.bg, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', padding: '4px 10px', cursor: 'pointer' }}>
               Go
             </button>
           )}
@@ -450,7 +451,7 @@ const NewTabPage: React.FC<{
           )}
 
           {visibleBookmarks.length === 0 ? (
-            <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2 }}>No bookmarks in this folder.</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>No bookmarks in this folder.</p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 12 }}>
               {visibleBookmarks.map((bm) => {
@@ -473,12 +474,12 @@ const NewTabPage: React.FC<{
                       {bm.thumbnailDataUrl
                         ? <img src={bm.thumbnailDataUrl} alt={bm.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                         : <div style={{ width: '100%', height: '100%', background: grad, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <span style={{ fontFamily: MONO, fontSize: 18, color: 'rgba(232,230,220,0.4)' }}>{domain.charAt(0).toUpperCase()}</span>
+                            <span style={{ fontFamily: MONO, fontSize: fontSize(18), color: 'rgba(232,230,220,0.4)' }}>{domain.charAt(0).toUpperCase()}</span>
                           </div>
                       }
                     </div>
-                    <div style={{ fontFamily: MONO, fontSize: 10, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bm.title}</div>
-                    <div style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{domain}</div>
+                    <div style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bm.title}</div>
+                    <div style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>{domain}</div>
                     {bm.tags.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
                         {bm.tags.slice(0, 3).map((tag) => (
@@ -486,7 +487,7 @@ const NewTabPage: React.FC<{
                             display: 'inline-flex', alignItems: 'center', gap: 3,
                             padding: '1px 4px',
                             border: `1px solid ${T.line2}`,
-                            fontFamily: MONO, fontSize: 8, color: T.mute,
+                            fontFamily: MONO, fontSize: fontSize(8), color: T.mute,
                           }}>
                             {tag.color && <span style={{ width: 4, height: 4, borderRadius: '50%', background: tag.color, flexShrink: 0 }} />}
                             {tag.name}
@@ -1060,7 +1061,7 @@ export const BrowserWorkspace = ({
           background: showBookmarkForm ? T.accentGlow : 'none',
           border: `1px solid ${showBookmarkForm ? T.accent : T.line2}`,
           color: showBookmarkForm ? T.accent : T.mute,
-          fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase',
+          fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase',
           cursor: 'pointer',
         }}
       >
@@ -1070,10 +1071,10 @@ export const BrowserWorkspace = ({
       {showBookmarkForm && (
         <form onSubmit={(e) => void handleCreateBookmark(e)} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <input value={bookmarkTitle} onChange={(e) => setBookmarkTitle(e.target.value)} placeholder="Title"
-            style={{ height: 28, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 10, outline: 'none' }} />
+            style={{ height: 28, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none' }} />
           <input value={bookmarkUrl} onChange={(e) => setBookmarkUrl(e.target.value)} placeholder="https://…"
-            style={{ height: 28, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 10, outline: 'none' }} />
-          <button type="submit" style={{ height: 28, background: T.accent, border: 'none', color: T.bg, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+            style={{ height: 28, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none' }} />
+          <button type="submit" style={{ height: 28, background: T.accent, border: 'none', color: T.bg, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
             Save
           </button>
         </form>
@@ -1081,7 +1082,7 @@ export const BrowserWorkspace = ({
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {bookmarks.length === 0 ? (
-          <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2, margin: '8px 0' }}>No bookmarks saved.</p>
+          <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, margin: '8px 0' }}>No bookmarks saved.</p>
         ) : (
           <div>
             {groupedBookmarks.map(([domain, domainBookmarks]) => {
@@ -1095,12 +1096,12 @@ export const BrowserWorkspace = ({
                       display: 'flex', alignItems: 'center', gap: 6, width: '100%',
                       padding: '5px 4px',
                       background: 'none', border: 'none', cursor: 'pointer',
-                      color: T.mute, fontFamily: MONO, fontSize: 10,
+                      color: T.mute, fontFamily: MONO, fontSize: fontSize(10),
                     }}
                   >
                     {collapsed ? <IcoChevRight /> : <IcoChevDown />}
                     <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{domain}</span>
-                    <span style={{ fontSize: 9, color: T.mute2 }}>{domainBookmarks.length}</span>
+                    <span style={{ fontSize: fontSize(9), color: T.mute2 }}>{domainBookmarks.length}</span>
                   </button>
                   {!collapsed && domainBookmarks.map((bm) => (
                     <ContextMenu key={bm.id}>
@@ -1113,7 +1114,7 @@ export const BrowserWorkspace = ({
                             style={{
                               display: 'block', width: '100%', padding: '4px 8px',
                               background: 'none', border: 'none',
-                              color: T.text, fontFamily: MONO, fontSize: 10,
+                              color: T.text, fontFamily: MONO, fontSize: fontSize(10),
                               textAlign: 'left', cursor: 'pointer',
                               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                             }}
@@ -1141,17 +1142,17 @@ export const BrowserWorkspace = ({
   const extensionsContent = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button type="button" onClick={() => void handleLoadExtension()} style={{ height: 28, padding: '0 12px', background: T.accentGlow, border: `1px solid ${T.accent}`, color: T.accent, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+        <button type="button" onClick={() => void handleLoadExtension()} style={{ height: 28, padding: '0 12px', background: T.accentGlow, border: `1px solid ${T.accent}`, color: T.accent, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
           Load Extension
         </button>
-        <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2 }}>Unpacked only</span>
+        <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2 }}>Unpacked only</span>
       </div>
-      {extensionError && <p style={{ fontFamily: MONO, fontSize: 10, color: T.danger, margin: 0 }}>{extensionError}</p>}
+      {extensionError && <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.danger, margin: 0 }}>{extensionError}</p>}
       {extensionStartupErrors.length > 0 && (
         <div style={{ border: `1px solid ${T.warn}`, background: 'rgba(192,138,94,0.08)', padding: '8px 10px' }}>
-          <p style={{ fontFamily: MONO, fontSize: 10, color: T.warn, margin: '0 0 6px' }}>Startup load errors</p>
+          <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.warn, margin: '0 0 6px' }}>Startup load errors</p>
           {extensionStartupErrors.map((item) => (
-            <div key={`${item.path}:${item.error}`} style={{ fontFamily: MONO, fontSize: 9, marginBottom: 4 }}>
+            <div key={`${item.path}:${item.error}`} style={{ fontFamily: MONO, fontSize: fontSize(9), marginBottom: 4 }}>
               <div style={{ color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.path}</div>
               <div style={{ color: T.danger, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.error}</div>
             </div>
@@ -1160,12 +1161,12 @@ export const BrowserWorkspace = ({
       )}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {extensions.length === 0 ? (
-          <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2, margin: '8px 0' }}>No extensions loaded.</p>
+          <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, margin: '8px 0' }}>No extensions loaded.</p>
         ) : extensions.map((ext) => (
           <div key={ext.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', border: `1px solid ${T.line}`, marginBottom: 4 }}>
             <IcoPuzzle />
-            <span style={{ fontFamily: MONO, fontSize: 10, color: T.text, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ext.name}</span>
-            <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2 }}>{ext.version}</span>
+            <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ext.name}</span>
+            <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2 }}>{ext.version}</span>
           </div>
         ))}
       </div>
@@ -1202,7 +1203,7 @@ export const BrowserWorkspace = ({
               style={{
                 flex: 1, height: 28, padding: '0 36px 0 30px',
                 background: T.bg, border: `1px solid ${T.line2}`,
-                color: T.text, fontFamily: MONO, fontSize: 11, outline: 'none',
+                color: T.text, fontFamily: MONO, fontSize: fontSize(11), outline: 'none',
               }}
             />
             <button
@@ -1243,7 +1244,7 @@ export const BrowserWorkspace = ({
               background: browserSettings?.blockThirdPartyCookies ? T.accentGlow : 'none',
               border: `1px solid ${browserSettings?.blockThirdPartyCookies ? T.accent : T.line2}`,
               color: browserSettings?.blockThirdPartyCookies ? T.accent : T.mute,
-              fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase',
+              fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase',
               cursor: 'pointer', flexShrink: 0,
             }}
           >
@@ -1259,7 +1260,7 @@ export const BrowserWorkspace = ({
               height: 28, padding: '0 10px',
               background: 'none', border: `1px solid ${T.line2}`,
               color: isCleaningWeb ? T.mute2 : T.mute,
-              fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase',
+              fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase',
               cursor: isCleaningWeb ? 'default' : 'pointer', flexShrink: 0,
             }}
           >
@@ -1289,7 +1290,7 @@ export const BrowserWorkspace = ({
                   border: `1px solid ${active ? T.line2 : 'transparent'}`,
                   borderBottom: active ? `1px solid ${T.bg}` : `1px solid transparent`,
                   color: active ? T.text : T.mute,
-                  fontFamily: MONO, fontSize: 10,
+                  fontFamily: MONO, fontSize: fontSize(10),
                   cursor: 'pointer', flexShrink: 0,
                   userSelect: 'none',
                 }}
@@ -1318,14 +1319,14 @@ export const BrowserWorkspace = ({
       {pwPanelOpen && (
         <div style={{ borderBottom: `1px solid ${T.line2}`, background: T.bg2, padding: '12px 14px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>
+            <span style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>
               Passwords for <span style={{ color: T.accent }}>{activeDomain || '—'}</span>
             </span>
             <div style={{ flex: 1 }} />
             <button
               type="button"
               onClick={() => setPwSaveForm(pwSaveForm ? null : { username: '', password: '', label: '' })}
-              style={{ height: 22, padding: '0 10px', background: pwSaveForm ? 'none' : T.accent, border: `1px solid ${pwSaveForm ? T.line2 : T.accent}`, color: pwSaveForm ? T.mute : T.bg, fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+              style={{ height: 22, padding: '0 10px', background: pwSaveForm ? 'none' : T.accent, border: `1px solid ${pwSaveForm ? T.line2 : T.accent}`, color: pwSaveForm ? T.mute : T.bg, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
             >
               {pwSaveForm ? 'Cancel' : '+ Save'}
             </button>
@@ -1338,27 +1339,27 @@ export const BrowserWorkspace = ({
                 value={pwSaveForm.username}
                 onChange={(e) => setPwSaveForm((f) => f && ({ ...f, username: e.target.value }))}
                 placeholder="Username / email"
-                style={{ flex: '1 1 140px', height: 26, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 10, outline: 'none' }}
+                style={{ flex: '1 1 140px', height: 26, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none' }}
               />
               <input
                 type="password"
                 value={pwSaveForm.password}
                 onChange={(e) => setPwSaveForm((f) => f && ({ ...f, password: e.target.value }))}
                 placeholder="Password"
-                style={{ flex: '1 1 120px', height: 26, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 10, outline: 'none' }}
+                style={{ flex: '1 1 120px', height: 26, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none' }}
               />
               <input
                 type="text"
                 value={pwSaveForm.label}
                 onChange={(e) => setPwSaveForm((f) => f && ({ ...f, label: e.target.value }))}
                 placeholder="Label (optional)"
-                style={{ flex: '1 1 100px', height: 26, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 10, outline: 'none' }}
+                style={{ flex: '1 1 100px', height: 26, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none' }}
               />
               <button
                 type="button"
                 onClick={() => void handlePwSave()}
                 disabled={pwSaving || !pwSaveForm.username || !pwSaveForm.password}
-                style={{ height: 26, padding: '0 12px', background: T.accent, border: 'none', color: T.bg, fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!pwSaveForm.username || !pwSaveForm.password) ? 0.5 : 1 }}
+                style={{ height: 26, padding: '0 12px', background: T.accent, border: 'none', color: T.bg, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!pwSaveForm.username || !pwSaveForm.password) ? 0.5 : 1 }}
               >
                 {pwSaving ? '…' : 'Save'}
               </button>
@@ -1366,24 +1367,24 @@ export const BrowserWorkspace = ({
           )}
 
           {pwPanelLoading ? (
-            <p style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, margin: 0 }}>Loading…</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, margin: 0 }}>Loading…</p>
           ) : pwPanelEntries.length === 0 ? (
-            <p style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, margin: 0 }}>No saved credentials for this domain.</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, margin: 0 }}>No saved credentials for this domain.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {pwPanelEntries.map((entry) => (
                 <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', background: T.bg, border: `1px solid ${T.line}` }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontFamily: MONO, fontSize: 10, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                    <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
                       {entry.username || <span style={{ color: T.mute2 }}>no username</span>}
                     </span>
-                    {entry.label && <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2 }}>{entry.label}</span>}
+                    {entry.label && <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2 }}>{entry.label}</span>}
                   </div>
                   <button
                     type="button"
                     title="Copy username"
                     onClick={() => { void navigator.clipboard.writeText(entry.username); toast.success('Username copied.'); }}
-                    style={{ height: 22, padding: '0 8px', background: 'none', border: `1px solid ${T.accent}`, color: T.accent, fontFamily: MONO, fontSize: 9, cursor: 'pointer', flexShrink: 0 }}
+                    style={{ height: 22, padding: '0 8px', background: 'none', border: `1px solid ${T.accent}`, color: T.accent, fontFamily: MONO, fontSize: fontSize(9), cursor: 'pointer', flexShrink: 0 }}
                   >
                     Copy user
                   </button>
@@ -1391,7 +1392,7 @@ export const BrowserWorkspace = ({
                     type="button"
                     title="Copy password"
                     onClick={() => { void navigator.clipboard.writeText(entry.password); toast.success('Password copied.'); }}
-                    style={{ height: 22, padding: '0 8px', background: T.accent, border: `1px solid ${T.accent}`, color: T.bg, fontFamily: MONO, fontSize: 9, cursor: 'pointer', flexShrink: 0 }}
+                    style={{ height: 22, padding: '0 8px', background: T.accent, border: `1px solid ${T.accent}`, color: T.bg, fontFamily: MONO, fontSize: fontSize(9), cursor: 'pointer', flexShrink: 0 }}
                   >
                     Copy pw
                   </button>
@@ -1455,7 +1456,7 @@ export const BrowserWorkspace = ({
         {showPersistentLeftPanel && leftPanelOpen && (
           <aside style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: `1px solid ${T.line}`, background: T.bg2, padding: '10px 12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2 }}>
+              <span style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2 }}>
                 · {libraryTab === 'bookmarks' ? 'Bookmarks' : 'Extensions'} ·
               </span>
               <button type="button" onClick={() => setLeftPanelOpen(false)} aria-label="Close panel" style={{ background: 'none', border: 'none', color: T.mute, cursor: 'pointer', display: 'flex', padding: 2 }}>
@@ -1474,7 +1475,7 @@ export const BrowserWorkspace = ({
             <div key={tab.id} style={{ display: tab.id === activeTabId ? 'flex' : 'none', position: 'relative', minHeight: 0, minWidth: 0, height: '100%', flex: 1 }}>
               {isSuspended && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', minHeight: 0, minWidth: 0, flex: 1, alignItems: 'center', justifyContent: 'center', background: T.bg, zIndex: 1 }}>
-                  <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2 }}>Browser suspended while vault is locked or tab is inactive.</p>
+                  <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>Browser suspended while vault is locked or tab is inactive.</p>
                 </div>
               )}
               {!isSuspended && isNewTab(tab.url) ? (
@@ -1500,8 +1501,8 @@ export const BrowserWorkspace = ({
               {tab.hasCrashed && (
                 <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(10,12,11,0.8)' }}>
                   <div style={{ pointerEvents: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, border: `1px solid ${T.line2}`, background: T.bg2, padding: '20px 28px' }}>
-                    <p style={{ fontFamily: MONO, fontSize: 11, color: T.text, margin: 0 }}>This tab crashed.</p>
-                    <button type="button" onClick={handleReload} style={{ height: 32, padding: '0 16px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                    <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.text, margin: 0 }}>This tab crashed.</p>
+                    <button type="button" onClick={handleReload} style={{ height: 32, padding: '0 16px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
                       Reload Tab
                     </button>
                   </div>
@@ -1523,11 +1524,11 @@ export const BrowserWorkspace = ({
               <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, border: `1px solid ${T.line}`, background: T.bg, padding: '6px 10px' }}>
                 <IcoDownload />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: MONO, fontSize: 10, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.filename}</div>
+                  <div style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.filename}</div>
                   <div style={{ marginTop: 3, height: 2, background: T.line2 }}>
                     <div style={{ height: '100%', width: `${pct ?? 30}%`, background: barColor, transition: 'width 0.2s' }} />
                   </div>
-                  <div style={{ marginTop: 2, fontFamily: MONO, fontSize: 9, color: T.mute2 }}>
+                  <div style={{ marginTop: 2, fontFamily: MONO, fontSize: fontSize(9), color: T.mute2 }}>
                     {item.state === 'completed' ? 'Saved to Vault' : item.state}
                     {pct !== null ? ` · ${pct}%` : ''}
                     {item.error ? ` · ${item.error}` : ''}
@@ -1549,23 +1550,23 @@ export const BrowserWorkspace = ({
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'grid', placeItems: 'center' }}
           onClick={() => { setRenameDialogOpen(false); setRenameBookmarkTarget(null); setRenameBookmarkTitle(''); }}>
           <div style={{ width: 360, background: T.bg2, border: `1px solid ${T.line2}`, padding: 24 }} onClick={(e) => e.stopPropagation()}>
-            <p style={{ fontFamily: MONO, fontSize: 12, color: T.text, margin: '0 0 4px', letterSpacing: '0.04em' }}>Rename Bookmark</p>
-            <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: '0 0 16px' }}>Update bookmark title.</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(12), color: T.text, margin: '0 0 4px', letterSpacing: '0.04em' }}>Rename Bookmark</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: '0 0 16px' }}>Update bookmark title.</p>
             <input
               value={renameBookmarkTitle}
               onChange={(e) => setRenameBookmarkTitle(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && renameBookmarkTitle.trim()) void handleRenameBookmark(); }}
               placeholder="Bookmark title"
               autoFocus
-              style={{ width: '100%', height: 32, padding: '0 10px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 11, outline: 'none', marginBottom: 14 }}
+              style={{ width: '100%', height: 32, padding: '0 10px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(11), outline: 'none', marginBottom: 14 }}
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button type="button" onClick={() => { setRenameDialogOpen(false); setRenameBookmarkTarget(null); setRenameBookmarkTitle(''); }}
-                style={{ height: 30, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                style={{ height: 30, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
                 Cancel
               </button>
               <button type="button" onClick={() => void handleRenameBookmark()} disabled={!renameBookmarkTitle.trim()}
-                style={{ height: 30, padding: '0 14px', background: renameBookmarkTitle.trim() ? T.accent : T.accentGlow, border: `1px solid ${T.accent}`, color: renameBookmarkTitle.trim() ? T.bg : T.mute, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: renameBookmarkTitle.trim() ? 'pointer' : 'default' }}>
+                style={{ height: 30, padding: '0 14px', background: renameBookmarkTitle.trim() ? T.accent : T.accentGlow, border: `1px solid ${T.accent}`, color: renameBookmarkTitle.trim() ? T.bg : T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: renameBookmarkTitle.trim() ? 'pointer' : 'default' }}>
                 Save
               </button>
             </div>

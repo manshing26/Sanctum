@@ -8,6 +8,7 @@ import { BrowserWorkspace, type BrowserWorkspaceHandle } from './features/browse
 import { RestoreCountdownDialog } from './components/ui/RestoreCountdownDialog';
 import { PasswordManagerPage } from './features/passwords/PasswordManagerPage';
 import { VAULT_PASSWORD_MIN_LENGTH, isVaultPasswordLongEnough } from '../shared/authPolicy';
+import { applyTextScale, fontSize } from './theme/typography';
 
 const T = {
   bg: '#0a0c0b',
@@ -80,8 +81,8 @@ const TopBar: React.FC<{
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#7c9a92', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
       <SanctumSigil />
       <div>
-        <div style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.32em', textTransform: 'uppercase', color: '#e8e6dc' }}>Sanctum</div>
-        <div style={{ fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#79817a', marginTop: 2, fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>Cabinet</div>
+        <div style={{ fontSize: fontSize(13), fontWeight: 600, letterSpacing: '0.32em', textTransform: 'uppercase', color: '#e8e6dc' }}>Sanctum</div>
+        <div style={{ fontSize: fontSize(9), letterSpacing: '0.18em', textTransform: 'uppercase', color: '#79817a', marginTop: 2, fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>Cabinet</div>
       </div>
     </div>
 
@@ -104,14 +105,14 @@ const TopBar: React.FC<{
               paddingBottom: 6,
               cursor: isUnlocked ? 'pointer' : 'default',
               color: active ? '#e8e6dc' : '#79817a',
-              fontSize: 9,
+              fontSize: fontSize(9),
               letterSpacing: '0.24em',
               textTransform: 'uppercase',
               opacity: isUnlocked ? 1 : 0.4,
               whiteSpace: 'nowrap',
             }}
           >
-            <span style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 8, color: active ? '#7c9a92' : '#4d524d' }}>
+            <span style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: fontSize(8), color: active ? '#7c9a92' : '#4d524d' }}>
               {tab.numeral}
             </span>
             {tab.label}
@@ -123,7 +124,7 @@ const TopBar: React.FC<{
     {/* Right: status + lock */}
     <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 14, WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
       {isUnlocked && (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: '#7c9a92', fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: fontSize(9), letterSpacing: '0.24em', textTransform: 'uppercase', color: '#7c9a92', fontFamily: "'JetBrains Mono', ui-monospace, monospace" }}>
           <svg width="8" height="8" viewBox="0 0 24 24" fill="#7c9a92" stroke="none"><circle cx="12" cy="12" r="5"/></svg>
           unlocked
         </span>
@@ -140,7 +141,7 @@ const TopBar: React.FC<{
           color: isUnlocked ? T.bg : T.mute,
           border: isUnlocked ? `1px solid ${T.warn}` : '1px solid rgba(220,220,200,0.12)',
           cursor: isUnlocked ? 'pointer' : 'default',
-          fontSize: 10,
+          fontSize: fontSize(10),
           letterSpacing: '0.2em',
           textTransform: 'uppercase',
           fontFamily: 'inherit',
@@ -157,7 +158,7 @@ const TopBar: React.FC<{
 const labelStyle: React.CSSProperties = {
   display: 'block',
   fontFamily: MONO,
-  fontSize: 9,
+  fontSize: fontSize(9),
   letterSpacing: '0.12em',
   textTransform: 'uppercase',
   color: T.mute,
@@ -172,7 +173,7 @@ const primaryBtn = (disabled = false): React.CSSProperties => ({
   cursor: disabled ? 'not-allowed' : 'pointer',
   color: '#0a0c0b',
   fontFamily: MONO,
-  fontSize: 11,
+  fontSize: fontSize(11),
   fontWeight: 500,
   letterSpacing: '0.1em',
   textTransform: 'uppercase',
@@ -193,7 +194,7 @@ const ghostBtn = (disabled = false): React.CSSProperties => ({
   cursor: disabled ? 'not-allowed' : 'pointer',
   color: T.mute,
   fontFamily: MONO,
-  fontSize: 10,
+  fontSize: fontSize(10),
   letterSpacing: '0.08em',
   borderRadius: 0,
   opacity: disabled ? 0.5 : 1,
@@ -254,7 +255,7 @@ const RestoreFromBackupSection: React.FC = () => {
       <button
         type="button"
         onClick={() => void handlePickFile()}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: MONO, fontSize: 10, color: T.mute2, letterSpacing: '0.06em', padding: 0 }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, letterSpacing: '0.06em', padding: 0 }}
       >
         Restore from backup…
       </button>
@@ -263,13 +264,13 @@ const RestoreFromBackupSection: React.FC = () => {
 
   return (
     <div style={{ border: `1px solid ${T.line2}`, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
+      <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
         {backupPath}
       </p>
 
       {errorMsg && (
         <div style={{ border: `1px solid ${T.danger}`, padding: '8px 10px', background: 'rgba(195,107,95,0.08)' }}>
-          <p style={{ fontFamily: MONO, fontSize: 10, color: T.danger, margin: 0 }}>{errorMsg}</p>
+          <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.danger, margin: 0 }}>{errorMsg}</p>
         </div>
       )}
 
@@ -292,7 +293,7 @@ const RestoreFromBackupSection: React.FC = () => {
           <div style={{ height: 2, width: '100%', background: T.line2 }}>
             <div style={{ height: '100%', background: T.accent, width: `${progressPct}%`, transition: 'width 0.2s' }} />
           </div>
-          <p style={{ fontFamily: MONO, fontSize: 9, color: T.mute, margin: 0 }}>
+          <p style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute, margin: 0 }}>
             Restoring {progress.processed} / {progress.total} entries…
           </p>
         </div>
@@ -370,7 +371,7 @@ const UnlockScreen: React.FC<{
             </svg>
           </div>
           <div style={{ padding: '22px 24px 20px' }}>
-            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.accent, marginBottom: 10 }}>
+            <div style={{ fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.24em', textTransform: 'uppercase', color: T.accent, marginBottom: 10 }}>
               · Sealed cabinet ·
             </div>
             <h1 style={{
@@ -397,14 +398,14 @@ const UnlockScreen: React.FC<{
             borderBottom: `1px solid ${T.line}`,
           }}>
             <div>
-              <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
+              <div style={{ fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
                 Private media vault
               </div>
-              <p style={{ margin: '8px 0 0', maxWidth: '38ch', color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
+              <p style={{ margin: '8px 0 0', maxWidth: '38ch', color: T.mute, fontSize: fontSize(13), lineHeight: 1.6 }}>
                 Enter the cabinet passphrase to restore Gallery, Bookmarks, Browser history, and saved references on this device.
               </p>
             </div>
-            <div style={{ fontFamily: MONO, fontSize: 10, lineHeight: 1.8, textAlign: 'right', color: T.mute2 }}>
+            <div style={{ fontFamily: MONO, fontSize: fontSize(10), lineHeight: 1.8, textAlign: 'right', color: T.mute2 }}>
               aes-256-gcm<br />local keychain<br />zero cloud read
             </div>
           </div>
@@ -415,11 +416,11 @@ const UnlockScreen: React.FC<{
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke={T.danger} strokeWidth="1.4" style={{ flexShrink: 0 }}>
                   <path d="M6.5 1L12 11.5H1z" /><line x1="6.5" y1="5" x2="6.5" y2="8" /><circle cx="6.5" cy="9.5" r="0.5" fill={T.danger} />
                 </svg>
-                <p style={{ fontFamily: MONO, fontSize: 10, color: T.danger, margin: 0 }}>{error}</p>
+                <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.danger, margin: 0 }}>{error}</p>
               </div>
             )}
 
-            <label htmlFor="unlock-password" style={{ display: 'block', margin: '22px 0 8px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
+            <label htmlFor="unlock-password" style={{ display: 'block', margin: '22px 0 8px', fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
               Passphrase
             </label>
             <PasswordInput
@@ -439,7 +440,7 @@ const UnlockScreen: React.FC<{
           </form>
 
           {/* Hint footer */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, marginTop: 18, fontFamily: MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute2 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, marginTop: 18, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute2 }}>
             <span>passphrase required</span>
             <span>silentium · sigillum</span>
           </div>
@@ -460,8 +461,8 @@ const UnlockScreen: React.FC<{
           <circle cx="12" cy="12" r="9" /><path d="M12 8 L12 12 M12 16 L12 16" />
         </svg>
         <div>
-          <strong style={{ display: 'block', fontSize: 13, fontWeight: 600, color: T.text }}>Cabinet locked</strong>
-          <span style={{ display: 'block', marginTop: 4, fontFamily: MONO, fontSize: 11, color: T.mute }}>Awaiting local passphrase.</span>
+          <strong style={{ display: 'block', fontSize: fontSize(13), fontWeight: 600, color: T.text }}>Cabinet locked</strong>
+          <span style={{ display: 'block', marginTop: 4, fontFamily: MONO, fontSize: fontSize(11), color: T.mute }}>Awaiting local passphrase.</span>
         </div>
       </div>
     </AuthMain>
@@ -496,7 +497,7 @@ const CreateAccountScreen: React.FC<{
             <SanctumSigil />
           </div>
           <div style={{ padding: '22px 24px 20px' }}>
-            <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.accent, marginBottom: 10 }}>
+            <div style={{ fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.24em', textTransform: 'uppercase', color: T.accent, marginBottom: 10 }}>
               · New cabinet ·
             </div>
             <h1 style={{
@@ -523,14 +524,14 @@ const CreateAccountScreen: React.FC<{
             borderBottom: `1px solid ${T.line}`,
           }}>
             <div>
-              <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
+              <div style={{ fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
                 Create passphrase
               </div>
-              <p style={{ margin: '8px 0 0', maxWidth: '38ch', color: T.mute, fontSize: 13, lineHeight: 1.6 }}>
+              <p style={{ margin: '8px 0 0', maxWidth: '38ch', color: T.mute, fontSize: fontSize(13), lineHeight: 1.6 }}>
                 Set a passphrase with at least {VAULT_PASSWORD_MIN_LENGTH} characters. It cannot be recovered if lost — choose something memorable.
               </p>
             </div>
-            <div style={{ fontFamily: MONO, fontSize: 10, lineHeight: 1.8, textAlign: 'right', color: T.mute2 }}>
+            <div style={{ fontFamily: MONO, fontSize: fontSize(10), lineHeight: 1.8, textAlign: 'right', color: T.mute2 }}>
               aes-256-gcm<br />local keychain<br />zero cloud read
             </div>
           </div>
@@ -541,11 +542,11 @@ const CreateAccountScreen: React.FC<{
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke={T.danger} strokeWidth="1.4" style={{ flexShrink: 0 }}>
                   <path d="M6.5 1L12 11.5H1z" /><line x1="6.5" y1="5" x2="6.5" y2="8" /><circle cx="6.5" cy="9.5" r="0.5" fill={T.danger} />
                 </svg>
-                <p style={{ fontFamily: MONO, fontSize: 10, color: T.danger, margin: 0 }}>{error}</p>
+                <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.danger, margin: 0 }}>{error}</p>
               </div>
             )}
 
-            <label htmlFor="create-password" style={{ display: 'block', margin: '22px 0 8px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
+            <label htmlFor="create-password" style={{ display: 'block', margin: '22px 0 8px', fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
               Passphrase
             </label>
             <PasswordInput
@@ -569,7 +570,7 @@ const CreateAccountScreen: React.FC<{
                         <circle cx="5" cy="5" r="4.5" stroke={T.line2} />
                       )}
                     </svg>
-                    <span style={{ fontFamily: MONO, fontSize: 9, color: check.met ? T.mute : T.mute2, letterSpacing: '0.04em' }}>
+                    <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: check.met ? T.mute : T.mute2, letterSpacing: '0.04em' }}>
                       {check.label}
                     </span>
                   </div>
@@ -577,7 +578,7 @@ const CreateAccountScreen: React.FC<{
               </div>
             )}
 
-            <label htmlFor="confirm-password" style={{ display: 'block', margin: '18px 0 8px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
+            <label htmlFor="confirm-password" style={{ display: 'block', margin: '18px 0 8px', fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute }}>
               Confirm passphrase
             </label>
             <PasswordInput
@@ -588,7 +589,7 @@ const CreateAccountScreen: React.FC<{
               error={confirmPassword.length > 0 && !passwordsMatch}
             />
             {confirmPassword.length > 0 && !passwordsMatch && (
-              <p style={{ fontFamily: MONO, fontSize: 9, color: T.danger, marginTop: 5, marginBottom: 0 }}>
+              <p style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.danger, marginTop: 5, marginBottom: 0 }}>
                 Passphrases do not match.
               </p>
             )}
@@ -601,7 +602,7 @@ const CreateAccountScreen: React.FC<{
           </form>
 
           {/* Hint footer */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, marginTop: 18, fontFamily: MONO, fontSize: 9, letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute2 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, marginTop: 18, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.24em', textTransform: 'uppercase', color: T.mute2 }}>
             <RestoreFromBackupSection />
             <span>silentium · sigillum</span>
           </div>
@@ -619,7 +620,7 @@ const LoadingScreen: React.FC = () => (
         style={{ animation: 'auth-spin 0.9s linear infinite' }}>
         <path d="M16 9A7 7 0 1 1 9 2" />
       </svg>
-      <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2, letterSpacing: '0.1em', margin: 0 }}>
+      <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, letterSpacing: '0.1em', margin: 0 }}>
         Loading vault…
       </p>
     </div>
@@ -638,6 +639,14 @@ export const App: React.FC = () => {
   const [shouldMountBrowser, setShouldMountBrowser] = useState(false);
   const [pendingBrowserUrl, setPendingBrowserUrl] = useState<string | null>(null);
   const browserRef = useRef<BrowserWorkspaceHandle>(null);
+
+  useEffect(() => {
+    void window.electronAPI.getAppearanceSettings().then((result) => {
+      if (result.ok) {
+        applyTextScale(result.data.textSize);
+      }
+    });
+  }, []);
 
   const refreshSession = async (): Promise<SessionState> => {
     const state = await window.electronAPI.getSession();

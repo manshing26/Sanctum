@@ -398,15 +398,15 @@ const DocumentViewer = ({
           <>
             <style>
               {`
-                .pv-document-preview { color: rgb(244 244 245); font-size: 14px; line-height: 1.7; }
-                .pv-document-preview h1 { font-size: 28px; line-height: 1.2; margin: 0 0 18px; }
-                .pv-document-preview h2 { font-size: 22px; line-height: 1.25; margin: 28px 0 12px; }
-                .pv-document-preview h3 { font-size: 18px; line-height: 1.3; margin: 22px 0 10px; }
+                .pv-document-preview { color: rgb(244 244 245); font-size: calc(14px * var(--sanctum-text-scale, 1)); line-height: 1.7; }
+                .pv-document-preview h1 { font-size: calc(28px * var(--sanctum-text-scale, 1)); line-height: 1.2; margin: 0 0 18px; }
+                .pv-document-preview h2 { font-size: calc(22px * var(--sanctum-text-scale, 1)); line-height: 1.25; margin: 28px 0 12px; }
+                .pv-document-preview h3 { font-size: calc(18px * var(--sanctum-text-scale, 1)); line-height: 1.3; margin: 22px 0 10px; }
                 .pv-document-preview p { margin: 0 0 12px; }
                 .pv-document-preview ul, .pv-document-preview ol { margin: 0 0 14px 24px; padding: 0; }
                 .pv-document-preview li { margin: 4px 0; }
                 .pv-document-preview blockquote { margin: 16px 0; padding-left: 14px; border-left: 2px solid rgba(255,255,255,0.24); color: rgb(212 212 216); }
-                .pv-document-preview table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
+                .pv-document-preview table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: calc(12px * var(--sanctum-text-scale, 1)); }
                 .pv-document-preview th, .pv-document-preview td { border: 1px solid rgba(255,255,255,0.14); padding: 6px 8px; vertical-align: top; }
                 .pv-document-preview img { max-width: 100%; height: auto; display: block; margin: 14px 0; }
                 .pv-document-preview code, .pv-document-preview pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }

@@ -8,6 +8,7 @@ import {
 } from '../../../components/ui/ContextMenu';
 import { RenameItemDialog } from './RenameItemDialog';
 import { getVaultFileKind, isPreviewableMimeType } from '../../../../shared/fileTypes';
+import { fontSize } from '../../../theme/typography';
 
 const T = {
   bg: '#0a0c0b',
@@ -189,7 +190,7 @@ export const GalleryCard = ({
           position: 'absolute', top: isMultiSelect ? 30 : 7, left: 7, zIndex: 10,
           padding: '2px 6px',
           background: 'rgba(0,0,0,0.75)',
-          fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em',
+          fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.08em',
           color: T.mute,
           display: 'flex', alignItems: 'center', gap: 4,
         }}>
@@ -207,7 +208,7 @@ export const GalleryCard = ({
             padding: '2px 6px',
             background: 'rgba(0,0,0,0.75)',
             fontFamily: MONO,
-            fontSize: 9,
+            fontSize: fontSize(9),
             letterSpacing: '0.04em',
             color: T.mute,
             display: 'flex',
@@ -225,7 +226,7 @@ export const GalleryCard = ({
             position: 'absolute', bottom: 7, right: 7, zIndex: 10,
             padding: '2px 6px',
             background: 'rgba(0,0,0,0.75)',
-            fontFamily: MONO, fontSize: 9, letterSpacing: '0.04em',
+            fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.04em',
             color: T.mute,
             display: 'flex', alignItems: 'center', gap: 3,
           }}>
@@ -290,19 +291,19 @@ export const GalleryCard = ({
       {/* Info footer */}
       <div style={{ padding: '8px 10px', borderTop: `1px solid ${T.line}` }}>
         <p style={{
-          fontFamily: SERIF, fontSize: 13, color: T.text,
+          fontFamily: SERIF, fontSize: fontSize(13), color: T.text,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           margin: 0,
         }} title={item.originalName}>
           {item.originalName}
         </p>
         <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute, letterSpacing: '0.04em' }}>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute, letterSpacing: '0.04em' }}>
             {formatFileSize(item.size)}
             {item.width && item.height ? ` · ${item.width}×${item.height}` : ''}
           </span>
           {item.rating !== undefined && item.rating > 0 && (
-            <span title={`${item.rating}/5 rating`} style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 9, color: T.accent }}>
+            <span title={`${item.rating}/5 rating`} style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: fontSize(9), color: T.accent }}>
               {'·'.repeat(item.rating)}
             </span>
           )}

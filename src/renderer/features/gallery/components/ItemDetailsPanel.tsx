@@ -3,6 +3,7 @@ import type { SecuritySettings, TagSummary, VaultItemSummary } from '../../../..
 import { Sheet, SheetContent, SheetTitle } from '../../../components/ui/Sheet';
 import { StarRating } from '../../../components/ui/StarRating';
 import { getVaultFileKind, isPreviewableMimeType } from '../../../../shared/fileTypes';
+import { fontSize } from '../../../theme/typography';
 
 const T = {
   bg: '#0a0c0b',
@@ -49,7 +50,7 @@ const actionBtn = (variant: 'default' | 'ghost' | 'danger' | 'warn'): React.CSSP
   border: variant === 'ghost' ? `1px solid ${T.line2}` : 'none',
   cursor: 'pointer',
   color: variant === 'ghost' ? T.mute : '#0a0c0b',
-  fontFamily: MONO, fontSize: 10,
+  fontFamily: MONO, fontSize: fontSize(10),
   letterSpacing: '0.06em', textTransform: 'uppercase' as const,
   borderRadius: 0,
 });
@@ -64,7 +65,7 @@ const iconBtn = (): React.CSSProperties => ({
 
 const fieldRow = (label: string, value: React.ReactNode, mono = false): React.ReactNode => (
   <div key={label} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 6, alignItems: 'start' }}>
-    <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, paddingTop: 1 }}>{label}</span>
+    <span style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, paddingTop: 1 }}>{label}</span>
     <span style={{ fontFamily: mono ? MONO : 'inherit', fontSize: mono ? 10 : 12, color: T.text, wordBreak: 'break-all' }}>{value}</span>
   </div>
 );
@@ -112,7 +113,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
           <rect x="3" y="3" width="12" height="12" /><rect x="17" y="3" width="12" height="12" />
           <rect x="3" y="17" width="12" height="12" /><rect x="17" y="17" width="12" height="12" />
         </svg>
-        <p style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: T.mute2 }}>Select an object to inspect</p>
+        <p style={{ fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', color: T.mute2 }}>Select an object to inspect</p>
       </div>
     );
   }
@@ -120,8 +121,8 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
   if (selectedCount > 1) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '48px 0' }}>
-        <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2 }}>{selectedCount} objects selected</p>
-        <p style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, opacity: 0.7 }}>Select a single object for details</p>
+        <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>{selectedCount} objects selected</p>
+        <p style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, opacity: 0.7 }}>Select a single object for details</p>
       </div>
     );
   }
@@ -176,7 +177,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
               style={{
                 flex: 1, minWidth: 80, height: 26,
                 background: 'transparent', border: `1px solid ${T.accent}`,
-                color: T.text, fontFamily: MONO, fontSize: 11,
+                color: T.text, fontFamily: MONO, fontSize: fontSize(11),
                 padding: '0 6px', outline: 'none', borderRadius: 0,
               }}
               onKeyDown={(e) => {
@@ -185,12 +186,12 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
               }}
             />
             <div style={{ display: 'flex', alignItems: 'center', height: 26, border: `1px solid ${T.line2}`, padding: '0 4px', gap: 2 }}>
-              <span style={{ fontFamily: MONO, fontSize: 10, color: T.mute2 }}>.</span>
+              <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>.</span>
               <input
                 value={extDraft}
                 onChange={(e) => setExtDraft(e.target.value.replace(/^\.+/, ''))}
                 placeholder="ext"
-                style={{ width: 32, background: 'transparent', border: 'none', color: T.text, fontFamily: MONO, fontSize: 10, outline: 'none' }}
+                style={{ width: 32, background: 'transparent', border: 'none', color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none' }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') { const n = buildName(); if (n && n !== item.originalName) onRenameItem(item.id, n); setIsRenaming(false); }
                   if (e.key === 'Escape') { const { base, ext } = splitName(item.originalName); setBaseDraft(base); setExtDraft(ext); setIsRenaming(false); }
@@ -213,7 +214,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <p style={{ flex: 1, minWidth: 0, fontFamily: SERIF, fontSize: 16, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
+            <p style={{ flex: 1, minWidth: 0, fontFamily: SERIF, fontSize: fontSize(16), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
               {item.originalName}
             </p>
             <button type="button" onClick={() => setIsRenaming(true)} title="Rename" style={iconBtn()}>
@@ -269,19 +270,19 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
 
       {/* Metadata fields */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 10 }}>· Info ·</div>
+        <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 10 }}>· Info ·</div>
         {fieldRow('Type', item.mimeType, true)}
         {fieldRow('Size', formatFileSize(item.size), true)}
         {item.width && item.height && fieldRow('Dimensions', `${item.width} × ${item.height}`, true)}
         {item.durationSeconds !== undefined && item.durationSeconds > 0 && fieldRow('Duration', `${item.durationSeconds.toFixed(1)}s`, true)}
-        {fieldRow('Cipher', <span style={{ color: T.accent, fontFamily: MONO, fontSize: 10 }}>aes-256-gcm</span>)}
+        {fieldRow('Cipher', <span style={{ color: T.accent, fontFamily: MONO, fontSize: fontSize(10) }}>aes-256-gcm</span>)}
       </div>
 
       <div style={{ borderTop: `1px solid ${T.line}`, marginBottom: 14 }} />
 
       {/* Rating */}
       <div style={{ marginBottom: 14 }}>
-        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Rating ·</div>
+        <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Rating ·</div>
         <StarRating value={item.rating} onChange={(rating) => onSetRating(item.id, rating)} />
       </div>
 
@@ -289,7 +290,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
 
       {/* Tags */}
       <div>
-        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Tags ·</div>
+        <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Tags ·</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {tags.map((tag) => {
             const assigned = Boolean(item.tagIds?.includes(tag.id));
@@ -305,7 +306,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
                   border: `1px solid ${assigned ? T.accent : T.line2}`,
                   cursor: 'pointer',
                   color: assigned ? T.accent : T.mute,
-                  fontFamily: MONO, fontSize: 10, borderRadius: 0,
+                  fontFamily: MONO, fontSize: fontSize(10), borderRadius: 0,
                 }}
               >
                 {tag.color && (
@@ -321,7 +322,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
             );
           })}
           {tags.length === 0 && (
-            <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2 }}>No tags available</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>No tags available</p>
           )}
         </div>
       </div>
@@ -343,7 +344,7 @@ export const ItemDetailsSheet: React.FC<
   <Sheet open={open} onOpenChange={onOpenChange}>
     <SheetContent side="right" className="w-80 p-0">
       <div style={{ borderBottom: `1px solid ${T.line}`, padding: '10px 14px' }}>
-        <SheetTitle style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2 }}>
+        <SheetTitle style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2 }}>
           Inspector
         </SheetTitle>
       </div>

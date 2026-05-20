@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import {
   type BrowserCommand,
   IPC_CHANNELS,
+  type AppearanceSettings,
   type UpdateBrowserSettingsInput,
   type CreateBookmarkInput,
   type DeleteBookmarkInput,
@@ -19,6 +20,12 @@ contextBridge.exposeInMainWorld('browserAPI', {
       ipcRenderer.removeListener(IPC_CHANNELS.browserCommand, listener);
     };
   },
+  getAppearanceSettings: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.getAppearanceSettings) as Promise<{
+      ok: boolean;
+      data?: AppearanceSettings;
+      error?: string;
+    }>,
   clearData: () => ipcRenderer.invoke(IPC_CHANNELS.clearBrowserData),
   listBookmarks: () => ipcRenderer.invoke(IPC_CHANNELS.listBookmarks),
   createBookmark: (input: CreateBookmarkInput) =>

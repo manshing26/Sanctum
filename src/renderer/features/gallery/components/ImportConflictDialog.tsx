@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ConflictAction, ConflictItem, ConflictResolution } from '../../../../shared/ipc';
+import { fontSize } from '../../../theme/typography';
 
 const T = {
   bg:         '#0a0c0b',
@@ -80,26 +81,26 @@ export const ImportConflictDialog = ({
       >
         {/* Header */}
         <div style={{ padding: '18px 24px 14px', borderBottom: `1px solid ${T.line}` }}>
-          <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: 20, color: T.text, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: fontSize(20), color: T.text, margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 10 }}>
             <svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke={T.warn} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
               <path d="M7 1L13 12H1Z"/><line x1="7" y1="5" x2="7" y2="8.5"/><circle cx="7" cy="10.5" r="0.6" fill={T.warn} stroke="none"/>
             </svg>
             Import conflicts ({conflicts.length})
           </p>
-          <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0 }}>
+          <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0 }}>
             The following files already exist in the destination. Choose what to do for each.
           </p>
         </div>
 
         {/* Apply-to-all */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 24px', borderBottom: `1px solid ${T.line}` }}>
-          <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.mute2 }}>Apply to all:</span>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.08em', textTransform: 'uppercase', color: T.mute2 }}>Apply to all:</span>
           {(['replace', 'keep_both', 'skip'] as ConflictAction[]).map((action) => (
             <button
               key={action}
               type="button"
               onClick={() => setAll(action)}
-              style={{ height: 24, padding: '0 10px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+              style={{ height: 24, padding: '0 10px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
             >
               {ACTION_LABELS[action]}
             </button>
@@ -115,8 +116,8 @@ export const ImportConflictDialog = ({
               <div key={conflict.filePath} style={{ border: `1px solid ${T.line2}`, background: T.bg, padding: '10px 12px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
                   <div style={{ minWidth: 0 }}>
-                    <p style={{ fontFamily: MONO, fontSize: 11, color: T.text, margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conflict.fileName}</p>
-                    <p style={{ fontFamily: MONO, fontSize: 9, color: T.mute, margin: 0 }}>
+                    <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.text, margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conflict.fileName}</p>
+                    <p style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute, margin: 0 }}>
                       Existing: <span style={{ fontStyle: 'italic' }}>{conflict.existingItemName}</span>
                     </p>
                   </div>
@@ -125,7 +126,7 @@ export const ImportConflictDialog = ({
                     border: `1px solid ${isExact ? T.line2 : T.warn}`,
                     background: isExact ? 'none' : 'rgba(192,138,94,0.08)',
                     color: isExact ? T.mute : T.warn,
-                    fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase',
+                    fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase',
                   }}>
                     {CONFLICT_TYPE_LABEL[conflict.conflictType]}
                   </span>
@@ -146,7 +147,7 @@ export const ImportConflictDialog = ({
                           background: isActive ? activeGlow : 'none',
                           border: `1px solid ${isActive ? activeColor : T.line2}`,
                           color: isActive ? activeColor : T.mute,
-                          fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase',
+                          fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase',
                           cursor: 'pointer',
                         }}
                       >
@@ -165,14 +166,14 @@ export const ImportConflictDialog = ({
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            style={{ height: 32, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+            style={{ height: 32, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleConfirm}
-            style={{ height: 32, padding: '0 14px', background: T.accent, border: `1px solid ${T.accent}`, color: T.bg, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+            style={{ height: 32, padding: '0 14px', background: T.accent, border: `1px solid ${T.accent}`, color: T.bg, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
           >
             Import
           </button>

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { Toaster } from 'sonner';
 import { TooltipProvider } from './components/ui/Tooltip';
 import { App } from './App';
+import { fontSize } from './theme/typography';
 import '../index.css';
 
 const rootElement = document.getElementById('root');
@@ -24,7 +25,7 @@ createRoot(rootElement).render(
             borderRadius: 0,
             color: '#c4c9c5',
             fontFamily: "'JetBrains Mono', ui-monospace, Menlo, monospace",
-            fontSize: '11px',
+            fontSize: fontSize(11),
             letterSpacing: '0.02em',
             padding: '10px 14px',
             boxShadow: '0 8px 24px rgba(0,0,0,0.55)',
@@ -77,13 +78,13 @@ createRoot(rootElement).render(
         }
         .sanctum-toast-title {
           font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace !important;
-          font-size: 11px !important;
+          font-size: calc(11px * var(--sanctum-text-scale, 1)) !important;
           color: #e8e6dc !important;
           letter-spacing: 0.02em !important;
         }
         .sanctum-toast-desc {
           font-family: 'JetBrains Mono', ui-monospace, Menlo, monospace !important;
-          font-size: 10px !important;
+          font-size: calc(10px * var(--sanctum-text-scale, 1)) !important;
           color: #79817a !important;
           letter-spacing: 0.02em !important;
         }

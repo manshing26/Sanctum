@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { FolderNode } from '../../../../shared/ipc';
+import { fontSize } from '../../../theme/typography';
 
 const T = {
   bg:         '#0a0c0b',
@@ -126,7 +127,7 @@ export const MoveToFolderDialog = ({
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke={isSelected ? T.accent : T.mute2} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
               <path d="M1 3.5h5l1.5 1.5H13v7H1z"/>
             </svg>
-            <span style={{ fontFamily: MONO, fontSize: 10, color: isSelected ? T.accent : T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
+            <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: isSelected ? T.accent : T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
           </button>
         </div>
         {hasChildren && isExpanded && (
@@ -156,8 +157,8 @@ export const MoveToFolderDialog = ({
       >
         {/* Header */}
         <div style={{ padding: '18px 24px 14px', borderBottom: `1px solid ${T.line}` }}>
-          <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: 20, color: T.text, margin: '0 0 4px' }}>{title ?? 'Move to Folder'}</p>
-          <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0 }}>
+          <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: fontSize(20), color: T.text, margin: '0 0 4px' }}>{title ?? 'Move to Folder'}</p>
+          <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0 }}>
             Choose destination for {visibleCount} item{visibleCount === 1 ? '' : 's'}.
           </p>
         </div>
@@ -172,7 +173,7 @@ export const MoveToFolderDialog = ({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search folders…"
-            style={{ width: '100%', height: 30, paddingLeft: 28, paddingRight: 10, background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 10, outline: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', height: 30, paddingLeft: 28, paddingRight: 10, background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none', boxSizing: 'border-box' }}
           />
         </div>
 
@@ -193,14 +194,14 @@ export const MoveToFolderDialog = ({
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke={selectedDestination === null ? T.accent : T.mute2} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
               <path d="M1 3.5h5l1.5 1.5H13v7H1z"/>
             </svg>
-            <span style={{ fontFamily: MONO, fontSize: 10, color: selectedDestination === null ? T.accent : T.text }}>Root</span>
+            <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: selectedDestination === null ? T.accent : T.text }}>Root</span>
           </div>
           {visibleFolders.length > 0 ? (
             <ul style={{ margin: 0, padding: 0 }}>
               {visibleFolders.map((f) => <FolderTreeNode key={f.id} node={f} depth={0} />)}
             </ul>
           ) : (
-            <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2, padding: '12px 16px', margin: 0 }}>No folders match your search.</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, padding: '12px 16px', margin: 0 }}>No folders match your search.</p>
           )}
         </div>
 
@@ -210,7 +211,7 @@ export const MoveToFolderDialog = ({
             type="button"
             onClick={() => onOpenChange(false)}
             disabled={isBusy}
-            style={{ height: 32, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isBusy ? 'default' : 'pointer' }}
+            style={{ height: 32, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isBusy ? 'default' : 'pointer' }}
           >
             Cancel
           </button>
@@ -218,7 +219,7 @@ export const MoveToFolderDialog = ({
             type="button"
             onClick={() => void handleConfirm()}
             disabled={!canConfirm}
-            style={{ height: 32, padding: '0 14px', background: canConfirm ? T.accent : T.accentGlow, border: `1px solid ${T.accent}`, color: canConfirm ? T.bg : T.mute, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: canConfirm ? 'pointer' : 'default' }}
+            style={{ height: 32, padding: '0 14px', background: canConfirm ? T.accent : T.accentGlow, border: `1px solid ${T.accent}`, color: canConfirm ? T.bg : T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: canConfirm ? 'pointer' : 'default' }}
           >
             {isBusy ? 'Moving…' : 'Move'}
           </button>

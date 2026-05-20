@@ -6,6 +6,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from '../../../components/ui/ContextMenu';
+import { fontSize } from '../../../theme/typography';
 
 const T = {
   bg: '#0a0c0b',
@@ -187,14 +188,14 @@ export const GalleryToolbar = ({
         {/* Title */}
         <div style={{ flex: 1, minWidth: 0 }}>
           {breadcrumb && (
-            <div style={{ fontFamily: MONO, fontSize: 8, color: T.mute2, letterSpacing: '0.08em', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>
+            <div style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.08em', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>
               {breadcrumb}
             </div>
           )}
-          <div style={{ fontFamily: SERIF, fontSize: 22, fontWeight: 400, color: T.text, letterSpacing: '-0.02em', lineHeight: 1 }}>
+          <div style={{ fontFamily: SERIF, fontSize: fontSize(22), fontWeight: 400, color: T.text, letterSpacing: '-0.02em', lineHeight: 1 }}>
             {titleLabel}
           </div>
-          <div style={{ fontFamily: MONO, fontSize: 9, color: T.mute, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 3 }}>
+          <div style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 3 }}>
             {subtitle ?? `${itemCount} ${itemCount === 1 ? 'object' : 'objects'} · encrypted · aes-256-gcm`}
           </div>
         </div>
@@ -220,7 +221,7 @@ export const GalleryToolbar = ({
               outline: 'none',
               color: T.text,
               fontFamily: MONO,
-              fontSize: 11,
+              fontSize: fontSize(11),
               paddingLeft: 26,
               paddingRight: searchTerm ? 24 : 8,
               borderRadius: 0,
@@ -275,7 +276,7 @@ export const GalleryToolbar = ({
               border: `1px solid ${T.line2}`,
               cursor: 'pointer',
               color: T.mute,
-              fontFamily: MONO, fontSize: 10,
+              fontFamily: MONO, fontSize: fontSize(10),
               letterSpacing: '0.06em',
               display: 'flex', alignItems: 'center', gap: 5,
               borderRadius: 0,
@@ -305,7 +306,7 @@ export const GalleryToolbar = ({
                     background: sort === opt.value ? T.accentGlow : 'none',
                     border: 'none',
                     cursor: 'pointer',
-                    fontFamily: MONO, fontSize: 10, letterSpacing: '0.04em',
+                    fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.04em',
                     color: sort === opt.value ? T.accent : T.mute,
                   }}
                 >
@@ -354,7 +355,7 @@ export const GalleryToolbar = ({
             border: 'none',
             cursor: 'pointer',
             color: '#0a0c0b',
-            fontFamily: MONO, fontSize: 10,
+            fontFamily: MONO, fontSize: fontSize(10),
             fontWeight: 500,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
@@ -388,7 +389,7 @@ export const GalleryToolbar = ({
               border: `1px solid ${T.line2}`,
               cursor: 'pointer',
               color: T.mute2,
-              fontFamily: MONO, fontSize: 9,
+              fontFamily: MONO, fontSize: fontSize(9),
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
               flexShrink: 0,
@@ -400,7 +401,7 @@ export const GalleryToolbar = ({
 
           <div style={{ width: 1, height: 14, background: T.line2, flexShrink: 0 }} />
 
-          <span style={{ fontFamily: MONO, fontSize: 10, color: T.accent, letterSpacing: '0.06em' }}>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.accent, letterSpacing: '0.06em' }}>
             {selectedCount > 0 ? `${selectedCount} selected` : 'Select items'}
           </span>
 
@@ -417,7 +418,7 @@ export const GalleryToolbar = ({
               color: itemCount === 0 || allVisibleSelected ? T.mute2 : T.mute,
               opacity: itemCount === 0 || allVisibleSelected ? 0.5 : 1,
               fontFamily: MONO,
-              fontSize: 9,
+              fontSize: fontSize(9),
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
               flexShrink: 0,
@@ -440,7 +441,7 @@ export const GalleryToolbar = ({
               color: selectedCount === 0 ? T.mute2 : T.mute,
               opacity: selectedCount === 0 ? 0.5 : 1,
               fontFamily: MONO,
-              fontSize: 9,
+              fontSize: fontSize(9),
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
               flexShrink: 0,
@@ -501,7 +502,7 @@ export const GalleryToolbar = ({
             height: 22, padding: '0 8px',
             background: 'none', border: `1px solid ${T.line2}`,
             cursor: 'pointer', color: T.mute2,
-            fontFamily: MONO, fontSize: 9,
+            fontFamily: MONO, fontSize: fontSize(9),
             letterSpacing: '0.06em', textTransform: 'uppercase',
             flexShrink: 0, borderRadius: 0,
           }}
@@ -526,7 +527,7 @@ export const GalleryToolbar = ({
                     border: `1px solid ${active ? T.accent : T.line2}`,
                     cursor: 'pointer',
                     color: active ? T.accent : T.mute,
-                    fontFamily: MONO, fontSize: 10,
+                    fontFamily: MONO, fontSize: fontSize(10),
                     letterSpacing: '0.04em',
                     display: 'flex', alignItems: 'center', gap: 5,
                     flexShrink: 0, borderRadius: 0,
@@ -569,7 +570,7 @@ export const GalleryToolbar = ({
               style={{
                 width: 90, height: 22,
                 background: 'transparent', border: `1px solid ${T.accent}`,
-                color: T.text, fontFamily: MONO, fontSize: 10,
+                color: T.text, fontFamily: MONO, fontSize: fontSize(10),
                 padding: '0 6px', outline: 'none', borderRadius: 0,
               }}
             />

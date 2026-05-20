@@ -9,6 +9,7 @@ import {
   ContextMenuItem,
 } from '../../../components/ui/ContextMenu';
 import { getVaultFileKind, isPreviewableMimeType } from '../../../../shared/fileTypes';
+import { fontSize } from '../../../theme/typography';
 
 const T = {
   bg: '#0a0c0b',
@@ -189,7 +190,7 @@ const ListRow: React.FC<{
       )}
 
       {/* Index */}
-      <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, textAlign: 'right', paddingRight: 4 }}>
+      <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, textAlign: 'right', paddingRight: 4 }}>
         {String(index + 1).padStart(2, '0')}
       </span>
 
@@ -233,26 +234,26 @@ const ListRow: React.FC<{
 
       {/* Name + type */}
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: SERIF, fontSize: 13, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <div style={{ fontFamily: SERIF, fontSize: fontSize(13), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {item.originalName}
         </div>
-        <div style={{ display: 'inline-flex', alignItems: 'center', marginTop: 2, padding: '1px 5px', border: `1px solid ${T.line2}`, background: T.accentGlow, fontFamily: MONO, fontSize: 8, color: T.accent, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', marginTop: 2, padding: '1px 5px', border: `1px solid ${T.line2}`, background: T.accentGlow, fontFamily: MONO, fontSize: fontSize(8), color: T.accent, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
           {typeLabel}
         </div>
       </div>
 
       {/* Folder */}
-      <span style={{ fontFamily: MONO, fontSize: 10, color: T.mute2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {item.folderId != null ? '—' : 'root'}
       </span>
 
       {/* Size */}
-      <span style={{ fontFamily: MONO, fontSize: 10, color: T.mute, textAlign: 'right' }}>
+      <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, textAlign: 'right' }}>
         {formatFileSize(item.size)}
       </span>
 
       {/* Info */}
-      <span style={{ fontFamily: MONO, fontSize: 10, color: T.mute2, textAlign: 'right' }}>
+      <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, textAlign: 'right' }}>
         {infoLabel}
       </span>
 
@@ -412,12 +413,12 @@ const ListHeader: React.FC<{
         onToggle={onToggleSelectAllVisible}
       />
     )}
-    <span style={{ fontFamily: MONO, fontSize: 8, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>№</span>
+    <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>№</span>
     <span />
-    <span style={{ fontFamily: MONO, fontSize: 8, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Name</span>
-    <span style={{ fontFamily: MONO, fontSize: 8, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Folder</span>
-    <span style={{ fontFamily: MONO, fontSize: 8, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>Size</span>
-    <span style={{ fontFamily: MONO, fontSize: 8, color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>Info</span>
+    <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Name</span>
+    <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Folder</span>
+    <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>Size</span>
+    <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>Info</span>
     <span />
   </div>
 );
@@ -473,7 +474,7 @@ export const GalleryListView = ({
           <rect x="3" y="3" width="30" height="30" /><line x1="3" y1="12" x2="33" y2="12" />
           <line x1="12" y1="12" x2="12" y2="33" /><line x1="16" y1="20" x2="26" y2="20" /><line x1="16" y1="25" x2="23" y2="25" />
         </svg>
-        <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute, letterSpacing: '0.06em' }}>No objects match current filters</p>
+        <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.mute, letterSpacing: '0.06em' }}>No objects match current filters</p>
       </div>
     );
   }
@@ -532,10 +533,10 @@ export const GalleryListView = ({
       {/* Footer */}
       {!hasMore && items.length > 0 && (
         <div style={{ padding: '20px 12px', display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, letterSpacing: '0.1em' }}>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, letterSpacing: '0.1em' }}>
             · end of cabinet · {items.length} {items.length === 1 ? 'object' : 'objects'} ·
           </span>
-          <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, letterSpacing: '0.1em', fontStyle: 'italic' }}>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, letterSpacing: '0.1em', fontStyle: 'italic' }}>
             silentium · sigillum
           </span>
         </div>

@@ -6,6 +6,7 @@ import type { SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgr
 import { VAULT_PASSWORD_MIN_LENGTH, isVaultPasswordLongEnough } from '../../../shared/authPolicy';
 import type { SearchEngineId } from '../../../shared/browserSearch';
 import { validateCustomSearchTemplate } from '../../../shared/browserSearch';
+import { applyTextScale, fontSize } from '../../theme/typography';
 
 // ── Design tokens ────────────────────────────────────────────────────
 const T = {
@@ -83,8 +84,8 @@ const NAV_ITEMS: { id: SettingsCategory; label: string; roman: string; icon: Rea
 // ── Shared primitives ────────────────────────────────────────────────
 const SectionHeading: React.FC<{ title: string; sub: string }> = ({ title, sub }) => (
   <div style={{ marginBottom: 24 }}>
-    <h2 style={{ fontFamily: SERIF, fontWeight: 300, fontSize: 26, letterSpacing: '-0.02em', color: T.text, margin: '0 0 4px' }}>{title}</h2>
-    <p style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: T.mute2, margin: 0 }}>{sub}</p>
+    <h2 style={{ fontFamily: SERIF, fontWeight: 300, fontSize: fontSize(26), letterSpacing: '-0.02em', color: T.text, margin: '0 0 4px' }}>{title}</h2>
+    <p style={{ fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', color: T.mute2, margin: 0 }}>{sub}</p>
   </div>
 );
 
@@ -98,8 +99,8 @@ const CardSection: React.FC<{ title?: string; description?: string; children?: R
   <div style={{ borderBottom: `1px solid ${T.line}`, padding: noPad ? 0 : '16px 20px' }}>
     {(title || description) && (
       <div style={{ marginBottom: children ? 12 : 0 }}>
-        {title && <p style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.04em', color: T.text, margin: '0 0 2px' }}>{title}</p>}
-        {description && <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0, lineHeight: 1.5 }}>{description}</p>}
+        {title && <p style={{ fontFamily: MONO, fontSize: fontSize(11), letterSpacing: '0.04em', color: T.text, margin: '0 0 2px' }}>{title}</p>}
+        {description && <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0, lineHeight: 1.5 }}>{description}</p>}
       </div>
     )}
     {children}
@@ -113,15 +114,15 @@ const SettingRow: React.FC<{ label: string; description?: string; children: Reac
     borderBottom: last ? 'none' : `1px solid ${T.line}`,
   }}>
     <div style={{ minWidth: 0 }}>
-      <p style={{ fontFamily: MONO, fontSize: 11, color: T.text, margin: '0 0 2px' }}>{label}</p>
-      {description && <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0, lineHeight: 1.5 }}>{description}</p>}
+      <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.text, margin: '0 0 2px' }}>{label}</p>
+      {description && <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0, lineHeight: 1.5 }}>{description}</p>}
     </div>
     <div style={{ flexShrink: 0 }}>{children}</div>
   </div>
 );
 
 const FieldLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <p style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, margin: '0 0 6px' }}>{children}</p>
+  <p style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, margin: '0 0 6px' }}>{children}</p>
 );
 
 const SanctumSelect: React.FC<{
@@ -139,7 +140,7 @@ const SanctumSelect: React.FC<{
       border: `1px solid ${T.line2}`,
       color: T.text,
       fontFamily: MONO,
-      fontSize: 11,
+      fontSize: fontSize(11),
       cursor: 'pointer',
       outline: 'none',
     }}
@@ -186,7 +187,7 @@ const SanctumInput: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (pro
       border: `1px solid ${T.line2}`,
       color: T.text,
       fontFamily: MONO,
-      fontSize: 11,
+      fontSize: fontSize(11),
       outline: 'none',
       width: '100%',
       ...props.style,
@@ -205,7 +206,7 @@ const PrimaryBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { ful
       border: `1px solid ${props.disabled ? T.line2 : T.accent}`,
       color: props.disabled ? T.mute : T.bg,
       fontFamily: MONO,
-      fontSize: 11,
+      fontSize: fontSize(11),
       letterSpacing: '0.06em',
       textTransform: 'uppercase',
       cursor: props.disabled ? 'not-allowed' : 'pointer',
@@ -228,7 +229,7 @@ const SecondaryBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({
       border: `1px solid ${T.line2}`,
       color: props.disabled ? T.mute2 : T.mute,
       fontFamily: MONO,
-      fontSize: 11,
+      fontSize: fontSize(11),
       letterSpacing: '0.04em',
       cursor: props.disabled ? 'not-allowed' : 'pointer',
       display: 'flex', alignItems: 'center', gap: 6,
@@ -250,7 +251,7 @@ const DangerBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({ st
       border: `1px solid ${T.danger}`,
       color: T.danger,
       fontFamily: MONO,
-      fontSize: 11,
+      fontSize: fontSize(11),
       letterSpacing: '0.04em',
       cursor: props.disabled ? 'not-allowed' : 'pointer',
       display: 'flex', alignItems: 'center', gap: 6,
@@ -262,7 +263,7 @@ const DangerBtn: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement>> = ({ st
 );
 
 const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
-  <div style={{ padding: '8px 12px', background: T.dangerGlow, border: `1px solid ${T.danger}`, fontFamily: MONO, fontSize: 10, color: T.danger }}>
+  <div style={{ padding: '8px 12px', background: T.dangerGlow, border: `1px solid ${T.danger}`, fontFamily: MONO, fontSize: fontSize(10), color: T.danger }}>
     {message}
   </div>
 );
@@ -270,8 +271,8 @@ const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
 const ProgressBar: React.FC<{ pct: number; label: string }> = ({ pct, label }) => (
   <div style={{ padding: '10px 12px', border: `1px solid ${T.line2}`, background: T.bg }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-      <span style={{ fontFamily: MONO, fontSize: 10, color: T.mute }}>{label}</span>
-      <span style={{ fontFamily: MONO, fontSize: 10, color: T.mute }}>{pct}%</span>
+      <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute }}>{label}</span>
+      <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute }}>{pct}%</span>
     </div>
     <div style={{ height: 2, background: T.line2 }}>
       <div style={{ height: '100%', width: `${pct}%`, background: T.accent, transition: 'width 0.2s' }} />
@@ -322,13 +323,13 @@ const ChangePasswordCard: React.FC = () => {
   return (
     <SettingCard>
       <div style={{ padding: '14px 20px', borderBottom: `1px solid ${T.line}` }}>
-        <p style={{ fontFamily: MONO, fontSize: 11, color: T.text, margin: '0 0 2px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.text, margin: '0 0 2px', display: 'flex', alignItems: 'center', gap: 8 }}>
           <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke={T.mute} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="7" cy="6" r="3"/><path d="M4 9.5V13h6v-3.5"/>
           </svg>
           Change Password
         </p>
-        <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0 }}>Re-encrypts all vault data with the new password. You will remain logged in.</p>
+        <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0 }}>Re-encrypts all vault data with the new password. You will remain logged in.</p>
       </div>
       <form onSubmit={(e) => void handleSubmit(e)} style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
@@ -339,14 +340,14 @@ const ChangePasswordCard: React.FC = () => {
           <FieldLabel>New password</FieldLabel>
           <PasswordInput value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" autoComplete="new-password" showStrength error={newPassword.length > 0 && !newPasswordValid} disabled={isSubmitting} />
           {newPassword.length > 0 && !newPasswordValid && (
-            <p style={{ fontFamily: MONO, fontSize: 10, color: T.danger, marginTop: 4 }}>Minimum {VAULT_PASSWORD_MIN_LENGTH} characters.</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.danger, marginTop: 4 }}>Minimum {VAULT_PASSWORD_MIN_LENGTH} characters.</p>
           )}
         </div>
         <div>
           <FieldLabel>Confirm new password</FieldLabel>
           <PasswordInput value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" autoComplete="new-password" error={confirmPassword.length > 0 && !passwordsMatch} disabled={isSubmitting} />
           {confirmPassword.length > 0 && !passwordsMatch && (
-            <p style={{ fontFamily: MONO, fontSize: 10, color: T.danger, marginTop: 4 }}>Passwords do not match.</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.danger, marginTop: 4 }}>Passwords do not match.</p>
           )}
         </div>
 
@@ -382,7 +383,7 @@ const SecuritySection: React.FC = () => {
     toast.success('Setting updated.');
   };
 
-  if (loading || !settings) return <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute }}>Loading…</p>;
+  if (loading || !settings) return <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.mute }}>Loading…</p>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -429,16 +430,24 @@ const AppearanceSection: React.FC = () => {
     const r = await window.electronAPI.updateAppearanceSettings(patch);
     if (!r.ok) { toast.error(r.error); return; }
     setSettings(r.data);
+    applyTextScale(r.data.textSize);
     toast.success('Setting updated.');
   };
 
-  if (loading || !settings) return <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute }}>Loading…</p>;
+  if (loading || !settings) return <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.mute }}>Loading…</p>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <SectionHeading title="Appearance" sub="Customize the look and feel of the gallery." />
 
       <SettingCard>
+        <SettingRow label="Text size" description="Scale app text while keeping thumbnails and layout density unchanged.">
+          <SanctumSelect
+            value={settings.textSize}
+            onChange={(v) => void update({ textSize: v as AppearanceSettings['textSize'] })}
+            options={[{ value: 'small', label: 'Small' }, { value: 'medium', label: 'Medium' }, { value: 'large', label: 'Large' }]}
+          />
+        </SettingRow>
         <SettingRow label="Thumbnail size" description="Size of thumbnail previews in the gallery grid.">
           <SanctumSelect
             value={settings.thumbnailSize}
@@ -481,7 +490,7 @@ const BrowserSection: React.FC = () => {
     await update({ customSearchTemplate: value });
   };
 
-  if (loading || !settings) return <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute }}>Loading…</p>;
+  if (loading || !settings) return <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.mute }}>Loading…</p>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -522,7 +531,7 @@ const BrowserSection: React.FC = () => {
                 style={{ width: 280 }}
               />
               {customTemplateError && (
-                <span style={{ fontFamily: MONO, fontSize: 9, color: T.danger }}>{customTemplateError}</span>
+                <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.danger }}>{customTemplateError}</span>
               )}
             </div>
           </SettingRow>
@@ -565,7 +574,7 @@ const BackupCard: React.FC = () => {
           </SecondaryBtn>
           {isRunning && progress && <ProgressBar pct={pct} label={`Backing up ${progress.processed} / ${progress.total} entries…`} />}
           {successPath && !isRunning && (
-            <p style={{ fontFamily: MONO, fontSize: 10, color: T.success, wordBreak: 'break-all' }}>Saved to {successPath}</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.success, wordBreak: 'break-all' }}>Saved to {successPath}</p>
           )}
           {errorMsg && !isRunning && <ErrorBanner message={errorMsg} />}
         </div>
@@ -615,7 +624,7 @@ const RestoreCard: React.FC = () => {
 
           {backupPath && !replaced && (
             <div style={{ border: `1px solid ${T.line2}`, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{backupPath}</p>
+              <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{backupPath}</p>
               <div>
                 <FieldLabel>Backup password</FieldLabel>
                 <PasswordInput
@@ -704,8 +713,8 @@ const StorageSection: React.FC = () => {
             border: `1px solid ${T.line2}`,
             padding: 28,
           }} onClick={(e) => e.stopPropagation()}>
-            <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: 20, color: T.text, margin: '0 0 8px' }}>Delete All Vault Items</p>
-            <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute, margin: '0 0 18px', lineHeight: 1.6 }}>
+            <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: fontSize(20), color: T.text, margin: '0 0 8px' }}>Delete All Vault Items</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.mute, margin: '0 0 18px', lineHeight: 1.6 }}>
               This will permanently delete encrypted files, bookmarks, notes, passwords, folders, tags, and vault metadata. Your vault password and app settings stay in place.
             </p>
             <div style={{ marginBottom: 14 }}>
@@ -759,8 +768,8 @@ const AboutSection: React.FC = () => {
             padding: '11px 20px',
             borderBottom: i < rows.length - 1 ? `1px solid ${T.line}` : 'none',
           }}>
-            <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>{row.label}</span>
-            <span style={{ fontFamily: MONO, fontSize: 11, color: row.accent ? T.accent : T.text }}>{row.value}</span>
+            <span style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>{row.label}</span>
+            <span style={{ fontFamily: MONO, fontSize: fontSize(11), color: row.accent ? T.accent : T.text }}>{row.value}</span>
           </div>
         ))}
       </SettingCard>
@@ -781,7 +790,7 @@ export const SettingsPage: React.FC = () => {
         padding: '16px 0',
         display: 'flex', flexDirection: 'column', gap: 2,
       }}>
-        <p style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.mute2, padding: '0 16px', marginBottom: 8 }}>
+        <p style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.14em', textTransform: 'uppercase', color: T.mute2, padding: '0 16px', marginBottom: 8 }}>
           · Settings ·
         </p>
         {NAV_ITEMS.map((item) => {
@@ -798,7 +807,7 @@ export const SettingsPage: React.FC = () => {
                 border: 'none',
                 borderLeft: `2px solid ${active ? T.accent : 'transparent'}`,
                 color: active ? T.accent : T.mute,
-                fontFamily: MONO, fontSize: 11,
+                fontFamily: MONO, fontSize: fontSize(11),
                 cursor: 'pointer',
                 textAlign: 'left',
                 transition: 'color 0.1s',

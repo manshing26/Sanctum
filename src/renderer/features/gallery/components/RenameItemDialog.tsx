@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { fontSize } from '../../../theme/typography';
 
 const T = {
   bg:         '#0a0c0b',
@@ -73,7 +74,7 @@ export const RenameItemDialog = ({
         style={{ width: 380, background: T.bg2, border: `1px solid ${T.line2}`, padding: 28 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: 20, color: T.text, margin: '0 0 18px' }}>Rename</p>
+        <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: fontSize(20), color: T.text, margin: '0 0 18px' }}>Rename</p>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
@@ -82,15 +83,15 @@ export const RenameItemDialog = ({
               onChange={(e) => setBase(e.target.value)}
               placeholder="File name"
               autoFocus
-              style={{ flex: 1, minWidth: 0, height: 36, padding: '0 10px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 11, outline: 'none' }}
+              style={{ flex: 1, minWidth: 0, height: 36, padding: '0 10px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(11), outline: 'none' }}
             />
             <div style={{ display: 'flex', alignItems: 'center', width: 80, height: 36, border: `1px solid ${T.line2}`, background: T.bg, padding: '0 8px' }}>
-              <span style={{ fontFamily: MONO, fontSize: 11, color: T.mute2, userSelect: 'none' }}>.</span>
+              <span style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.mute2, userSelect: 'none' }}>.</span>
               <input
                 value={ext}
                 onChange={(e) => setExt(e.target.value.replace(/^\.+/, ''))}
                 placeholder="ext"
-                style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: T.text, fontFamily: MONO, fontSize: 11, outline: 'none' }}
+                style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: T.text, fontFamily: MONO, fontSize: fontSize(11), outline: 'none' }}
               />
             </div>
           </div>
@@ -98,14 +99,14 @@ export const RenameItemDialog = ({
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              style={{ height: 32, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+              style={{ height: 32, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!isValid}
-              style={{ height: 32, padding: '0 14px', background: isValid ? T.accent : T.accentGlow, border: `1px solid ${T.accent}`, color: isValid ? T.bg : T.mute, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isValid ? 'pointer' : 'default' }}
+              style={{ height: 32, padding: '0 14px', background: isValid ? T.accent : T.accentGlow, border: `1px solid ${T.accent}`, color: isValid ? T.bg : T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: isValid ? 'pointer' : 'default' }}
             >
               Rename
             </button>

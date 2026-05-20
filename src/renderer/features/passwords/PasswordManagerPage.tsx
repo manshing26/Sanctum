@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CreatePasswordInput, PasswordDetail, PasswordSummary, UpdatePasswordInput } from '../../../shared/ipc';
 import { toast } from 'sonner';
+import { fontSize } from '../../theme/typography';
 
 const T = {
   bg:         '#0a0c0b',
@@ -118,7 +119,7 @@ const PwField: React.FC<{
         style={{
           width: '100%', height: 32, paddingLeft: 10, paddingRight: 34,
           background: T.bg, border: `1px solid ${T.line2}`,
-          color: T.text, fontFamily: MONO, fontSize: 11, outline: 'none',
+          color: T.text, fontFamily: MONO, fontSize: fontSize(11), outline: 'none',
           boxSizing: 'border-box', opacity: disabled ? 0.5 : 1,
         }}
       />
@@ -138,7 +139,7 @@ const PwField: React.FC<{
 };
 
 const FieldLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <p style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, margin: '0 0 5px' }}>
+  <p style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, margin: '0 0 5px' }}>
     {children}
   </p>
 );
@@ -162,7 +163,7 @@ const TextInput: React.FC<{
     style={{
       width: '100%', height: 32, paddingLeft: 10, paddingRight: 10,
       background: T.bg, border: `1px solid ${T.line2}`,
-      color: T.text, fontFamily: MONO, fontSize: 11, outline: 'none',
+      color: T.text, fontFamily: MONO, fontSize: fontSize(11), outline: 'none',
       boxSizing: 'border-box', opacity: disabled ? 0.5 : 1,
     }}
   />
@@ -183,7 +184,7 @@ const TextAreaInput: React.FC<{
     style={{
       width: '100%', padding: '8px 10px',
       background: T.bg, border: `1px solid ${T.line2}`,
-      color: T.text, fontFamily: MONO, fontSize: 11, outline: 'none',
+      color: T.text, fontFamily: MONO, fontSize: fontSize(11), outline: 'none',
       boxSizing: 'border-box', resize: 'none', opacity: disabled ? 0.5 : 1,
     }}
   />
@@ -243,7 +244,7 @@ const EntryForm: React.FC<{
           type="button"
           onClick={onCancel}
           disabled={isBusy}
-          style={{ height: 32, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+          style={{ height: 32, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
         >
           Cancel
         </button>
@@ -254,7 +255,7 @@ const EntryForm: React.FC<{
             flex: 1, height: 32,
             background: (!canSubmit || isBusy) ? T.mute2 : T.accent,
             border: 'none', color: T.bg,
-            fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase',
+            fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase',
             cursor: (!canSubmit || isBusy) ? 'default' : 'pointer',
             opacity: (!canSubmit || isBusy) ? 0.6 : 1,
           }}
@@ -334,7 +335,7 @@ const Inspector: React.FC<{
     };
     return (
       <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 0 }}>
-        <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: 16, color: T.text, margin: '0 0 16px' }}>Edit entry</p>
+        <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: fontSize(16), color: T.text, margin: '0 0 16px' }}>Edit entry</p>
         <EntryForm
           initial={initial}
           isBusy={isBusy}
@@ -351,21 +352,21 @@ const Inspector: React.FC<{
       {/* Domain */}
       <div>
         <FieldLabel>Domain</FieldLabel>
-        <p style={{ fontFamily: MONO, fontSize: 12, color: T.text, margin: 0 }}>{entry.domain}</p>
+        <p style={{ fontFamily: MONO, fontSize: fontSize(12), color: T.text, margin: 0 }}>{entry.domain}</p>
       </div>
 
       {/* Username */}
       <div>
         <FieldLabel>Username</FieldLabel>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <p style={{ fontFamily: MONO, fontSize: 11, color: T.text, margin: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.text, margin: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {entry.username}
           </p>
           <button
             type="button"
             onClick={() => void handleCopyUsername()}
             title="Copy username"
-            style={{ background: 'none', border: `1px solid ${T.line2}`, color: T.mute, cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4, fontFamily: MONO, fontSize: 9 }}
+            style={{ background: 'none', border: `1px solid ${T.line2}`, color: T.mute, cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4, fontFamily: MONO, fontSize: fontSize(9) }}
           >
             <IcoCopy /> Copy
           </button>
@@ -376,7 +377,7 @@ const Inspector: React.FC<{
       <div>
         <FieldLabel>Password</FieldLabel>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <p style={{ fontFamily: MONO, fontSize: 11, color: T.text, margin: 0, flex: 1, letterSpacing: revealedPassword ? '0.02em' : '0.14em' }}>
+          <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.text, margin: 0, flex: 1, letterSpacing: revealedPassword ? '0.02em' : '0.14em' }}>
             {revealedPassword ?? '••••••••••••'}
           </p>
           <button
@@ -384,7 +385,7 @@ const Inspector: React.FC<{
             onClick={() => void handleReveal()}
             disabled={isRevealing}
             title={revealedPassword ? 'Hide' : 'Reveal'}
-            style={{ background: 'none', border: `1px solid ${T.line2}`, color: T.mute, cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4, fontFamily: MONO, fontSize: 9 }}
+            style={{ background: 'none', border: `1px solid ${T.line2}`, color: T.mute, cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4, fontFamily: MONO, fontSize: fontSize(9) }}
           >
             <IcoEye crossed={!!revealedPassword} /> {revealedPassword ? 'Hide' : 'Show'}
           </button>
@@ -392,7 +393,7 @@ const Inspector: React.FC<{
             type="button"
             onClick={() => void handleCopyPassword()}
             title="Copy password"
-            style={{ background: 'none', border: `1px solid ${T.line2}`, color: T.mute, cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4, fontFamily: MONO, fontSize: 9 }}
+            style={{ background: 'none', border: `1px solid ${T.line2}`, color: T.mute, cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4, fontFamily: MONO, fontSize: fontSize(9) }}
           >
             <IcoCopy /> Copy
           </button>
@@ -403,13 +404,13 @@ const Inspector: React.FC<{
       {entry.label && (
         <div>
           <FieldLabel>Label</FieldLabel>
-          <p style={{ fontFamily: MONO, fontSize: 11, color: T.mute, margin: 0 }}>{entry.label}</p>
+          <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.mute, margin: 0 }}>{entry.label}</p>
         </div>
       )}
 
       {/* Timestamps */}
       <div style={{ borderTop: `1px solid ${T.line}`, paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <p style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, margin: 0 }}>
+        <p style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, margin: 0 }}>
           Added {formatRelative(entry.createdAt)} · Updated {formatRelative(entry.updatedAt)}
         </p>
       </div>
@@ -419,7 +420,7 @@ const Inspector: React.FC<{
         <button
           type="button"
           onClick={() => setMode('edit')}
-          style={{ flex: 1, height: 28, background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+          style={{ flex: 1, height: 28, background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
         >
           <IcoEdit /> Edit
         </button>
@@ -428,7 +429,7 @@ const Inspector: React.FC<{
             type="button"
             onClick={() => void onDelete(entry.id)}
             disabled={isBusy}
-            style={{ flex: 1, height: 28, background: T.dangerGlow, border: `1px solid ${T.danger}`, color: T.danger, fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+            style={{ flex: 1, height: 28, background: T.dangerGlow, border: `1px solid ${T.danger}`, color: T.danger, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
           >
             Confirm delete
           </button>
@@ -436,7 +437,7 @@ const Inspector: React.FC<{
           <button
             type="button"
             onClick={() => setMode('delete-confirm')}
-            style={{ flex: 1, height: 28, background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+            style={{ flex: 1, height: 28, background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
           >
             <IcoTrash /> Delete
           </button>
@@ -446,7 +447,7 @@ const Inspector: React.FC<{
         <button
           type="button"
           onClick={() => setMode('view')}
-          style={{ height: 24, background: 'none', border: 'none', color: T.mute2, fontFamily: MONO, fontSize: 9, cursor: 'pointer' }}
+          style={{ height: 24, background: 'none', border: 'none', color: T.mute2, fontFamily: MONO, fontSize: fontSize(9), cursor: 'pointer' }}
         >
           Cancel
         </button>
@@ -552,9 +553,9 @@ export const PasswordManagerPage: React.FC = () => {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', borderBottom: `1px solid ${T.line}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: T.accent }}>
           <IcoKey />
-          <span style={{ fontFamily: SERIF, fontWeight: 300, fontSize: 16, color: T.text }}>Passwords</span>
+          <span style={{ fontFamily: SERIF, fontWeight: 300, fontSize: fontSize(16), color: T.text }}>Passwords</span>
         </div>
-        <span style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, letterSpacing: '0.06em' }}>
+        <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, letterSpacing: '0.06em' }}>
           {entries.length} {entries.length === 1 ? 'entry' : 'entries'} · aes-256-gcm
         </span>
 
@@ -570,14 +571,14 @@ export const PasswordManagerPage: React.FC = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search…"
-            style={{ width: '100%', height: 28, paddingLeft: 26, paddingRight: 8, background: T.bg2, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: 10, outline: 'none', boxSizing: 'border-box' }}
+            style={{ width: '100%', height: 28, paddingLeft: 26, paddingRight: 8, background: T.bg2, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none', boxSizing: 'border-box' }}
           />
         </div>
 
         <button
           type="button"
           onClick={() => { setShowAdd(true); setSelectedId(null); }}
-          style={{ height: 28, padding: '0 12px', background: T.accent, border: 'none', color: T.bg, fontFamily: MONO, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+          style={{ height: 28, padding: '0 12px', background: T.accent, border: 'none', color: T.bg, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
         >
           <IcoPlus /> Add
         </button>
@@ -588,17 +589,17 @@ export const PasswordManagerPage: React.FC = () => {
         {/* List */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, borderRight: `1px solid ${T.line}`, overflowY: 'auto' }}>
           {isLoading ? (
-            <div style={{ padding: 24, fontFamily: MONO, fontSize: 10, color: T.mute2 }}>Loading…</div>
+            <div style={{ padding: 24, fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>Loading…</div>
           ) : filtered.length === 0 ? (
             <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
-              <p style={{ fontFamily: MONO, fontSize: 10, color: T.mute2, margin: 0 }}>
+              <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, margin: 0 }}>
                 {search ? 'No entries match your search.' : 'No passwords saved yet.'}
               </p>
               {!search && (
                 <button
                   type="button"
                   onClick={() => setShowAdd(true)}
-                  style={{ height: 28, padding: '0 12px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: 9, textTransform: 'uppercase', cursor: 'pointer', letterSpacing: '0.06em' }}
+                  style={{ height: 28, padding: '0 12px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(9), textTransform: 'uppercase', cursor: 'pointer', letterSpacing: '0.06em' }}
                 >
                   Add your first entry
                 </button>
@@ -609,7 +610,7 @@ export const PasswordManagerPage: React.FC = () => {
               <thead>
                 <tr style={{ borderBottom: `1px solid ${T.line}` }}>
                   {(['№', 'Domain', 'Username', 'Label', 'Saved'] as const).map((h, i) => (
-                    <th key={h} style={{ fontFamily: MONO, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, fontWeight: 400, textAlign: 'left', padding: '6px 10px', width: i === 0 ? 36 : undefined }}>
+                    <th key={h} style={{ fontFamily: MONO, fontSize: fontSize(8), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, fontWeight: 400, textAlign: 'left', padding: '6px 10px', width: i === 0 ? 36 : undefined }}>
                       {h}
                     </th>
                   ))}
@@ -629,19 +630,19 @@ export const PasswordManagerPage: React.FC = () => {
                         cursor: 'pointer',
                       }}
                     >
-                      <td style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, padding: '8px 10px' }}>
+                      <td style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, padding: '8px 10px' }}>
                         {String(idx + 1).padStart(2, '0')}
                       </td>
-                      <td style={{ fontFamily: MONO, fontSize: 10, color: isSelected ? T.accent : T.text, padding: '8px 10px', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td style={{ fontFamily: MONO, fontSize: fontSize(10), color: isSelected ? T.accent : T.text, padding: '8px 10px', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {e.domain}
                       </td>
-                      <td style={{ fontFamily: MONO, fontSize: 10, color: T.mute, padding: '8px 10px', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, padding: '8px 10px', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {e.username}
                       </td>
-                      <td style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, padding: '8px 10px', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <td style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, padding: '8px 10px', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {e.label ?? '—'}
                       </td>
-                      <td style={{ fontFamily: MONO, fontSize: 9, color: T.mute2, padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                      <td style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, padding: '8px 10px', whiteSpace: 'nowrap' }}>
                         {formatRelative(e.createdAt)}
                       </td>
                     </tr>
@@ -672,7 +673,7 @@ export const PasswordManagerPage: React.FC = () => {
           <div style={{ width: 280, flexShrink: 0, borderLeft: `1px solid ${T.line}`, overflowY: 'auto', background: T.bg2 }}>
             {showAdd ? (
               <div style={{ padding: '16px 20px' }}>
-                <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: 16, color: T.text, margin: '0 0 16px' }}>New entry</p>
+                <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: fontSize(16), color: T.text, margin: '0 0 16px' }}>New entry</p>
                 <EntryForm
                   isBusy={isBusy}
                   isEdit={false}
@@ -688,7 +689,7 @@ export const PasswordManagerPage: React.FC = () => {
                 onUpdate={handleUpdate}
               />
             ) : (
-              <div style={{ padding: 20, fontFamily: MONO, fontSize: 10, color: T.mute2 }}>
+              <div style={{ padding: 20, fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>
                 Select an entry to view details.
               </div>
             )}

@@ -6,6 +6,7 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from '../../../components/ui/ContextMenu';
+import { fontSize } from '../../../theme/typography';
 
 const T = {
   bg: '#0a0c0b',
@@ -75,7 +76,7 @@ const scopeRow = (
       cursor: 'pointer',
       color: active ? T.accent : T.mute,
       fontFamily: MONO,
-      fontSize: 11,
+      fontSize: fontSize(11),
       letterSpacing: '0.04em',
       textAlign: 'left',
     }}
@@ -122,7 +123,7 @@ const FolderTreeNode: React.FC<{
               cursor: 'pointer',
               color: isActive ? T.accent : T.mute,
               fontFamily: MONO,
-              fontSize: 11,
+              fontSize: fontSize(11),
               userSelect: 'none',
             }}
           >
@@ -316,7 +317,7 @@ export const FolderSidebar = ({
         padding: '14px 16px 10px',
         borderBottom: `1px solid ${T.line}`,
         fontFamily: MONO,
-        fontSize: 9,
+        fontSize: fontSize(9),
         letterSpacing: '0.14em',
         textTransform: 'uppercase',
         color: T.mute2,
@@ -341,7 +342,7 @@ export const FolderSidebar = ({
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '0 14px 6px 16px',
         }}>
-          <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2 }}>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2 }}>
             Folders
           </span>
           <button
@@ -379,7 +380,7 @@ export const FolderSidebar = ({
             ))}
           </ul>
         ) : (
-          <p style={{ padding: '8px 16px', fontFamily: MONO, fontSize: 10, color: T.mute2 }}>No folders yet</p>
+          <p style={{ padding: '8px 16px', fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>No folders yet</p>
         )}
       </div>
 
@@ -400,11 +401,11 @@ export const FolderSidebar = ({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontFamily: SERIF, fontSize: 18, color: T.text, marginBottom: 4 }}>New Folder</div>
-            <div style={{ fontFamily: MONO, fontSize: 10, color: T.mute, marginBottom: 20 }}>Create a folder to organise vault objects.</div>
+            <div style={{ fontFamily: SERIF, fontSize: fontSize(18), color: T.text, marginBottom: 4 }}>New Folder</div>
+            <div style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, marginBottom: 20 }}>Create a folder to organise vault objects.</div>
             <form onSubmit={(e) => { e.preventDefault(); handleCreate(); }}>
               <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontFamily: MONO, fontSize: 10, color: T.mute, letterSpacing: '0.08em', marginBottom: 5 }}>FOLDER NAME</label>
+                <label style={{ display: 'block', fontFamily: MONO, fontSize: fontSize(10), color: T.mute, letterSpacing: '0.08em', marginBottom: 5 }}>FOLDER NAME</label>
                 <input
                   autoFocus
                   value={newFolderName}
@@ -414,14 +415,14 @@ export const FolderSidebar = ({
                     width: '100%', height: 30,
                     background: 'transparent',
                     border: `1px solid ${T.line2}`,
-                    color: T.text, fontFamily: MONO, fontSize: 12,
+                    color: T.text, fontFamily: MONO, fontSize: fontSize(12),
                     padding: '0 8px', outline: 'none', boxSizing: 'border-box',
                     borderRadius: 0,
                   }}
                 />
               </div>
               <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', fontFamily: MONO, fontSize: 10, color: T.mute, letterSpacing: '0.08em', marginBottom: 5 }}>PARENT FOLDER</label>
+                <label style={{ display: 'block', fontFamily: MONO, fontSize: fontSize(10), color: T.mute, letterSpacing: '0.08em', marginBottom: 5 }}>PARENT FOLDER</label>
                 <select
                   value={newFolderParentId ?? 'root'}
                   onChange={(e) => onNewFolderParentIdChange(e.target.value === 'root' ? null : Number(e.target.value))}
@@ -429,7 +430,7 @@ export const FolderSidebar = ({
                     width: '100%', height: 30,
                     background: '#0a0c0b',
                     border: `1px solid ${T.line2}`,
-                    color: T.text, fontFamily: MONO, fontSize: 11,
+                    color: T.text, fontFamily: MONO, fontSize: fontSize(11),
                     padding: '0 8px', outline: 'none', boxSizing: 'border-box',
                     borderRadius: 0,
                   }}
@@ -448,7 +449,7 @@ export const FolderSidebar = ({
                     height: 28, padding: '0 14px',
                     background: 'none', border: `1px solid ${T.line2}`,
                     cursor: 'pointer', color: T.mute,
-                    fontFamily: MONO, fontSize: 10, borderRadius: 0,
+                    fontFamily: MONO, fontSize: fontSize(10), borderRadius: 0,
                   }}
                 >
                   Cancel
@@ -460,7 +461,7 @@ export const FolderSidebar = ({
                     height: 28, padding: '0 14px',
                     background: T.accent, border: 'none',
                     cursor: 'pointer', color: '#0a0c0b',
-                    fontFamily: MONO, fontSize: 10,
+                    fontFamily: MONO, fontSize: fontSize(10),
                     fontWeight: 500, letterSpacing: '0.06em',
                     opacity: !newFolderName.trim() ? 0.5 : 1,
                     borderRadius: 0,
@@ -492,11 +493,11 @@ export const FolderSidebar = ({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontFamily: SERIF, fontSize: 18, color: T.text, marginBottom: 4 }}>Edit Folder</div>
-            <div style={{ fontFamily: MONO, fontSize: 10, color: T.mute, marginBottom: 20 }}>Rename this folder or move it under another folder.</div>
+            <div style={{ fontFamily: SERIF, fontSize: fontSize(18), color: T.text, marginBottom: 4 }}>Edit Folder</div>
+            <div style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, marginBottom: 20 }}>Rename this folder or move it under another folder.</div>
             <form onSubmit={(e) => { e.preventDefault(); void handleSaveFolderEdit(); }}>
               <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontFamily: MONO, fontSize: 10, color: T.mute, letterSpacing: '0.08em', marginBottom: 5 }}>FOLDER NAME</label>
+                <label style={{ display: 'block', fontFamily: MONO, fontSize: fontSize(10), color: T.mute, letterSpacing: '0.08em', marginBottom: 5 }}>FOLDER NAME</label>
                 <input
                   autoFocus
                   value={editName}
@@ -505,14 +506,14 @@ export const FolderSidebar = ({
                     width: '100%', height: 30,
                     background: 'transparent',
                     border: `1px solid ${T.line2}`,
-                    color: T.text, fontFamily: MONO, fontSize: 12,
+                    color: T.text, fontFamily: MONO, fontSize: fontSize(12),
                     padding: '0 8px', outline: 'none', boxSizing: 'border-box',
                     borderRadius: 0,
                   }}
                 />
               </div>
               <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', fontFamily: MONO, fontSize: 10, color: T.mute, letterSpacing: '0.08em', marginBottom: 5 }}>PARENT FOLDER</label>
+                <label style={{ display: 'block', fontFamily: MONO, fontSize: fontSize(10), color: T.mute, letterSpacing: '0.08em', marginBottom: 5 }}>PARENT FOLDER</label>
                 <select
                   value={editParentId ?? 'root'}
                   onChange={(e) => setEditParentId(e.target.value === 'root' ? null : Number(e.target.value))}
@@ -520,7 +521,7 @@ export const FolderSidebar = ({
                     width: '100%', height: 30,
                     background: '#0a0c0b',
                     border: `1px solid ${T.line2}`,
-                    color: T.text, fontFamily: MONO, fontSize: 11,
+                    color: T.text, fontFamily: MONO, fontSize: fontSize(11),
                     padding: '0 8px', outline: 'none', boxSizing: 'border-box',
                     borderRadius: 0,
                   }}
@@ -542,7 +543,7 @@ export const FolderSidebar = ({
                     height: 28, padding: '0 14px',
                     background: 'none', border: `1px solid ${T.line2}`,
                     cursor: isSavingEdit ? 'default' : 'pointer', color: T.mute,
-                    fontFamily: MONO, fontSize: 10, borderRadius: 0,
+                    fontFamily: MONO, fontSize: fontSize(10), borderRadius: 0,
                     opacity: isSavingEdit ? 0.5 : 1,
                   }}
                 >
@@ -556,7 +557,7 @@ export const FolderSidebar = ({
                     background: T.accent, border: 'none',
                     cursor: !editName.trim() || isSavingEdit ? 'default' : 'pointer',
                     color: '#0a0c0b',
-                    fontFamily: MONO, fontSize: 10,
+                    fontFamily: MONO, fontSize: fontSize(10),
                     fontWeight: 500, letterSpacing: '0.06em',
                     opacity: !editName.trim() || isSavingEdit ? 0.5 : 1,
                     borderRadius: 0,

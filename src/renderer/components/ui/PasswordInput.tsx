@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { cn } from '../../lib/utils';
+import { fontSize } from '../../theme/typography';
 
 export interface PasswordInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> {
   error?: boolean;
@@ -65,7 +66,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
               background: 'transparent',
               color: '#e8e6dc',
               fontFamily: MONO,
-              fontSize: 13,
+              fontSize: fontSize(13),
             }}
             {...props}
           />
@@ -119,7 +120,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
                 />
               ))}
             </div>
-            <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: strength.color }}>
+            <span style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: strength.color }}>
               {strength.label}
             </span>
           </div>

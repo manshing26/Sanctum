@@ -13,6 +13,7 @@ import { ImportConflictDialog } from './components/ImportConflictDialog';
 import { useGalleryState } from './state/useGalleryState';
 import { MediaViewerOverlay } from '../viewer/MediaViewerOverlay';
 import { isPreviewableMimeType } from '../../../shared/fileTypes';
+import { fontSize } from '../../theme/typography';
 
 const T = {
   bg: '#0a0c0b',
@@ -628,11 +629,11 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
             </svg>
-            <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            <span style={{ fontFamily: MONO, fontSize: fontSize(11), letterSpacing: '0.06em', textTransform: 'uppercase' }}>
               Drop files to import
             </span>
             {selectedViewScope === 'folder' && selectedFolderId !== null && (
-              <span style={{ fontFamily: MONO, fontSize: 10, opacity: 0.7 }}>into current folder</span>
+              <span style={{ fontFamily: MONO, fontSize: fontSize(10), opacity: 0.7 }}>into current folder</span>
             )}
           </div>
         </div>
@@ -737,7 +738,7 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
               borderBottom: `1px solid ${T.line}`,
               flexShrink: 0,
             }}>
-              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute }}>Inspector</span>
+              <span style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute }}>Inspector</span>
               <button
                 type="button"
                 onClick={() => setShowInspector(false)}
