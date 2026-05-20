@@ -145,7 +145,8 @@ export const GalleryToolbar = ({
 
   const titleLabel =
     selectedFolderName ??
-    (selectedViewScope === 'video' ? 'Video' :
+    (selectedViewScope === 'all' ? 'All Objects' :
+     selectedViewScope === 'video' ? 'Video' :
      selectedViewScope === 'image' ? 'Images' :
      selectedViewScope === 'document' ? 'Documents' :
      selectedViewScope === 'root' ? 'Root' :

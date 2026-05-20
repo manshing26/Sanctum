@@ -2877,9 +2877,18 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
   const visibleBookmarkCount = isBookmarkScope || showBookmarksInMixedView ? visibleBookmarks.length : 0;
   const visibleNoteCount = isNoteScope || showNotesInMixedView ? visibleNotes.length : 0;
   const visibleObjectCount = visibleFileCount + visibleBookmarkCount + visibleNoteCount;
-  const countAwareSubtitle = (isBookmarkScope || isNoteScope || showBookmarksInMixedView || showNotesInMixedView)
-    ? `${visibleObjectCount} ${visibleObjectCount === 1 ? 'object' : 'objects'} · ${visibleFileCount} ${visibleFileCount === 1 ? 'file' : 'files'} · ${visibleBookmarkCount} ${visibleBookmarkCount === 1 ? 'bookmark' : 'bookmarks'} · ${visibleNoteCount} ${visibleNoteCount === 1 ? 'note' : 'notes'} · encrypted`
-    : undefined;
+  const mixedCountParts = [
+    visibleFileCount > 0 ? `${visibleFileCount} ${visibleFileCount === 1 ? 'file' : 'files'}` : null,
+    visibleBookmarkCount > 0 ? `${visibleBookmarkCount} ${visibleBookmarkCount === 1 ? 'bookmark' : 'bookmarks'}` : null,
+    visibleNoteCount > 0 ? `${visibleNoteCount} ${visibleNoteCount === 1 ? 'note' : 'notes'}` : null,
+  ].filter((part): part is string => Boolean(part));
+  const countAwareSubtitle = isBookmarkScope
+    ? `${visibleBookmarkCount} ${visibleBookmarkCount === 1 ? 'bookmark' : 'bookmarks'} · encrypted`
+    : isNoteScope
+      ? `${visibleNoteCount} ${visibleNoteCount === 1 ? 'note' : 'notes'} · encrypted`
+      : showBookmarksInMixedView || showNotesInMixedView
+        ? `${visibleObjectCount} ${visibleObjectCount === 1 ? 'object' : 'objects'}${mixedCountParts.length > 0 ? ` · ${mixedCountParts.join(' · ')}` : ''}`
+        : undefined;
   const toolbarBreadcrumb = selectedFolderId !== null && (selectedViewScope === 'folder' || isBookmarkScope || isNoteScope)
     ? findFolderPathById(folders, selectedFolderId) ?? null
     : bookmarkFolderId !== null
@@ -2982,6 +2991,9 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
     isLoadingMore,
     sentinelRef,
     isMultiSelect,
+    listLayoutVariant: selectedViewScope === 'video' || selectedViewScope === 'image' || selectedViewScope === 'document'
+      ? 'object-type' as const
+      : 'default' as const,
     tags,
     gridMinCardWidth,
   };

@@ -465,7 +465,7 @@ const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const ShortcutHelp = ({ onClose }: { onClose: () => void }): React.JSX.Element => {
   const groups = [
     { title: 'General', rows: [['Close', 'Esc'], ['Previous item', 'Left'], ['Next item', 'Right'], ['Fullscreen', 'F'], ['Shortcuts', '?']] },
-    { title: 'Image', rows: [['Zoom in', '+ / ='], ['Zoom out', '-'], ['Rotate', 'R'], ['Reset', '0']] },
+    { title: 'Image', rows: [['Zoom in', '+ / = / Wheel up'], ['Zoom out', '- / Wheel down'], ['Pan zoomed image', 'Drag'], ['Rotate', 'R'], ['Reset', '0']] },
     { title: 'Video', rows: [['Play / pause', 'Space'], ['Seek back 5s', 'Shift + Left'], ['Seek forward 5s', 'Shift + Right'], ['Mute', 'M'], ['Reset speed', '0']] },
     { title: 'PDF / Documents', rows: [['PDF zoom in', '+ / ='], ['PDF zoom out', '-'], ['PDF reset zoom', '0'], ['Scroll document', 'Mouse / trackpad']] },
   ];
@@ -841,6 +841,10 @@ export const MediaViewerOverlay = ({
               alt={currentItem?.originalName ?? 'Image'}
               fitMode={viewerControls.fitMode}
               transformStyle={viewerControls.transformStyle}
+              zoom={viewerControls.zoom}
+              pan={viewerControls.pan}
+              onZoomBy={viewerControls.zoomBy}
+              onPanChange={viewerControls.setPanPosition}
               onError={() => void handleImageError()}
             />
           )}
@@ -896,7 +900,7 @@ export const MediaViewerOverlay = ({
                       <ZoomOut className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Zoom out (-)</TooltipContent>
+                  <TooltipContent>Zoom out (- / wheel down)</TooltipContent>
                 </Tooltip>
 
                 <span className="min-w-[3rem] text-center text-xs text-white/70">
@@ -909,7 +913,7 @@ export const MediaViewerOverlay = ({
                       <ZoomIn className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Zoom in (+)</TooltipContent>
+                  <TooltipContent>Zoom in (+ / wheel up)</TooltipContent>
                 </Tooltip>
 
                 <div className="mx-1 h-4 w-px bg-white/20" />

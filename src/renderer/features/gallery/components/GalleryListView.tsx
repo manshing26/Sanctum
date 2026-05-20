@@ -54,6 +54,7 @@ type GalleryListViewProps = {
   isLoadingMore: boolean;
   sentinelRef: React.RefObject<HTMLDivElement | null>;
   isMultiSelect: boolean;
+  listLayoutVariant?: 'default' | 'object-type';
 };
 
 const formatDuration = (seconds: number): string => {
@@ -76,6 +77,41 @@ const typeBadgeLabel = (item: VaultItemSummary): 'IMAGE' | 'VIDEO' | 'DOCUMENT' 
   if (kind === 'image') return 'IMAGE';
   if (kind === 'document') return 'DOCUMENT';
   return 'FILE';
+};
+
+const TypeBadge: React.FC<{ label: 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'FILE' }> = ({ label }) => (
+  <span
+    title={label.toLowerCase()}
+    style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      flexShrink: 0,
+      padding: '1px 5px',
+      background: T.accentGlow,
+      border: `1px solid ${T.line2}`,
+      fontFamily: MONO,
+      fontSize: fontSize(8),
+      letterSpacing: '0.06em',
+      color: T.accent,
+      lineHeight: 1.3,
+    }}
+  >
+    {label}
+  </span>
+);
+
+type ListLayoutVariant = NonNullable<GalleryListViewProps['listLayoutVariant']>;
+
+const getGridTemplateColumns = (isMultiSelect: boolean, variant: ListLayoutVariant): string => {
+  if (variant === 'object-type') {
+    return isMultiSelect
+      ? '20px 50px minmax(0,1.8fr) 82px 76px 24px'
+      : '50px minmax(0,1.8fr) 82px 76px 24px';
+  }
+
+  return isMultiSelect
+    ? '20px 32px 50px minmax(0,1.6fr) minmax(80px,.7fr) 70px 60px 24px'
+    : '32px 50px minmax(0,1.6fr) minmax(80px,.7fr) 70px 60px 24px';
 };
 
 // ── Single list row ──────────────────────────────────────────────────
@@ -101,6 +137,7 @@ const ListRow: React.FC<{
   onRename?: (itemId: string, newName: string) => void;
   onGoToFolder?: (itemId: string) => void;
   isMultiSelect: boolean;
+  layoutVariant: ListLayoutVariant;
 }> = ({
   index,
   item,
@@ -123,6 +160,7 @@ const ListRow: React.FC<{
   onRename,
   onGoToFolder,
   isMultiSelect,
+  layoutVariant,
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -155,13 +193,12 @@ const ListRow: React.FC<{
       }}
       style={{
         display: 'grid',
-        gridTemplateColumns: isMultiSelect
-          ? '20px 32px 50px minmax(0,1.6fr) minmax(80px,.7fr) 70px 60px 24px'
-          : '32px 50px minmax(0,1.6fr) minmax(80px,.7fr) 70px 60px 24px',
+        gridTemplateColumns: getGridTemplateColumns(isMultiSelect, layoutVariant),
         alignItems: 'center',
-        gap: 8,
-        padding: '0 12px',
-        height: 40,
+        columnGap: 8,
+        padding: layoutVariant === 'object-type' ? '7px 12px' : '0 12px',
+        minHeight: layoutVariant === 'object-type' ? 42 : undefined,
+        height: layoutVariant === 'object-type' ? undefined : 40,
         background: isSelected ? T.accentGlow : hovered ? 'rgba(220,220,200,0.03)' : 'transparent',
         borderLeft: isSelected ? `2px solid ${T.accent}` : '2px solid transparent',
         borderBottom: `1px solid ${T.line}`,
@@ -190,9 +227,11 @@ const ListRow: React.FC<{
       )}
 
       {/* Index */}
-      <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, textAlign: 'right', paddingRight: 4 }}>
-        {String(index + 1).padStart(2, '0')}
-      </span>
+      {layoutVariant !== 'object-type' && (
+        <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, textAlign: 'right', paddingRight: 4 }}>
+          {String(index + 1).padStart(2, '0')}
+        </span>
+      )}
 
       {/* Thumbnail */}
       <div style={{ width: 44, height: 32, flexShrink: 0, overflow: 'hidden', background: '#0e100e', position: 'relative' }}>
@@ -233,19 +272,21 @@ const ListRow: React.FC<{
       </div>
 
       {/* Name + type */}
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: SERIF, fontSize: fontSize(13), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <div style={{ minWidth: 0, overflow: 'hidden' }}>
+        <div style={{ fontFamily: layoutVariant === 'object-type' ? MONO : SERIF, fontSize: layoutVariant === 'object-type' ? fontSize(11) : fontSize(13), lineHeight: 1.2, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {item.originalName}
         </div>
-        <div style={{ display: 'inline-flex', alignItems: 'center', marginTop: 2, padding: '1px 5px', border: `1px solid ${T.line2}`, background: T.accentGlow, fontFamily: MONO, fontSize: fontSize(8), color: T.accent, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-          {typeLabel}
+        <div style={{ margin: '1px 0 0', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <TypeBadge label={typeLabel} />
         </div>
       </div>
 
       {/* Folder */}
-      <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {item.folderId != null ? '—' : 'root'}
-      </span>
+      {layoutVariant !== 'object-type' && (
+        <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {item.folderId != null ? '—' : 'root'}
+        </span>
+      )}
 
       {/* Size */}
       <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, textAlign: 'right' }}>
@@ -393,12 +434,11 @@ const ListHeader: React.FC<{
   isMultiSelect: boolean;
   allVisibleSelected?: boolean;
   onToggleSelectAllVisible?: () => void;
-}> = ({ isMultiSelect, allVisibleSelected = false, onToggleSelectAllVisible }) => (
+  layoutVariant: ListLayoutVariant;
+}> = ({ isMultiSelect, allVisibleSelected = false, onToggleSelectAllVisible, layoutVariant }) => (
   <div style={{
     display: 'grid',
-    gridTemplateColumns: isMultiSelect
-      ? '20px 32px 50px minmax(0,1.6fr) minmax(80px,.7fr) 70px 60px 24px'
-      : '32px 50px minmax(0,1.6fr) minmax(80px,.7fr) 70px 60px 24px',
+    gridTemplateColumns: getGridTemplateColumns(isMultiSelect, layoutVariant),
     alignItems: 'center',
     gap: 8,
     padding: '0 12px',
@@ -413,10 +453,14 @@ const ListHeader: React.FC<{
         onToggle={onToggleSelectAllVisible}
       />
     )}
-    <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>№</span>
+    {layoutVariant !== 'object-type' && (
+      <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>№</span>
+    )}
     <span />
     <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Name</span>
-    <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Folder</span>
+    {layoutVariant !== 'object-type' && (
+      <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Folder</span>
+    )}
     <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>Size</span>
     <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>Info</span>
     <span />
@@ -453,6 +497,7 @@ export const GalleryListView = ({
   isLoadingMore,
   sentinelRef,
   isMultiSelect,
+  listLayoutVariant = 'default',
 }: GalleryListViewProps): React.JSX.Element => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const { isSelecting, overlayStyle, onMouseDown } = useMarqueeSelection({
@@ -489,6 +534,7 @@ export const GalleryListView = ({
         isMultiSelect={isMultiSelect}
         allVisibleSelected={allVisibleSelected}
         onToggleSelectAllVisible={onToggleSelectAllVisible}
+        layoutVariant={listLayoutVariant}
       />
 
       {items.map((item, idx) => (
@@ -515,6 +561,7 @@ export const GalleryListView = ({
           onRename={onRenameItem}
           onGoToFolder={onGoToFolder}
           isMultiSelect={isMultiSelect}
+          layoutVariant={listLayoutVariant}
         />
       ))}
 
