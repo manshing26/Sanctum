@@ -54,6 +54,13 @@ type BrowserTab = {
 };
 
 type DownloadEntry = DownloadProgress & { updatedAt: number };
+type CaptureRect = { x: number; y: number; width: number; height: number };
+type CaptureDrag = {
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+};
 
 export type BrowserWorkspaceProps = {
   mode: 'same-window' | 'legacy-window';
@@ -154,6 +161,20 @@ const isChallengeLikeUrl = (url: string): boolean => {
   return CHALLENGE_HINT_PATTERNS.some((p) => n.includes(p));
 };
 const getHost = (url: string): string => { try { return new URL(url).hostname; } catch { return ''; } };
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.min(max, Math.max(min, value));
+
+const dragToRect = (drag: CaptureDrag): CaptureRect => {
+  const x = Math.min(drag.startX, drag.currentX);
+  const y = Math.min(drag.startY, drag.currentY);
+  return {
+    x,
+    y,
+    width: Math.abs(drag.currentX - drag.startX),
+    height: Math.abs(drag.currentY - drag.startY),
+  };
+};
 
 const syncNavState = (tabId: string, webview: WebviewTag, onStateChange: TabWebViewProps['onStateChange']): void => {
   onStateChange(tabId, {
@@ -551,6 +572,9 @@ export const BrowserWorkspace = ({
   const [browserSettings, setBrowserSettings] = useState<BrowserSettings | null>(null);
   const [isCleaningWeb, setIsCleaningWeb] = useState(false);
   const [isCapturingPage, setIsCapturingPage] = useState(false);
+  const [captureMenuOpen, setCaptureMenuOpen] = useState(false);
+  const [areaCaptureActive, setAreaCaptureActive] = useState(false);
+  const [areaCaptureDrag, setAreaCaptureDrag] = useState<CaptureDrag | null>(null);
   const [pwPanelOpen, setPwPanelOpen] = useState(false);
   const [pwPanelEntries, setPwPanelEntries] = useState<PasswordDetail[]>([]);
   const [pwPanelLoading, setPwPanelLoading] = useState(false);
@@ -558,6 +582,7 @@ export const BrowserWorkspace = ({
   const [pwSaving, setPwSaving] = useState(false);
   const webviewRefs = useRef<Record<string, WebviewTag | null>>({});
   const addressInputRef = useRef<HTMLInputElement | null>(null);
+  const captureMenuRef = useRef<HTMLDivElement | null>(null);
   const gestureCooldownRef = useRef(0);
 
   const scrapeImagesFromTab = useCallback(async (tabId: string): Promise<string[]> => {
@@ -627,6 +652,33 @@ export const BrowserWorkspace = ({
     const timer = window.setTimeout(dispatch, 120);
     return () => { window.cancelAnimationFrame(rafA); window.clearTimeout(timer); };
   }, [isWorkspaceActive, leftPanelOpen, activeTab?.id, isSuspended]);
+
+  useEffect(() => {
+    if (!captureMenuOpen) return undefined;
+    const onPointerDown = (event: PointerEvent): void => {
+      if (captureMenuRef.current?.contains(event.target as Node)) return;
+      setCaptureMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [captureMenuOpen]);
+
+  useEffect(() => {
+    if (!areaCaptureActive) return undefined;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setAreaCaptureActive(false);
+      setAreaCaptureDrag(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [areaCaptureActive]);
+
+  useEffect(() => {
+    setAreaCaptureActive(false);
+    setAreaCaptureDrag(null);
+  }, [activeTab?.id]);
 
   useEffect(() => {
     if (!pendingUrl) return;
@@ -768,7 +820,7 @@ export const BrowserWorkspace = ({
     else { wv.reload(); applyTabPatch(activeTab.id, { isLoading: true }); }
   };
 
-  const handleCaptureVisiblePage = async (): Promise<void> => {
+  const importCapture = async (rect?: CaptureRect): Promise<void> => {
     if (!activeTab || activeTab.hasCrashed) {
       toast.error('Cannot capture this page.');
       return;
@@ -782,7 +834,7 @@ export const BrowserWorkspace = ({
     const toastId = toast('Capturing page...', { duration: Infinity });
     setIsCapturingPage(true);
     try {
-      const image = await webview.capturePage();
+      const image = await webview.capturePage(rect);
       const dataUrl = image.toDataURL();
       const pngBase64 = dataUrl.replace(/^data:image\/png;base64,/, '');
       if (!pngBase64) throw new Error('Empty capture.');
@@ -802,6 +854,89 @@ export const BrowserWorkspace = ({
     } finally {
       setIsCapturingPage(false);
     }
+  };
+
+  const handleCaptureVisiblePage = async (): Promise<void> => {
+    setCaptureMenuOpen(false);
+    await importCapture();
+  };
+
+  const handleStartAreaCapture = (): void => {
+    setCaptureMenuOpen(false);
+    if (!activeTab || activeTab.hasCrashed || isNewTab(activeTab.url)) {
+      toast.error('Cannot capture this page.');
+      return;
+    }
+    const webview = webviewRefs.current[activeTab.id];
+    if (!webview) {
+      toast.error('Cannot capture this page.');
+      return;
+    }
+    setAreaCaptureDrag(null);
+    setAreaCaptureActive(true);
+    toast('Select area to capture');
+  };
+
+  const getCapturePoint = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ): { x: number; y: number; width: number; height: number } => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    return {
+      x: clamp(event.clientX - bounds.left, 0, bounds.width),
+      y: clamp(event.clientY - bounds.top, 0, bounds.height),
+      width: bounds.width,
+      height: bounds.height,
+    };
+  };
+
+  const handleAreaCapturePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
+    if (!areaCaptureActive || isCapturingPage) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = getCapturePoint(event);
+    setAreaCaptureDrag({
+      startX: point.x,
+      startY: point.y,
+      currentX: point.x,
+      currentY: point.y,
+    });
+  };
+
+  const handleAreaCapturePointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
+    if (!areaCaptureActive || !areaCaptureDrag) return;
+    const point = getCapturePoint(event);
+    setAreaCaptureDrag((prev) => prev ? {
+      ...prev,
+      currentX: point.x,
+      currentY: point.y,
+    } : prev);
+  };
+
+  const handleAreaCapturePointerUp = (event: React.PointerEvent<HTMLDivElement>): void => {
+    if (!areaCaptureActive || !areaCaptureDrag) return;
+    event.preventDefault();
+    const point = getCapturePoint(event);
+    const rect = dragToRect({
+      ...areaCaptureDrag,
+      currentX: point.x,
+      currentY: point.y,
+    });
+    setAreaCaptureActive(false);
+    setAreaCaptureDrag(null);
+
+    const captureRect = {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    };
+    if (captureRect.width < 8 || captureRect.height < 8) return;
+    void importCapture(captureRect);
+  };
+
+  const handleAreaCapturePointerCancel = (): void => {
+    setAreaCaptureActive(false);
+    setAreaCaptureDrag(null);
   };
 
   const runBrowserCommand = useCallback((command: BrowserCommand): void => {
@@ -1259,23 +1394,55 @@ export const BrowserWorkspace = ({
             </button>
           </form>
 
-          <button
-            type="button"
-            onClick={() => void handleCaptureVisiblePage()}
-            disabled={isCapturingPage || Boolean(activeTab?.hasCrashed)}
-            title="Capture visible page"
-            style={{
-              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: isCapturingPage ? T.accentGlow : 'none',
-              border: `1px solid ${isCapturingPage ? T.accent : 'transparent'}`,
-              color: isCapturingPage ? T.accent : T.mute,
-              cursor: isCapturingPage || activeTab?.hasCrashed ? 'default' : 'pointer',
-              opacity: activeTab?.hasCrashed ? 0.45 : 1,
-              flexShrink: 0,
-            }}
-          >
-            <IcoCamera />
-          </button>
+          <div ref={captureMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => setCaptureMenuOpen((open) => !open)}
+              disabled={isCapturingPage || Boolean(activeTab?.hasCrashed)}
+              title="Capture page"
+              style={{
+                width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: captureMenuOpen || isCapturingPage || areaCaptureActive ? T.accentGlow : 'none',
+                border: `1px solid ${captureMenuOpen || isCapturingPage || areaCaptureActive ? T.accent : 'transparent'}`,
+                color: captureMenuOpen || isCapturingPage || areaCaptureActive ? T.accent : T.mute,
+                cursor: isCapturingPage || activeTab?.hasCrashed ? 'default' : 'pointer',
+                opacity: activeTab?.hasCrashed ? 0.45 : 1,
+                flexShrink: 0,
+              }}
+            >
+              <IcoCamera />
+            </button>
+            {captureMenuOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 32,
+                  right: 0,
+                  zIndex: 30,
+                  minWidth: 150,
+                  border: `1px solid ${T.line2}`,
+                  background: T.bg2,
+                  boxShadow: '0 12px 30px rgba(0,0,0,0.35)',
+                  padding: 4,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => void handleCaptureVisiblePage()}
+                  style={{ width: '100%', height: 28, padding: '0 10px', background: 'none', border: 'none', color: T.text, cursor: 'pointer', fontFamily: MONO, fontSize: fontSize(10), textAlign: 'left' }}
+                >
+                  Visible Page
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStartAreaCapture}
+                  style={{ width: '100%', height: 28, padding: '0 10px', background: 'none', border: 'none', color: T.text, cursor: 'pointer', fontFamily: MONO, fontSize: fontSize(10), textAlign: 'left' }}
+                >
+                  Select Area
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Password manager toggle */}
           <button
@@ -1534,6 +1701,57 @@ export const BrowserWorkspace = ({
         <div style={{ minHeight: 0, minWidth: 0, flex: 1, overflow: 'hidden' }}>
           {tabs.map((tab) => (
             <div key={tab.id} style={{ display: tab.id === activeTabId ? 'flex' : 'none', position: 'relative', minHeight: 0, minWidth: 0, height: '100%', flex: 1 }}>
+              {(() => {
+                const selectionRect = areaCaptureDrag ? dragToRect(areaCaptureDrag) : null;
+                return areaCaptureActive && tab.id === activeTabId ? (
+                  <div
+                    onPointerDown={handleAreaCapturePointerDown}
+                    onPointerMove={handleAreaCapturePointerMove}
+                    onPointerUp={handleAreaCapturePointerUp}
+                    onPointerCancel={handleAreaCapturePointerCancel}
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      zIndex: 8,
+                      cursor: isCapturingPage ? 'wait' : 'crosshair',
+                      background: 'rgba(10,12,11,0.18)',
+                      userSelect: 'none',
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 12,
+                        left: 12,
+                        padding: '5px 8px',
+                        border: `1px solid ${T.line2}`,
+                        background: 'rgba(10,12,11,0.85)',
+                        color: T.text,
+                        fontFamily: MONO,
+                        fontSize: fontSize(10),
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      Select area to capture
+                    </div>
+                    {selectionRect && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: selectionRect.x,
+                          top: selectionRect.y,
+                          width: selectionRect.width,
+                          height: selectionRect.height,
+                          border: `1px solid ${T.accent}`,
+                          background: 'rgba(124,154,146,0.18)',
+                          boxShadow: '0 0 0 9999px rgba(0,0,0,0.18)',
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    )}
+                  </div>
+                ) : null;
+              })()}
               {isSuspended && (
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', minHeight: 0, minWidth: 0, flex: 1, alignItems: 'center', justifyContent: 'center', background: T.bg, zIndex: 1 }}>
                   <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>Browser suspended while vault is locked or tab is inactive.</p>
