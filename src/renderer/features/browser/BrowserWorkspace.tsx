@@ -73,7 +73,6 @@ export type BrowserWorkspaceProps = {
 };
 
 export type BrowserWorkspaceHandle = {
-  scrapeImagesFromActiveTab: () => Promise<string[]>;
 };
 
 type TabWebViewProps = {
@@ -214,9 +213,9 @@ const IcoGlobe = () => (
     <circle cx="6" cy="6" r="4.5"/><path d="M6 1.5c-1.4 1.5-2 3-2 4.5s.6 3 2 4.5"/><path d="M6 1.5c1.4 1.5 2 3 2 4.5s-.6 3-2 4.5"/><line x1="1.5" y1="6" x2="10.5" y2="6"/>
   </svg>
 );
-const IcoStar = () => (
-  <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="6.5,1 8.1,4.8 12.3,5.1 9.2,7.8 10.2,12 6.5,9.8 2.8,12 3.8,7.8 0.7,5.1 4.9,4.8"/>
+const IcoStar: React.FC<{ filled?: boolean }> = ({ filled = false }) => (
+  <svg width="13" height="13" viewBox="0 0 13 13" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="6.5,1 8.1,4.8 12.3,5.1 9.2,7.8 10.2,12 6.5,9.8 2.8,12 3.8,7.8 0.7,5.1 4.9,4.8" />
   </svg>
 );
 const IcoCamera = () => (
@@ -583,50 +582,16 @@ export const BrowserWorkspace = ({
   const webviewRefs = useRef<Record<string, WebviewTag | null>>({});
   const addressInputRef = useRef<HTMLInputElement | null>(null);
   const captureMenuRef = useRef<HTMLDivElement | null>(null);
+  const passwordMenuRef = useRef<HTMLDivElement | null>(null);
   const gestureCooldownRef = useRef(0);
 
-  const scrapeImagesFromTab = useCallback(async (tabId: string): Promise<string[]> => {
-    const webview = webviewRefs.current[tabId];
-    if (!webview) return [];
-    try {
-      const urls = await webview.executeJavaScript(`(function(){
-        const og=['meta[property="og:image"]','meta[property="og:image:url"]','meta[name="twitter:image"]','meta[name="twitter:image:src"]']
-          .map(s=>document.querySelector(s)?.getAttribute('content')).filter(Boolean);
-        const imgs=Array.from(document.querySelectorAll('img'))
-          .filter(i=>i.naturalWidth>=100&&i.naturalHeight>=100)
-          .map(i=>i.currentSrc||i.src).filter(Boolean);
-        return[...new Set([...og,...imgs])].slice(0,20);
-      })()`);
-      if (!Array.isArray(urls) || urls.length === 0) return [];
-      const dataUrls = await webview.executeJavaScript(`(async function(urls){
-        const results=[];
-        for(const src of urls){
-          try{
-            const res=await fetch(src,{credentials:'include'});
-            if(!res.ok)continue;
-            const blob=await res.blob();
-            const dataUrl=await new Promise((resolve,reject)=>{
-              const r=new FileReader();
-              r.onload=()=>resolve(r.result);
-              r.onerror=reject;
-              r.readAsDataURL(blob);
-            });
-            if(typeof dataUrl==='string')results.push(dataUrl);
-          }catch{}
-        }return results;
-      })(${JSON.stringify(urls)})`);
-      return Array.isArray(dataUrls) ? (dataUrls as string[]) : [];
-    } catch { return []; }
-  }, []);
   const downloadCleanupTimers = useRef<Record<string, number>>({});
   const navigationHistoryRef = useRef<Record<string, NavigationSample[]>>({});
   const challengeWarningCooldownRef = useRef<Record<string, number>>({});
 
   const activeTab = useMemo(() => tabs.find((t) => t.id === activeTabId) ?? tabs[0], [tabs, activeTabId]);
 
-  useImperativeHandle(imperativeRef, () => ({
-    scrapeImagesFromActiveTab: () => scrapeImagesFromTab(activeTab?.id ?? ''),
-  }), [scrapeImagesFromTab, activeTab?.id]);
+  useImperativeHandle(imperativeRef, () => ({}), []);
 
   useEffect(() => {
     const activeIndex = tabs.findIndex((t) => t.id === activeTabId);
@@ -662,6 +627,27 @@ export const BrowserWorkspace = ({
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [captureMenuOpen]);
+
+  useEffect(() => {
+    if (!pwPanelOpen) return undefined;
+    const onPointerDown = (event: PointerEvent): void => {
+      if (passwordMenuRef.current?.contains(event.target as Node)) return;
+      setPwPanelOpen(false);
+      setPwSaveForm(null);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setPwPanelOpen(false);
+      setPwSaveForm(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [pwPanelOpen]);
 
   useEffect(() => {
     if (!areaCaptureActive) return undefined;
@@ -1106,6 +1092,11 @@ export const BrowserWorkspace = ({
     try { return new URL(activeTab?.url ?? '').hostname; } catch { return ''; }
   }, [activeTab?.url]);
 
+  useEffect(() => {
+    setPwPanelOpen(false);
+    setPwSaveForm(null);
+  }, [activeTab?.id, activeDomain]);
+
   const openPwPanel = async (): Promise<void> => {
     setPwPanelOpen((prev) => {
       if (prev) return false;
@@ -1227,6 +1218,12 @@ export const BrowserWorkspace = ({
   }, [bookmarks]);
 
   const activeIsHttps = activeTab ? isHttps(activeTab.url) : false;
+  const activeBookmark = useMemo(() => {
+    const activeUrl = activeTab?.url.trim().toLowerCase() ?? '';
+    if (!activeUrl || isNewTab(activeUrl)) return undefined;
+    return bookmarks.find((bookmark) => bookmark.url.trim().toLowerCase() === activeUrl);
+  }, [activeTab?.url, bookmarks]);
+  const isActiveBookmarked = Boolean(activeBookmark);
 
   // ── Bookmarks panel content ──────────────────────────────────────
   const bookmarksContent = (
@@ -1387,10 +1384,20 @@ export const BrowserWorkspace = ({
             <button
               type="button"
               onClick={() => void handleSaveCurrentAsBookmark()}
-              title="Bookmark page"
-              style={{ position: 'absolute', right: 6, background: 'none', border: 'none', color: T.mute, cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 2 }}
+              title={isActiveBookmarked ? 'Bookmarked' : 'Bookmark page'}
+              style={{
+                position: 'absolute',
+                right: 6,
+                background: 'none',
+                border: 'none',
+                color: isActiveBookmarked ? T.accent : T.mute,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                padding: 2,
+              }}
             >
-              <IcoStar />
+              <IcoStar filled={isActiveBookmarked} />
             </button>
           </form>
 
@@ -1445,22 +1452,136 @@ export const BrowserWorkspace = ({
           </div>
 
           {/* Password manager toggle */}
-          <button
-            type="button"
-            onClick={() => void openPwPanel()}
-            title="Saved passwords for this domain"
-            style={{
-              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: pwPanelOpen ? T.accentGlow : 'none',
-              border: `1px solid ${pwPanelOpen ? T.accent : 'transparent'}`,
-              color: pwPanelOpen ? T.accent : T.mute,
-              cursor: 'pointer', flexShrink: 0,
-            }}
-          >
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="5.5" cy="7" r="3"/><path d="M8.5 7h4M11 7v1.5"/>
-            </svg>
-          </button>
+          <div ref={passwordMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => void openPwPanel()}
+              title="Saved passwords for this domain"
+              style={{
+                width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: pwPanelOpen ? T.accentGlow : 'none',
+                border: `1px solid ${pwPanelOpen ? T.accent : 'transparent'}`,
+                color: pwPanelOpen ? T.accent : T.mute,
+                cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="5.5" cy="7" r="3"/><path d="M8.5 7h4M11 7v1.5"/>
+              </svg>
+            </button>
+            {pwPanelOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 32,
+                  right: 0,
+                  zIndex: 35,
+                  width: 340,
+                  maxHeight: 'min(420px, calc(100vh - 96px))',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  border: `1px solid ${T.line2}`,
+                  background: T.bg2,
+                  boxShadow: '0 12px 30px rgba(0,0,0,0.35)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: `1px solid ${T.line}` }}>
+                  <span style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    Passwords for <span style={{ color: T.accent }}>{activeDomain || '—'}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { setPwPanelOpen(false); setPwSaveForm(null); }}
+                    title="Close"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 0, display: 'flex', alignItems: 'center' }}
+                  >
+                    <IcoStop />
+                  </button>
+                </div>
+
+                <div style={{ minHeight: 0, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {pwSaveForm && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: 8, background: T.bg, border: `1px solid ${T.line}` }}>
+                      <input
+                        type="text"
+                        value={pwSaveForm.username}
+                        onChange={(e) => setPwSaveForm((f) => f && ({ ...f, username: e.target.value }))}
+                        placeholder="Username / email"
+                        style={{ height: 28, padding: '0 8px', background: T.bg2, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none' }}
+                      />
+                      <input
+                        type="password"
+                        value={pwSaveForm.password}
+                        onChange={(e) => setPwSaveForm((f) => f && ({ ...f, password: e.target.value }))}
+                        placeholder="Password"
+                        style={{ height: 28, padding: '0 8px', background: T.bg2, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none' }}
+                      />
+                      <input
+                        type="text"
+                        value={pwSaveForm.label}
+                        onChange={(e) => setPwSaveForm((f) => f && ({ ...f, label: e.target.value }))}
+                        placeholder="Label (optional)"
+                        style={{ height: 28, padding: '0 8px', background: T.bg2, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handlePwSave()}
+                        disabled={pwSaving || !pwSaveForm.username || !pwSaveForm.password}
+                        style={{ height: 28, padding: '0 12px', background: T.accent, border: 'none', color: T.bg, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!pwSaveForm.username || !pwSaveForm.password) ? 0.5 : 1 }}
+                      >
+                        {pwSaving ? '…' : 'Save'}
+                      </button>
+                    </div>
+                  )}
+
+                  {pwPanelLoading ? (
+                    <p style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, margin: 0 }}>Loading…</p>
+                  ) : pwPanelEntries.length === 0 ? (
+                    <p style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, margin: 0 }}>No saved credentials for this domain.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {pwPanelEntries.map((entry) => (
+                        <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: T.bg, border: `1px solid ${T.line}` }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+                              {entry.username || <span style={{ color: T.mute2 }}>no username</span>}
+                            </span>
+                            {entry.label && <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{entry.label}</span>}
+                          </div>
+                          <button
+                            type="button"
+                            title="Copy username"
+                            onClick={() => { void navigator.clipboard.writeText(entry.username); toast.success('Username copied.'); }}
+                            style={{ height: 22, padding: '0 8px', background: 'none', border: `1px solid ${T.accent}`, color: T.accent, fontFamily: MONO, fontSize: fontSize(9), cursor: 'pointer', flexShrink: 0 }}
+                          >
+                            Copy user
+                          </button>
+                          <button
+                            type="button"
+                            title="Copy password"
+                            onClick={() => { void navigator.clipboard.writeText(entry.password); toast.success('Password copied.'); }}
+                            style={{ height: 22, padding: '0 8px', background: T.accent, border: `1px solid ${T.accent}`, color: T.bg, fontFamily: MONO, fontSize: fontSize(9), cursor: 'pointer', flexShrink: 0 }}
+                          >
+                            Copy pw
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ padding: 10, borderTop: `1px solid ${T.line}` }}>
+                  <button
+                    type="button"
+                    onClick={() => setPwSaveForm(pwSaveForm ? null : { username: '', password: '', label: '' })}
+                    style={{ width: '100%', height: 28, padding: '0 10px', background: pwSaveForm ? 'none' : T.accent, border: `1px solid ${pwSaveForm ? T.line2 : T.accent}`, color: pwSaveForm ? T.mute : T.bg, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+                  >
+                    {pwSaveForm ? 'Cancel' : '+ Save'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Cookie mode toggle */}
           <button
@@ -1542,94 +1663,6 @@ export const BrowserWorkspace = ({
           </button>
         </div>
       </header>
-
-      {/* Password panel */}
-      {pwPanelOpen && (
-        <div style={{ borderBottom: `1px solid ${T.line2}`, background: T.bg2, padding: '12px 14px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <span style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>
-              Passwords for <span style={{ color: T.accent }}>{activeDomain || '—'}</span>
-            </span>
-            <div style={{ flex: 1 }} />
-            <button
-              type="button"
-              onClick={() => setPwSaveForm(pwSaveForm ? null : { username: '', password: '', label: '' })}
-              style={{ height: 22, padding: '0 10px', background: pwSaveForm ? 'none' : T.accent, border: `1px solid ${pwSaveForm ? T.line2 : T.accent}`, color: pwSaveForm ? T.mute : T.bg, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
-            >
-              {pwSaveForm ? 'Cancel' : '+ Save'}
-            </button>
-          </div>
-
-          {pwSaveForm && (
-            <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                value={pwSaveForm.username}
-                onChange={(e) => setPwSaveForm((f) => f && ({ ...f, username: e.target.value }))}
-                placeholder="Username / email"
-                style={{ flex: '1 1 140px', height: 26, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none' }}
-              />
-              <input
-                type="password"
-                value={pwSaveForm.password}
-                onChange={(e) => setPwSaveForm((f) => f && ({ ...f, password: e.target.value }))}
-                placeholder="Password"
-                style={{ flex: '1 1 120px', height: 26, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none' }}
-              />
-              <input
-                type="text"
-                value={pwSaveForm.label}
-                onChange={(e) => setPwSaveForm((f) => f && ({ ...f, label: e.target.value }))}
-                placeholder="Label (optional)"
-                style={{ flex: '1 1 100px', height: 26, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none' }}
-              />
-              <button
-                type="button"
-                onClick={() => void handlePwSave()}
-                disabled={pwSaving || !pwSaveForm.username || !pwSaveForm.password}
-                style={{ height: 26, padding: '0 12px', background: T.accent, border: 'none', color: T.bg, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer', opacity: (!pwSaveForm.username || !pwSaveForm.password) ? 0.5 : 1 }}
-              >
-                {pwSaving ? '…' : 'Save'}
-              </button>
-            </div>
-          )}
-
-          {pwPanelLoading ? (
-            <p style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, margin: 0 }}>Loading…</p>
-          ) : pwPanelEntries.length === 0 ? (
-            <p style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, margin: 0 }}>No saved credentials for this domain.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {pwPanelEntries.map((entry) => (
-                <div key={entry.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', background: T.bg, border: `1px solid ${T.line}` }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-                      {entry.username || <span style={{ color: T.mute2 }}>no username</span>}
-                    </span>
-                    {entry.label && <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2 }}>{entry.label}</span>}
-                  </div>
-                  <button
-                    type="button"
-                    title="Copy username"
-                    onClick={() => { void navigator.clipboard.writeText(entry.username); toast.success('Username copied.'); }}
-                    style={{ height: 22, padding: '0 8px', background: 'none', border: `1px solid ${T.accent}`, color: T.accent, fontFamily: MONO, fontSize: fontSize(9), cursor: 'pointer', flexShrink: 0 }}
-                  >
-                    Copy user
-                  </button>
-                  <button
-                    type="button"
-                    title="Copy password"
-                    onClick={() => { void navigator.clipboard.writeText(entry.password); toast.success('Password copied.'); }}
-                    style={{ height: 22, padding: '0 8px', background: T.accent, border: `1px solid ${T.accent}`, color: T.bg, fontFamily: MONO, fontSize: fontSize(9), cursor: 'pointer', flexShrink: 0 }}
-                  >
-                    Copy pw
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Legacy bookmarks/extensions panels */}
       {!showPersistentLeftPanel && legacyShowBookmarks && (

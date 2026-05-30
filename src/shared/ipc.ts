@@ -42,6 +42,7 @@ export const IPC_CHANNELS = {
   changePassword: 'auth:change-password',
   getSession: 'auth:get-session',
   sessionChanged: 'auth:session-changed',
+  listAuthAuditLog: 'auth:list-audit-log',
   importFiles: 'vault:import-files',
   listItems: 'vault:list-items',
   listItemsQuery: 'vault:list-items-query',
@@ -112,6 +113,14 @@ export type ChangePasswordInput = {
 export type SessionState = {
   status: 'locked' | 'unlocked';
   hasVault: boolean;
+};
+
+export type AuthAuditEntry = {
+  id: number;
+  eventType: 'unlock' | 'change_password' | 'delete_all_vault_items' | 'restore_vault';
+  success: boolean;
+  message: string;
+  createdAt: string;
 };
 
 export type SessionChangeReason = 'manual' | 'idle_timeout' | 'window_minimize' | 'system_lock' | 'system_sleep';
@@ -628,6 +637,7 @@ export type ElectronAPI = {
   lockVault: () => Promise<OperationResult>;
   changePassword: (input: ChangePasswordInput) => Promise<OperationResult>;
   getSession: () => Promise<SessionState>;
+  listAuthAuditLog: () => Promise<OperationResult<AuthAuditEntry[]>>;
   importFiles: (input: ImportRequest) => Promise<OperationResult<ImportResult>>;
   scanImportConflicts: (input: ScanImportConflictsInput) => Promise<OperationResult<ScanImportConflictsResult>>;
   listItems: () => Promise<VaultItemSummary[]>;

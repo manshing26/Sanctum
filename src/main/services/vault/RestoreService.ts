@@ -70,6 +70,7 @@ export class RestoreService {
   private restoreV4DatabaseFromBackup(backupDb: SqliteDatabase): void {
     const tables = [
       'auth_state',
+      'auth_audit_log',
       'vault_config',
       'folders',
       'tags',

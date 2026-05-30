@@ -144,18 +144,26 @@ export const registerVaultHandlers = ({
   ipcMain.handle(IPC_CHANNELS.clearAllVaultItems, async (_event, input: ClearAllVaultItemsInput) => {
     try {
       if (!input.password) {
+        authService.recordAuditEvent('delete_all_vault_items', false, 'Delete all vault data failed.');
         return { ok: false as const, error: 'Enter your vault password to delete vault data.' };
       }
       const valid = await authService.verifyCurrentPassword(input.password);
       if (!valid) {
+        authService.recordAuditEvent('delete_all_vault_items', false, 'Delete all vault data failed.');
         return { ok: false as const, error: 'Incorrect password.' };
       }
       const data = await vaultService.clearAllItems();
+      authService.recordAuditEvent('delete_all_vault_items', true, 'Vault data deleted.');
       return {
         ok: true as const,
         data,
       };
     } catch (error) {
+      try {
+        authService.recordAuditEvent('delete_all_vault_items', false, 'Delete all vault data failed.');
+      } catch {
+        // ignore audit write failure
+      }
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to clear vault items.',
@@ -334,8 +342,18 @@ export const registerVaultHandlers = ({
       await restoreService.replaceVault(input.backupPath, input.password, (progress) => {
         window?.webContents.send(IPC_CHANNELS.restoreProgress, progress);
       });
+      try {
+        authService.recordAuditEvent('restore_vault', true, 'Vault restored.');
+      } catch {
+        // Do not fail a completed restore if post-restore audit logging fails.
+      }
       return { ok: true as const };
     } catch (error) {
+      try {
+        authService.recordAuditEvent('restore_vault', false, 'Vault restore failed.');
+      } catch {
+        // ignore audit write failure
+      }
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to restore vault.',

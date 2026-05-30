@@ -153,7 +153,6 @@ const MIXED_LIST_STYLES = `
 type VaultPageProps = {
   onMessage?: (message: string) => void;
   onOpenUrlInBrowser?: (url: string) => void;
-  onScrapeImages?: () => Promise<string[]>;
 };
 
 const ListSelectionMark: React.FC<{ selected: boolean; visible: boolean }> = ({ selected, visible }) => (
@@ -1556,17 +1555,48 @@ const BookmarkInspector: React.FC<{
 // ── Thumbnail picker overlay ──────────────────────────────────────────
 const ThumbnailPicker: React.FC<{
   bookmark: BookmarkSummary;
-  onScrapeImages?: () => Promise<string[]>;
   onPick: (dataUrl: string, bookmarkId: string) => void;
   onClose: () => void;
-}> = ({ bookmark, onScrapeImages, onPick, onClose }) => {
-  const [candidates, setCandidates] = useState<string[]>([]);
+}> = ({ bookmark, onPick, onClose }) => {
+  const [candidates, setCandidates] = useState<Array<{ item: VaultItemSummary; dataUrl: string }>>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  const filteredCandidates = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return candidates;
+    return candidates.filter(({ item }) => item.originalName.toLowerCase().includes(query));
+  }, [candidates, search]);
 
   useEffect(() => {
-    if (!onScrapeImages) { setLoading(false); return; }
-    void onScrapeImages().then((imgs) => { setCandidates(imgs); setLoading(false); });
-  }, [onScrapeImages]);
+    let cancelled = false;
+    const loadVaultImages = async (): Promise<void> => {
+      setLoading(true);
+      const result = await window.electronAPI.listItemsQuery({ limit: 5000, offset: 0, sort: 'newest' });
+      if (!result.ok) {
+        if (!cancelled) setLoading(false);
+        return;
+      }
+      const imageItems = result.data.items.filter((item) =>
+        item.mimeType.startsWith('image/') && item.hasThumbnail,
+      );
+      const loaded = await Promise.all(
+        imageItems.map(async (item) => {
+          const thumbnail = await window.electronAPI.getItemThumbnail(item.id);
+          if (!thumbnail.ok) return null;
+          return {
+            item,
+            dataUrl: `data:${thumbnail.data.mimeType};base64,${thumbnail.data.base64Data}`,
+          };
+        }),
+      );
+      if (cancelled) return;
+      setCandidates(loaded.filter((entry): entry is { item: VaultItemSummary; dataUrl: string } => Boolean(entry)));
+      setLoading(false);
+    };
+    void loadVaultImages();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)' }}>
@@ -1577,25 +1607,75 @@ const ThumbnailPicker: React.FC<{
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="1" y1="1" x2="11" y2="11" /><line x1="11" y1="1" x2="1" y2="11" /></svg>
           </button>
         </div>
+        <div style={{ position: 'relative', padding: '10px 16px', borderBottom: `1px solid ${T.line}` }}>
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search images..."
+            style={{
+              width: '100%',
+              height: 30,
+              padding: search ? '0 30px 0 10px' : '0 10px',
+              background: T.bg,
+              border: `1px solid ${T.line2}`,
+              color: T.text,
+              fontFamily: MONO,
+              fontSize: fontSize(10),
+              outline: 'none',
+            }}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              title="Clear search"
+              style={{
+                position: 'absolute',
+                right: 24,
+                top: 16,
+                width: 18,
+                height: 18,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'none',
+                border: 'none',
+                color: T.mute,
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="1" y1="1" x2="9" y2="9" /><line x1="9" y1="1" x2="1" y2="9" /></svg>
+            </button>
+          )}
+        </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '32px 0', color: T.mute }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke={T.accent} strokeWidth="1.5" style={{ animation: 'spin 1s linear infinite' }}><path d="M14 8A6 6 0 1 1 8 2" /></svg>
-              <span style={{ fontFamily: MONO, fontSize: fontSize(10) }}>Scraping page images…</span>
+              <span style={{ fontFamily: MONO, fontSize: fontSize(10) }}>Loading Vault images…</span>
             </div>
           ) : candidates.length === 0 ? (
-            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, textAlign: 'center', padding: '32px 0' }}>No images found on the active tab.</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, textAlign: 'center', padding: '32px 0' }}>No Vault images available. Capture or import an image first.</p>
+          ) : filteredCandidates.length === 0 ? (
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, textAlign: 'center', padding: '32px 0' }}>No images match this search.</p>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, 84px)', gap: 8 }}>
-              {candidates.map((src, i) => (
-                <div key={i}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))', gap: 8 }}>
+              {filteredCandidates.map(({ item, dataUrl }) => (
+                <div key={item.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => onPick(src, bookmark.id)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') onPick(src, bookmark.id); }}
-                  style={{ width: 84, height: 84, overflow: 'hidden', cursor: 'pointer', border: `1px solid ${T.line}`, flexShrink: 0 }}
+                  onClick={() => onPick(dataUrl, bookmark.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') onPick(dataUrl, bookmark.id); }}
+                  title={item.originalName}
+                  style={{ minWidth: 0, overflow: 'hidden', cursor: 'pointer', border: `1px solid ${T.line}`, flexShrink: 0 }}
                 >
-                  <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  <div style={{ width: '100%', aspectRatio: '1 / 1', overflow: 'hidden', background: T.bg }}>
+                    <img src={dataUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  </div>
+                  <div style={{ padding: '5px 6px', fontFamily: MONO, fontSize: fontSize(9), color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.originalName}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1741,7 +1821,7 @@ const compareCreatedOldest = (a: { createdAt: string }, b: { createdAt: string }
   new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
 
 // ── VaultPage ─────────────────────────────────────────────────────────
-export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps): React.JSX.Element => {
+export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Element => {
   const state = useGalleryState();
   const {
     allItems, filteredItems, isLoading, thumbnails, hydrateThumbnails,
@@ -2703,7 +2783,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
 
   const handlePickThumb = async (dataUrl: string, bookmarkId: string): Promise<void> => {
     const result = await window.electronAPI.updateBookmarkThumbnail({ id: bookmarkId, thumbnailDataUrl: dataUrl });
-    if (!result.ok) { toast.error(result.error); return; }
+    if (!result.ok) { toast.error('Failed to update thumbnail.'); return; }
     setBookmarks((prev) => prev.map((b) => b.id === bookmarkId ? result.data : b));
     setThumbPickerBookmark(null);
     toast.success('Thumbnail updated.');
@@ -3565,7 +3645,7 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
                     onToggleFavorite={(bookmarkId, isFavorite) => void handleToggleBookmarkFavoriteByIds([bookmarkId], isFavorite)}
                     onSetRating={(bookmarkId, rating) => void handleSetBookmarkRating(bookmarkId, rating)}
                     onOpenInBrowser={onOpenUrlInBrowser}
-                    onChangeThumbnail={onScrapeImages ? (b) => setThumbPickerBookmark(b) : undefined}
+                    onChangeThumbnail={(b) => setThumbPickerBookmark(b)}
                     onGoToFolder={showGoToFolderActions ? handleGoToBookmarkFolder : undefined}
                   />
               ) : selectedNote ? (
@@ -3673,7 +3753,6 @@ export const VaultPage = ({ onOpenUrlInBrowser, onScrapeImages }: VaultPageProps
       {thumbPickerBookmark && (
         <ThumbnailPicker
           bookmark={thumbPickerBookmark}
-          onScrapeImages={onScrapeImages}
           onPick={(dataUrl, bookmarkId) => void handlePickThumb(dataUrl, bookmarkId)}
           onClose={() => setThumbPickerBookmark(null)}
         />

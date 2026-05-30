@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { RestoreCountdownDialog } from '../../components/ui/RestoreCountdownDialog';
 import { PasswordInput } from '../../components/ui/PasswordInput';
-import type { SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgress, RestoreProgress } from '../../../shared/ipc';
+import type { AuthAuditEntry, SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgress, RestoreProgress } from '../../../shared/ipc';
 import { VAULT_PASSWORD_MIN_LENGTH, isVaultPasswordLongEnough } from '../../../shared/authPolicy';
 import type { SearchEngineId } from '../../../shared/browserSearch';
 import { validateCustomSearchTemplate } from '../../../shared/browserSearch';
@@ -26,6 +26,34 @@ const T = {
 };
 const MONO  = "'JetBrains Mono', ui-monospace, Menlo, monospace";
 const SERIF = "'Fraunces', Georgia, serif";
+
+const formatAuditTimestamp = (value: string): string => {
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value);
+  const normalized = `${value.includes('T') ? value : value.replace(' ', 'T')}${hasTimezone ? '' : 'Z'}`;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const auditEventLabel = (eventType: AuthAuditEntry['eventType']): string => {
+  switch (eventType) {
+    case 'change_password':
+      return 'Password';
+    case 'delete_all_vault_items':
+      return 'Delete All';
+    case 'restore_vault':
+      return 'Restore';
+    case 'unlock':
+    default:
+      return 'Unlock';
+  }
+};
 
 // ── Nav items ────────────────────────────────────────────────────────
 type SettingsCategory = 'security' | 'appearance' | 'browser' | 'storage' | 'about';
@@ -370,10 +398,22 @@ const ChangePasswordCard: React.FC = () => {
 // ── Security ─────────────────────────────────────────────────────────
 const SecuritySection: React.FC = () => {
   const [settings, setSettings] = useState<SecuritySettings | null>(null);
+  const [auditEntries, setAuditEntries] = useState<AuthAuditEntry[]>([]);
+  const [auditLoading, setAuditLoading] = useState(true);
+  const [auditError, setAuditError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     void window.electronAPI.getSecuritySettings().then((r) => { if (r.ok) setSettings(r.data); setLoading(false); });
+    void window.electronAPI.listAuthAuditLog().then((r) => {
+      if (r.ok) {
+        setAuditEntries(r.data);
+        setAuditError(null);
+      } else {
+        setAuditError(r.error);
+      }
+      setAuditLoading(false);
+    });
   }, []);
 
   const update = async (key: keyof SecuritySettings, value: SecuritySettings[keyof SecuritySettings]): Promise<void> => {
@@ -413,6 +453,77 @@ const SecuritySection: React.FC = () => {
       </SettingCard>
 
       <ChangePasswordCard />
+
+      <SettingCard>
+        <CardSection title="Audit" description="Recent security events.">
+          {auditLoading ? (
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0 }}>Loading…</p>
+          ) : auditError ? (
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.danger, margin: 0 }}>{auditError}</p>
+          ) : auditEntries.length === 0 ? (
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0 }}>No login records yet.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ maxHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 4 }}>
+                {auditEntries.map((entry) => (
+                  <div
+                    key={entry.id}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(120px, 1fr) auto auto minmax(110px, 1.2fr)',
+                      gap: 10,
+                      alignItems: 'center',
+                      padding: '8px 10px',
+                      border: `1px solid ${T.line}`,
+                      background: T.bg,
+                      minWidth: 0,
+                    }}
+                  >
+                    <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {formatAuditTimestamp(entry.createdAt)}
+                    </span>
+                    <span
+                      style={{
+                        padding: '2px 7px',
+                        border: `1px solid ${T.line2}`,
+                        color: T.mute,
+                        background: T.bg2,
+                        fontFamily: MONO,
+                        fontSize: fontSize(9),
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {auditEventLabel(entry.eventType)}
+                    </span>
+                    <span
+                      style={{
+                        padding: '2px 7px',
+                        border: `1px solid ${entry.success ? T.success : T.danger}`,
+                        color: entry.success ? T.success : T.danger,
+                        background: entry.success ? 'rgba(106,158,127,0.10)' : T.dangerGlow,
+                        fontFamily: MONO,
+                        fontSize: fontSize(9),
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {entry.success ? 'Success' : 'Failed'}
+                    </span>
+                    <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {entry.message}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, margin: 0 }}>
+                Showing latest {auditEntries.length} record{auditEntries.length === 1 ? '' : 's'}.
+              </p>
+            </div>
+          )}
+        </CardSection>
+      </SettingCard>
     </div>
   );
 };

@@ -12,11 +12,22 @@ import {
   VAULT_PASSWORD_MIN_LENGTH_MESSAGE,
   isVaultPasswordLongEnough,
 } from '../../../shared/authPolicy';
+import type { AuthAuditEntry } from '../../../shared/ipc';
+
+type AuthAuditEventType = AuthAuditEntry['eventType'];
 
 type AuthStateRow = {
   password_verifier: string;
   failed_attempts: number | null;
   lockout_until: string | null;
+};
+
+type AuthAuditRow = {
+  id: number;
+  event_type: AuthAuditEventType;
+  success: number;
+  message: string;
+  created_at: string;
 };
 
 type VaultConfigRow = {
@@ -56,6 +67,7 @@ type EncryptedPayload = {
 export class AuthService {
   private static readonly MAX_FAILED_ATTEMPTS = 5;
   private static readonly LOCKOUT_MINUTES = 15;
+  private static readonly MAX_AUDIT_ROWS = 100;
 
   constructor(
     private readonly db: SqliteDatabase,
@@ -69,6 +81,46 @@ export class AuthService {
   refreshVaultPresence(): void {
     const row = this.db.prepare('SELECT id FROM auth_state WHERE id = 1').get();
     this.sessionStore.setHasVault(Boolean(row));
+  }
+
+  recordAuditEvent(eventType: AuthAuditEventType, success: boolean, message: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO auth_audit_log (event_type, success, message)
+         VALUES (?, ?, ?)`,
+      )
+      .run(eventType, success ? 1 : 0, message);
+    this.db
+      .prepare(
+        `DELETE FROM auth_audit_log
+         WHERE id NOT IN (
+           SELECT id FROM auth_audit_log
+           ORDER BY created_at DESC, id DESC
+           LIMIT ?
+         )`,
+      )
+      .run(AuthService.MAX_AUDIT_ROWS);
+  }
+
+  listAuthAuditLog(): AuthAuditEntry[] {
+    if (this.sessionStore.getState().status !== 'unlocked') {
+      throw new Error('Vault must be unlocked to view audit records.');
+    }
+    const rows = this.db
+      .prepare(
+        `SELECT id, event_type, success, message, created_at
+         FROM auth_audit_log
+         ORDER BY created_at DESC, id DESC
+         LIMIT ?`,
+      )
+      .all(AuthService.MAX_AUDIT_ROWS) as AuthAuditRow[];
+    return rows.map((row) => ({
+      id: row.id,
+      eventType: row.event_type,
+      success: row.success === 1,
+      message: row.message,
+      createdAt: row.created_at,
+    }));
   }
 
   async createVaultPassword(password: string): Promise<void> {
@@ -119,6 +171,7 @@ export class AuthService {
     const lockoutUntilMs = this.parseLockoutTimestamp(authState.lockout_until);
     if (lockoutUntilMs !== null && lockoutUntilMs > Date.now()) {
       const remainingMinutes = Math.max(1, Math.ceil((lockoutUntilMs - Date.now()) / 60000));
+      this.recordAuditEvent('unlock', false, 'Blocked by lockout.');
       throw new Error(`Too many failed attempts. Try again in ${remainingMinutes} minute(s).`);
     }
 
@@ -145,6 +198,7 @@ export class AuthService {
           )
           .run(nextAttempts);
       }
+      this.recordAuditEvent('unlock', false, 'Invalid password.');
       throw new Error('Invalid password.');
     }
 
@@ -173,6 +227,7 @@ export class AuthService {
          WHERE id = 1`,
       )
       .run();
+    this.recordAuditEvent('unlock', true, 'Vault unlocked.');
   }
 
   async verifyCurrentPassword(password: string): Promise<boolean> {

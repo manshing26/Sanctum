@@ -25,6 +25,14 @@ export class DatabaseService {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS auth_audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_type TEXT NOT NULL,
+        success INTEGER NOT NULL,
+        message TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS vault_config (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         salt BLOB NOT NULL,
@@ -130,6 +138,7 @@ export class DatabaseService {
       CREATE INDEX IF NOT EXISTS idx_object_tags_tag_id        ON object_tags(tag_id);
       CREATE INDEX IF NOT EXISTS idx_folders_parent_id         ON folders(parent_id);
       CREATE INDEX IF NOT EXISTS idx_passwords_updated         ON passwords(updated_at);
+      CREATE INDEX IF NOT EXISTS idx_auth_audit_log_created_at ON auth_audit_log(created_at);
     `);
 
     // Default settings

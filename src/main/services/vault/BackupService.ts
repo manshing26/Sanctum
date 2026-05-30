@@ -69,6 +69,7 @@ export class BackupService {
         schemaVersion: 4,
         itemCount,
         tables: [
+          'auth_audit_log',
           'vault_objects', 'vault_items', 'bookmarks', 'notes', 'object_tags',
           'folders', 'tags', 'passwords', 'schema_meta',
         ],

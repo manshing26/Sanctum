@@ -7,9 +7,10 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 ## Features
 
 ### Vault Objects
+
 - **Mixed object gallery** — files, bookmarks, and secure notes appear together in All Objects and folder views.
 - **Encrypted files** — imported files are stored as encrypted blobs; original filenames are encrypted separately.
-- **Encrypted bookmarks** — bookmark title, URL, and thumbnail metadata are stored in the encrypted vault database.
+- **Encrypted bookmarks** — bookmark title, URL, and thumbnail data are stored encrypted.
 - **Secure notes** — encrypted note title/body stored in SQLite; supports plain text and Markdown mode.
 - **Folders** — shared nested folder tree for files, bookmarks, and notes.
 - **Tags** — shared colour-coded tags across vault objects.
@@ -20,8 +21,9 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - **Bulk workflows** — select by checkbox, select all, or drag box; bulk move, favourite, export, and delete.
 
 ### File Import, Preview, and Export
+
 - **Import** — drag-and-drop or file picker; SHA-256 duplicate detection; conflict handling for replace / keep both / skip.
-- **Secure delete on import** — optional 3-pass overwrite of source files before deletion.
+- **Secure delete on import** — optional overwrite/delete of source files after successful import.
 - **Read-only external copies** — unsupported files open as read-only temporary decrypted copies; external edits are not saved back.
 - **Export** — decrypt selected files to a chosen directory.
 - **Document preview** — in-app read-only preview for:
@@ -30,10 +32,13 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
   - TXT, Markdown, CSV, TSV, JSON, XML, HTML
   - LOG, YAML/YML, TOML, INI, CONF, CFG, ENV, SQL
   - SVG as source text, not executable rendered SVG
-- **Media viewer** — full-screen image and video viewer with keyboard navigation.
+- **Media viewer** — full-screen image, video, PDF, and document viewer with keyboard shortcut help.
+- **Image viewer controls** — zoom, wheel zoom, rotate, reset, fullscreen, and drag-to-pan for zoomed images.
 - **Thumbnail generation** — automatic thumbnails via `sharp` for images and `ffmpeg` for video first frames.
+- **Fast image metadata** — image dimensions are read with `sharp`; `ffprobe` is kept for video metadata.
 
 ### Secure Notes
+
 - Notes are first-class vault objects.
 - Stored encrypted in the database, not as loose text files.
 - Create/edit notes in a large in-app editor modal.
@@ -41,39 +46,48 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - Supports copy body and single-note export as `.txt` or `.md`.
 
 ### Bookmark Workflow
+
 - Save browser pages as encrypted bookmarks.
 - Fetch thumbnails from Open Graph metadata when available.
-- Replace bookmark thumbnails manually from scraped page images.
+- Replace bookmark thumbnails manually by choosing an existing Vault image.
+- Browser area screenshots can be captured into Vault and then reused as bookmark thumbnails.
+- Bookmark thumbnail picker supports filename search/filter.
 - Open bookmarks in the built-in browser.
 - Import/export Netscape HTML bookmark files; selected bookmark export is supported.
-- Bookmarks share folders, tags, favourites, and mixed vault views with files.
+- Bookmarks share folders, tags, favourites, ratings, and mixed vault views with files.
 
 ### Password Manager
+
 - Dedicated password UI separate from the vault gallery.
 - Password records are encrypted in SQLite.
 - Browser integration can surface saved credentials for the active domain.
 
 ### Built-in Private Browser
+
 - Chromium `webview` in a separate Electron session partition.
-- Multi-tab browsing with address bar, back/forward/reload.
+- Multi-tab browsing with address bar, back/forward/reload, tab close/new-tab shortcuts, and trackpad/mouse back-forward navigation.
+- Configurable default search engine.
+- Sanctum-owned new tab page.
 - Save images/videos from the browser directly into the vault.
+- Capture the visible browser page or drag-select an area and import it directly into Vault as an encrypted PNG.
 - Blocks camera, microphone, notifications, and other permission requests.
-- Optional third-party cookie blocking and pop-up blocking.
-- Configurable homepage.
+- Pop-ups are blocked.
+- Optional third-party cookie blocking.
 - Clear-on-exit for cookies, cache, localStorage, IndexedDB, service workers, and related web storage.
 - Browser extension support for manual/dev use.
 
 ### Backup, Restore, and Wipe
+
 - **Backup** — creates a `.pvbackup` ZIP containing the encrypted DB, encrypted files, and manifest.
 - **Replace restore** — verifies backup password, replaces current vault content, and restarts cleanly.
-- **Merge restore** — imports backup items into a new `Restored YYYY-MM-DD` root folder.
 - **Delete all vault items** — password-confirmed content reset that deletes files, bookmarks, notes, passwords, folders, tags, and metadata while preserving the vault password and app settings.
 
 ### Settings
-- **Security** — auto-lock timeout, lock on minimize, secure-delete default, change password.
-- **Appearance** — thumbnail size, grid density, default view.
-- **Browser** — homepage, pop-ups, third-party cookies, clear-on-exit.
-- **Storage** — backup, replace restore, merge restore, full vault-content wipe.
+
+- **Security** — auto-lock timeout, lock on minimize, lock when computer locks/sleeps, change password.
+- **Appearance** — text size, thumbnail size, default Vault view.
+- **Browser** — default search engine, third-party cookies, clear-on-exit.
+- **Storage** — backup, replace restore, full vault-content wipe.
 - **About** — app version and crypto/KDF information.
 
 ---
@@ -90,6 +104,7 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - In-app document preview fetches decrypted bytes through a temporary session URL; supported previews render in memory.
 - HTML/DOCX preview output is sanitized before rendering; SVG is displayed as source text.
 - The built-in browser runs in an isolated Electron partition separate from vault state.
+- Auto-lock can trigger on idle timeout, window minimize, OS lock, and system sleep.
 
 Sanctum protects data at rest and reduces accidental plaintext exposure. It does not protect decrypted content from software with full access to the unlocked user session or operating system.
 
@@ -133,7 +148,7 @@ src/
 │   │   ├── settings/                  # App settings
 │   │   └── vault/                     # File storage, backup/restore, media sessions
 │   ├── state/SessionStore.ts          # In-memory master key/session state
-│   └── windows/                       # Main, browser, settings window controllers
+│   └── windows/                       # Main and browser window controllers
 ├── preload/                           # contextBridge APIs
 ├── renderer/
 │   ├── App.tsx                        # Auth screens, top nav, session state
@@ -145,6 +160,7 @@ src/
 │   │   └── settings/                  # Settings page
 │   └── components/ui/                 # Shared UI primitives
 └── shared/
+    ├── browserSearch.ts               # Browser search engine templates
     ├── fileTypes.ts                   # MIME detection and previewability
     ├── ipc.ts                         # IPC channel names and shared types
     └── global.d.ts                    # Window API types
@@ -202,7 +218,7 @@ backup_manifest.json
 ```
 
 - Replace restore requires the password that was active when the backup was created.
-- Merge restore also requires the backup password and places imported content under `Restored YYYY-MM-DD`.
+- Restoring replaces the current vault content and then restarts the app.
 - Backups include encrypted files and encrypted database content, not plaintext exports.
 
 ---
@@ -211,10 +227,10 @@ backup_manifest.json
 
 ```bash
 npm install
-npm start          # Start in development mode
-npx tsc --noEmit   # Type check
-npm test           # Run tests
-npm run make       # Package for the current platform
+npm start           # Start in development mode
+npx tsc --noEmit    # Type check
+npm test            # Run tests
+npm run make        # Package for the current platform
 ```
 
 Notes:

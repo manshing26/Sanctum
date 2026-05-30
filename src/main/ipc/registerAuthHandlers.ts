@@ -62,8 +62,14 @@ export const registerAuthHandlers = ({ authService, mainWindowController, onLock
       await authService.changePassword(input.currentPassword, input.newPassword, (processed, total) => {
         win?.webContents.send(IPC_CHANNELS.changePasswordProgress, { processed, total });
       });
+      authService.recordAuditEvent('change_password', true, 'Vault password changed.');
       return { ok: true as const };
     } catch (error) {
+      try {
+        authService.recordAuditEvent('change_password', false, 'Password change failed.');
+      } catch {
+        // ignore audit write failure
+      }
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to change password.',
@@ -72,4 +78,15 @@ export const registerAuthHandlers = ({ authService, mainWindowController, onLock
   });
 
   ipcMain.handle(IPC_CHANNELS.getSession, () => authService.getSessionState());
+
+  ipcMain.handle(IPC_CHANNELS.listAuthAuditLog, () => {
+    try {
+      return { ok: true as const, data: authService.listAuthAuditLog() };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to list audit records.',
+      };
+    }
+  });
 };

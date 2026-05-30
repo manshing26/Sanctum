@@ -754,7 +754,6 @@ export const App: React.FC = () => {
                 setPendingBrowserUrl(url);
                 setActiveTab('browser');
               }}
-              onScrapeImages={() => browserRef.current?.scrapeImagesFromActiveTab() ?? Promise.resolve([])}
             />
           </div>
         )}
