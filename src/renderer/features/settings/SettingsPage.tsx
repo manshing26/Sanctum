@@ -401,6 +401,8 @@ const SecuritySection: React.FC = () => {
   const [auditEntries, setAuditEntries] = useState<AuthAuditEntry[]>([]);
   const [auditLoading, setAuditLoading] = useState(true);
   const [auditError, setAuditError] = useState<string | null>(null);
+  const [confirmClearAudit, setConfirmClearAudit] = useState(false);
+  const [clearingAudit, setClearingAudit] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -421,6 +423,19 @@ const SecuritySection: React.FC = () => {
     if (!r.ok) { toast.error(r.error); return; }
     setSettings(r.data);
     toast.success('Setting updated.');
+  };
+
+  const handleClearAudit = async (): Promise<void> => {
+    setClearingAudit(true);
+    const result = await window.electronAPI.clearAuthAuditLog();
+    setClearingAudit(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    setAuditEntries([]);
+    setConfirmClearAudit(false);
+    toast.success('Audit records deleted.');
   };
 
   if (loading || !settings) return <p style={{ fontFamily: MONO, fontSize: fontSize(11), color: T.mute }}>Loading…</p>;
@@ -455,7 +470,23 @@ const SecuritySection: React.FC = () => {
       <ChangePasswordCard />
 
       <SettingCard>
-        <CardSection title="Audit" description="Recent security events.">
+        <div style={{ padding: '16px 20px 0', display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+          <div>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(11), letterSpacing: '0.04em', color: T.text, margin: '0 0 2px' }}>Audit</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0, lineHeight: 1.5 }}>Recent security events.</p>
+          </div>
+          {auditEntries.length > 0 && (
+            <DangerBtn
+              type="button"
+              onClick={() => setConfirmClearAudit(true)}
+              style={{ height: 26, padding: '0 10px', fontSize: fontSize(9), flexShrink: 0 }}
+            >
+              Delete All
+            </DangerBtn>
+          )}
+        </div>
+        <CardSection noPad>
+          <div style={{ padding: '12px 20px 16px' }}>
           {auditLoading ? (
             <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0 }}>Loading…</p>
           ) : auditError ? (
@@ -522,8 +553,41 @@ const SecuritySection: React.FC = () => {
               </p>
             </div>
           )}
+          </div>
         </CardSection>
       </SettingCard>
+
+      {confirmClearAudit && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            background: 'rgba(0,0,0,0.62)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 24,
+          }}
+        >
+          <div style={{ width: 360, maxWidth: '100%', border: `1px solid ${T.line2}`, background: T.bg2, padding: 20 }}>
+            <p style={{ fontFamily: SERIF, fontSize: fontSize(20), color: T.text, margin: '0 0 6px' }}>Delete all audit records?</p>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, lineHeight: 1.6, margin: '0 0 18px' }}>
+              This clears only the Security audit log. Vault items and settings are not affected.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <SecondaryBtn type="button" onClick={() => setConfirmClearAudit(false)} disabled={clearingAudit}>
+                Cancel
+              </SecondaryBtn>
+              <DangerBtn type="button" onClick={() => void handleClearAudit()} disabled={clearingAudit}>
+                {clearingAudit ? 'Deleting…' : 'Delete All'}
+              </DangerBtn>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

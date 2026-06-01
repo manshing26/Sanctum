@@ -89,4 +89,16 @@ export const registerAuthHandlers = ({ authService, mainWindowController, onLock
       };
     }
   });
+
+  ipcMain.handle(IPC_CHANNELS.clearAuthAuditLog, () => {
+    try {
+      authService.clearAuthAuditLog();
+      return { ok: true as const };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to clear audit records.',
+      };
+    }
+  });
 };

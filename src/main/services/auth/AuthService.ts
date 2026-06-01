@@ -123,6 +123,13 @@ export class AuthService {
     }));
   }
 
+  clearAuthAuditLog(): void {
+    if (this.sessionStore.getState().status !== 'unlocked') {
+      throw new Error('Vault must be unlocked to clear audit records.');
+    }
+    this.db.prepare('DELETE FROM auth_audit_log').run();
+  }
+
   async createVaultPassword(password: string): Promise<void> {
     const existing = this.db.prepare('SELECT id FROM auth_state WHERE id = 1').get();
     if (existing) {

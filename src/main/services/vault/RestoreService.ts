@@ -34,23 +34,21 @@ export class RestoreService {
     }
   }
 
-  private getBackupSchemaVersion(zip: AdmZip): number {
+  private getBackupSchemaVersion(zip: AdmZip): number | null {
     const manifestEntry = zip.getEntry('backup_manifest.json');
-    if (!manifestEntry) return 2; // older backups without manifest — treat as v2
+    if (!manifestEntry) return null;
     try {
       const manifest = JSON.parse(manifestEntry.getData().toString('utf8')) as { schemaVersion?: number };
-      return manifest.schemaVersion ?? 2;
+      return manifest.schemaVersion ?? null;
     } catch {
-      return 2;
+      return null;
     }
   }
 
   private validateManifestSchemaVersion(zip: AdmZip): void {
     const version = this.getBackupSchemaVersion(zip);
-    if (version !== 2 && version !== 3 && version !== 4) {
-      throw new Error(
-        `This backup was created with an incompatible version of Sanctum (schema v${version}). Cannot restore.`,
-      );
+    if (version !== 4) {
+      throw new Error('This backup was created by an older incompatible version of Sanctum.');
     }
   }
 
@@ -110,7 +108,6 @@ export class RestoreService {
 
     const zip = new AdmZip(backupPath);
     this.validateManifestSchemaVersion(zip);
-    const backupVersion = this.getBackupSchemaVersion(zip);
     const encEntries = zip
       .getEntries()
       .filter((e) => e.entryName.startsWith('vault/files/') && e.entryName.endsWith('.enc'));
@@ -124,20 +121,15 @@ export class RestoreService {
 
     const dbEntry = zip.getEntry('privatevault.db');
     if (!dbEntry) throw new Error('Invalid backup file: missing database.');
-    if (backupVersion >= 4) {
-      const tempPath = path.join(this.vaultPaths.tempDir, `replace-${Date.now()}.db`);
-      fs.mkdirSync(this.vaultPaths.tempDir, { recursive: true });
-      fs.writeFileSync(tempPath, dbEntry.getData());
-      const backupDb = new BetterSqlite3(tempPath, { readonly: true });
-      try {
-        this.restoreV4DatabaseFromBackup(backupDb);
-      } finally {
-        backupDb.close();
-        fs.unlinkSync(tempPath);
-      }
-    } else {
-      this.db.pragma('wal_checkpoint(TRUNCATE)');
-      fs.writeFileSync(this.vaultPaths.dbPath, dbEntry.getData());
+    const tempPath = path.join(this.vaultPaths.tempDir, `replace-${Date.now()}.db`);
+    fs.mkdirSync(this.vaultPaths.tempDir, { recursive: true });
+    fs.writeFileSync(tempPath, dbEntry.getData());
+    const backupDb = new BetterSqlite3(tempPath, { readonly: true });
+    try {
+      this.restoreV4DatabaseFromBackup(backupDb);
+    } finally {
+      backupDb.close();
+      fs.unlinkSync(tempPath);
     }
 
     const versionEntry = zip.getEntry('vault/version.json');

@@ -84,6 +84,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.changePassword, input),
   getSession: () => ipcRenderer.invoke(IPC_CHANNELS.getSession),
   listAuthAuditLog: () => ipcRenderer.invoke(IPC_CHANNELS.listAuthAuditLog),
+  clearAuthAuditLog: () => ipcRenderer.invoke(IPC_CHANNELS.clearAuthAuditLog),
   importFiles: (input: ImportRequest) => ipcRenderer.invoke(IPC_CHANNELS.importFiles, input),
   scanImportConflicts: (input: ScanImportConflictsInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.scanImportConflicts, input),

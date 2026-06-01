@@ -43,6 +43,7 @@ export const IPC_CHANNELS = {
   getSession: 'auth:get-session',
   sessionChanged: 'auth:session-changed',
   listAuthAuditLog: 'auth:list-audit-log',
+  clearAuthAuditLog: 'auth:clear-audit-log',
   importFiles: 'vault:import-files',
   listItems: 'vault:list-items',
   listItemsQuery: 'vault:list-items-query',
@@ -638,6 +639,7 @@ export type ElectronAPI = {
   changePassword: (input: ChangePasswordInput) => Promise<OperationResult>;
   getSession: () => Promise<SessionState>;
   listAuthAuditLog: () => Promise<OperationResult<AuthAuditEntry[]>>;
+  clearAuthAuditLog: () => Promise<OperationResult>;
   importFiles: (input: ImportRequest) => Promise<OperationResult<ImportResult>>;
   scanImportConflicts: (input: ScanImportConflictsInput) => Promise<OperationResult<ScanImportConflictsResult>>;
   listItems: () => Promise<VaultItemSummary[]>;

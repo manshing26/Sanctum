@@ -79,12 +79,12 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 ### Backup, Restore, and Wipe
 
 - **Backup** — creates a `.pvbackup` ZIP containing the encrypted DB, encrypted files, and manifest.
-- **Replace restore** — verifies backup password, replaces current vault content, and restarts cleanly.
+- **Replace restore** — verifies backup password, restores backups created by the current Sanctum backup format, replaces current vault content, and restarts cleanly.
 - **Delete all vault items** — password-confirmed content reset that deletes files, bookmarks, notes, passwords, folders, tags, and metadata while preserving the vault password and app settings.
 
 ### Settings
 
-- **Security** — auto-lock timeout, lock on minimize, lock when computer locks/sleeps, change password.
+- **Security** — auto-lock timeout, lock on minimize, lock when computer locks/sleeps, change password, and recent security audit log.
 - **Appearance** — text size, thumbnail size, default Vault view.
 - **Browser** — default search engine, third-party cookies, clear-on-exit.
 - **Storage** — backup, replace restore, full vault-content wipe.
@@ -100,6 +100,7 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - Thumbnails are encrypted and stored as database BLOBs.
 - Bookmarks, notes, and passwords are encrypted in SQLite.
 - Failed unlock attempts trigger lockout.
+- Security audit log records recent unlock, password-change, vault-wipe, and restore events, including success/failure status without storing sensitive details. Audit records can be cleared independently in Security settings.
 - Temporary opened files are cleared on lock/quit and opened as read-only copies when possible.
 - In-app document preview fetches decrypted bytes through a temporary session URL; supported previews render in memory.
 - HTML/DOCX preview output is sanitized before rendering; SVG is displayed as source text.
@@ -190,6 +191,7 @@ Files, bookmarks, and notes share `vault_objects` so they can be mixed in galler
 | Table | Purpose |
 |---|---|
 | `auth_state` | Argon2id verifier, failed attempts, lockout timestamp |
+| `auth_audit_log` | Recent security event audit records |
 | `vault_config` | KDF salt and Argon2id parameters |
 | `vault_objects` | Parent row for `file`, `bookmark`, and `note` objects |
 | `vault_items` | File metadata, encrypted filename, encrypted blob metadata, thumbnails, hashes |
@@ -217,9 +219,10 @@ vault/files/*.enc
 backup_manifest.json
 ```
 
-- Replace restore requires the password that was active when the backup was created.
+- Replace restore supports backups created by the current Sanctum backup format and requires the password that was active when the backup was created.
 - Restoring replaces the current vault content and then restarts the app.
 - Backups include encrypted files and encrypted database content, not plaintext exports.
+- Backups include recent security audit records, but not plaintext secrets.
 
 ---
 
@@ -250,4 +253,3 @@ Notes:
 | Source/config | `.log`, `.yaml`, `.yml`, `.toml`, `.ini`, `.conf`, `.cfg`, `.env`, `.sql` |
 | SVG | `.svg` as source text |
 | External read-only fallback | `.doc`, `.rtf`, `.xls/.xlsx`, `.ppt/.pptx`, ODF, unknown binary files |
-
