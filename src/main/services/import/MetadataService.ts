@@ -1,27 +1,10 @@
 import { execFile } from 'node:child_process';
-import { constants } from 'node:fs';
-import { access, chmod } from 'node:fs/promises';
 import { promisify } from 'node:util';
-import ffprobeStatic from 'ffprobe-static';
 import { isImageMimeType, isVideoMimeType } from '../../../shared/fileTypes';
+import { ensureFfmpegExecutable, resolveFfmpegPath } from './FfmpegBinary';
 import { loadSharp } from './loadSharp';
 
 const execFileAsync = promisify(execFile);
-
-type FfprobeStream = {
-  width?: number;
-  height?: number;
-  duration?: string | number;
-};
-
-type FfprobeFormat = {
-  duration?: string | number;
-};
-
-type FfprobeOutput = {
-  streams?: FfprobeStream[];
-  format?: FfprobeFormat;
-};
 
 export type ExtractedMetadata = {
   width?: number;
@@ -52,95 +35,67 @@ export class MetadataService {
     }
   }
 
-  private async ensureExecutable(binaryPath: string): Promise<void> {
-    if (process.platform === 'win32') {
-      return;
-    }
-
+  private async probeWithFfmpeg(binaryPath: string, filePath: string): Promise<string> {
     try {
-      await access(binaryPath, constants.X_OK);
-      return;
-    } catch {
-      // Continue and attempt to set execute permission.
-    }
-
-    await chmod(binaryPath, 0o755);
-  }
-
-  private async probe(binaryPath: string, filePath: string): Promise<string> {
-    try {
-      const { stdout } = await execFileAsync(binaryPath, [
-        '-v',
-        'error',
-        '-print_format',
-        'json',
-        '-show_streams',
-        '-show_format',
+      await execFileAsync(binaryPath, [
+        '-hide_banner',
+        '-i',
         filePath,
       ]);
-      return stdout;
     } catch (error) {
-      const nodeError = error as NodeJS.ErrnoException;
-      if (nodeError.code === 'EACCES' && process.platform !== 'win32') {
-        await chmod(binaryPath, 0o755);
-        const { stdout } = await execFileAsync(binaryPath, [
-          '-v',
-          'error',
-          '-print_format',
-          'json',
-          '-show_streams',
-          '-show_format',
-          filePath,
-        ]);
-        return stdout;
+      const execError = error as { stderr?: unknown };
+      if (typeof execError.stderr === 'string') {
+        return execError.stderr;
       }
-
-      throw error;
     }
+
+    return '';
+  }
+
+  private parseFfmpegMetadata(output: string): ExtractedMetadata {
+    const metadata: ExtractedMetadata = {};
+
+    const durationMatch = output.match(/Duration:\s*(\d{2}):(\d{2}):(\d{2}(?:\.\d+)?)/);
+    if (durationMatch) {
+      const hours = Number(durationMatch[1]);
+      const minutes = Number(durationMatch[2]);
+      const seconds = Number(durationMatch[3]);
+      if (Number.isFinite(hours) && Number.isFinite(minutes) && Number.isFinite(seconds)) {
+        metadata.durationSeconds = hours * 3600 + minutes * 60 + seconds;
+      }
+    }
+
+    const videoLine = output.split(/\r?\n/).find((line) => line.includes('Video:'));
+    const dimensionsMatch = videoLine?.match(/(?:^|[\s,])(\d{2,5})x(\d{2,5})(?:[\s,\[]|$)/);
+    if (dimensionsMatch) {
+      const width = Number(dimensionsMatch[1]);
+      const height = Number(dimensionsMatch[2]);
+      if (Number.isFinite(width) && Number.isFinite(height)) {
+        metadata.width = width;
+        metadata.height = height;
+      }
+    }
+
+    return metadata;
   }
 
   private async extractVideoMetadata(
     filePath: string,
   ): Promise<{ metadata: ExtractedMetadata; warning?: string }> {
-    if (!ffprobeStatic.path) {
-      return {
-        metadata: {},
-        warning: 'Metadata probing is unavailable in this build.',
-      };
-    }
-
     try {
-      await this.ensureExecutable(ffprobeStatic.path);
-      const stdout = await this.probe(ffprobeStatic.path, filePath);
-
-      const parsed = JSON.parse(stdout) as FfprobeOutput;
-      const streams = parsed.streams ?? [];
-      const streamWithDimensions = streams.find(
-        (stream) => Number.isFinite(stream.width) || Number.isFinite(stream.height),
-      );
-      const firstDuration =
-        streams.find((stream) => stream.duration !== undefined)?.duration ??
-        parsed.format?.duration;
-
-      const toNumber = (value: string | number | undefined): number | undefined => {
-        if (typeof value === 'number') {
-          return Number.isFinite(value) ? value : undefined;
-        }
-
-        if (typeof value === 'string') {
-          const parsedNumber = Number(value);
-          return Number.isFinite(parsedNumber) ? parsedNumber : undefined;
-        }
-
-        return undefined;
-      };
+      const ffmpegPath = await resolveFfmpegPath();
+      await ensureFfmpegExecutable(ffmpegPath);
+      const output = await this.probeWithFfmpeg(ffmpegPath, filePath);
+      const metadata = this.parseFfmpegMetadata(output);
+      if (!metadata.width && !metadata.height && !metadata.durationSeconds) {
+        return {
+          metadata: {},
+          warning: 'Metadata extraction skipped: ffmpeg output did not include readable video metadata.',
+        };
+      }
 
       return {
-        metadata: {
-          width: toNumber(streamWithDimensions?.width),
-          height: toNumber(streamWithDimensions?.height),
-          durationSeconds: toNumber(firstDuration),
-        },
+        metadata,
       };
     } catch (error) {
       const message =

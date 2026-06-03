@@ -1,9 +1,6 @@
 import { execFile } from 'node:child_process';
-import { constants } from 'node:fs';
-import { access, chmod } from 'node:fs/promises';
-import path from 'node:path';
 import { promisify } from 'node:util';
-import ffmpegStatic from 'ffmpeg-static';
+import { ensureFfmpegExecutable, resolveFfmpegPath } from './FfmpegBinary';
 import { loadSharp } from './loadSharp';
 
 const THUMBNAIL_SIZE = 240;
@@ -20,65 +17,9 @@ export type GeneratedThumbnail = {
 };
 
 export class ThumbnailService {
-  private async pathExists(filePath: string): Promise<boolean> {
-    try {
-      await access(filePath, constants.F_OK);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  private async resolveFfmpegPath(): Promise<string> {
-    const binaryName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
-    const candidates = [
-      ffmpegStatic ?? '',
-      path.join(process.cwd(), 'node_modules', 'ffmpeg-static', binaryName),
-      path.join(__dirname, 'native_modules', binaryName),
-      path.join(__dirname, '..', 'native_modules', binaryName),
-      path.join(
-        process.resourcesPath ?? '',
-        'app.asar.unpacked',
-        'node_modules',
-        'ffmpeg-static',
-        binaryName,
-      ),
-      binaryName,
-    ].filter(Boolean);
-
-    for (const candidate of candidates) {
-      if (candidate === binaryName) {
-        return candidate;
-      }
-
-      if (await this.pathExists(candidate)) {
-        return candidate;
-      }
-    }
-
-    throw new Error('ffmpeg binary is unavailable in this build.');
-  }
-
-  private async ensureExecutable(binaryPath: string): Promise<void> {
-    if (process.platform === 'win32') {
-      return;
-    }
-
-    try {
-      await access(binaryPath, constants.X_OK);
-      return;
-    } catch {
-      // Continue and attempt to set execute permission.
-    }
-
-    await chmod(binaryPath, 0o755);
-  }
-
   private async extractVideoFrame(filePath: string): Promise<Buffer> {
-    const ffmpegPath = await this.resolveFfmpegPath();
-    if (ffmpegPath !== (process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg')) {
-      await this.ensureExecutable(ffmpegPath);
-    }
+    const ffmpegPath = await resolveFfmpegPath();
+    await ensureFfmpegExecutable(ffmpegPath);
 
     for (const offsetSeconds of VIDEO_FRAME_OFFSETS_SECONDS) {
       try {

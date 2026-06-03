@@ -14,6 +14,9 @@ import { rendererConfig } from './webpack.renderer.config';
 const config: ForgeConfig = {
   packagerConfig: {
     asar: true,
+    name: 'Sanctum',
+    executableName: 'Sanctum',
+    icon: './assets/icon',
   },
   rebuildConfig: {},
   makers: [

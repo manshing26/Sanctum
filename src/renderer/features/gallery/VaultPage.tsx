@@ -2453,6 +2453,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     const parts = [`Imported ${imported} file(s)`];
     if (skipped > 0) parts.push(`${skipped} skipped`);
     if (failed > 0) parts.push(`${failed} failed`);
+    dismissImportToast();
     toast.success(parts.join(', '));
   };
 

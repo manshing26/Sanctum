@@ -1,0 +1,23 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>Sanctum</title>
+  <rect x="64" y="64" width="896" height="896" rx="150" fill="#10110f"/>
+  <rect x="64" y="64" width="896" height="896" rx="150" fill="none" stroke="#7c9a92" stroke-width="3" opacity="0.3"/>
+
+  <g transform="translate(512 512) scale(3.73)">
+    <polygon points="0,-88 62,-62 88,0 62,62 0,88 -62,62 -88,0 -62,-88" fill="none" stroke="#7c9a92" stroke-width="1.1"/>
+    <polygon points="0,-68 48,-48 68,0 48,48 0,68 -48,48 -68,0 -48,-68" fill="none" stroke="#7c9a92" stroke-width="0.5" opacity="0.35"/>
+
+    <line x1="0" y1="-88" x2="0" y2="-76" stroke="#7c9a92" stroke-width="1.1"/>
+    <line x1="0" y1="88" x2="0" y2="76" stroke="#7c9a92" stroke-width="1.1"/>
+    <line x1="-88" y1="0" x2="-76" y2="0" stroke="#7c9a92" stroke-width="1.1"/>
+    <line x1="88" y1="0" x2="76" y2="0" stroke="#7c9a92" stroke-width="1.1"/>
+
+    <line x1="-62" y1="-62" x2="-54" y2="-54" stroke="#7c9a92" stroke-width="0.6" opacity="0.5"/>
+    <line x1="62" y1="-62" x2="54" y2="-54" stroke="#7c9a92" stroke-width="0.6" opacity="0.5"/>
+    <line x1="-62" y1="62" x2="-54" y2="54" stroke="#7c9a92" stroke-width="0.6" opacity="0.5"/>
+    <line x1="62" y1="62" x2="54" y2="54" stroke="#7c9a92" stroke-width="0.6" opacity="0.5"/>
+
+    <path d="M -24,-18 Q -24,-42 0,-42 Q 24,-42 24,-18 Q 24,6 0,6 Q -24,6 -24,30 Q -24,42 0,42 Q 24,42 24,30" fill="none" stroke="#e8e6dc" stroke-width="2.8" stroke-linecap="round"/>
+    <circle cx="0" cy="0" r="1.5" fill="#7c9a92" opacity="0.6"/>
+  </g>
+</svg>
