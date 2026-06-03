@@ -1200,6 +1200,31 @@ const NoteInspector: React.FC<{
       </div>
       <div style={{ borderTop: `1px solid ${T.line}`, margin: '14px 0' }} />
       <div style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Preview ·</div>
+        {note.body.trim() ? (
+          <p
+            style={{
+              margin: 0,
+              fontFamily: MONO,
+              fontSize: fontSize(10),
+              lineHeight: 1.45,
+              color: T.mute,
+              whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
+              overflow: 'hidden',
+              display: '-webkit-box',
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: 'vertical',
+            }}
+          >
+            {note.body.replace(/\n{3,}/g, '\n\n')}
+          </p>
+        ) : (
+          <p style={{ margin: 0, fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>No preview available.</p>
+        )}
+      </div>
+      <div style={{ borderTop: `1px solid ${T.line}`, margin: '14px 0' }} />
+      <div style={{ marginBottom: 14 }}>
         <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 10 }}>· Info ·</div>
         <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 8, marginBottom: 6 }}>
           <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, textTransform: 'uppercase' }}>Type</span>
@@ -2484,13 +2509,35 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     else toast.success('Tag created.');
   };
 
-  const handleDeleteTag = async (tagId: number): Promise<void> => {
+  const handleRenameTag = async (tagId: number, name: string): Promise<boolean> => {
+    const result = await window.electronAPI.renameTag({ tagId, name });
+    if (!result.ok) { toast.error(result.error); return false; }
+    const [supportResult, refreshed] = await Promise.all([loadSupportingData(), refresh(), loadBookmarks(), loadNotes()]);
+    if (!supportResult.ok) { toast.error(supportResult.error); return false; }
+    if (!refreshed.ok) { toast.error(refreshed.error); return false; }
+    toast.success('Tag renamed.');
+    return true;
+  };
+
+  const handleUpdateTagColor = async (tagId: number, color?: string): Promise<boolean> => {
+    const result = await window.electronAPI.updateTagColor({ tagId, color: color ?? null });
+    if (!result.ok) { toast.error(result.error); return false; }
+    const [supportResult, refreshed] = await Promise.all([loadSupportingData(), refresh(), loadBookmarks(), loadNotes()]);
+    if (!supportResult.ok) { toast.error(supportResult.error); return false; }
+    if (!refreshed.ok) { toast.error(refreshed.error); return false; }
+    toast.success('Tag updated.');
+    return true;
+  };
+
+  const handleDeleteTag = async (tagId: number): Promise<boolean> => {
     const result = await window.electronAPI.deleteTag(tagId);
-    if (!result.ok) { toast.error(result.error); return; }
+    if (!result.ok) { toast.error(result.error); return false; }
     if (selectedTagIds.includes(tagId)) setSelectedTagIds(selectedTagIds.filter((id) => id !== tagId));
-    const refreshed = await refresh();
-    if (!refreshed.ok) toast.error(refreshed.error);
+    const [supportResult, refreshed] = await Promise.all([loadSupportingData(), refresh(), loadBookmarks(), loadNotes()]);
+    if (!supportResult.ok) { toast.error(supportResult.error); return false; }
+    if (!refreshed.ok) { toast.error(refreshed.error); return false; }
     else toast.success('Tag deleted.');
+    return true;
   };
 
   const handleDeleteByIds = async (itemIds: string[], confirm = true): Promise<boolean> => {
@@ -3287,7 +3334,9 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
           newTagName={newTagName}
           onNewTagNameChange={setNewTagName}
           onCreateTag={(color?: string) => void handleCreateTag(color)}
-          onDeleteTag={(tagId: number) => void handleDeleteTag(tagId)}
+          onRenameTag={handleRenameTag}
+          onUpdateTagColor={handleUpdateTagColor}
+          onDeleteTag={handleDeleteTag}
           isBookmarkScope={isBookmarkScope}
         />
       </div>

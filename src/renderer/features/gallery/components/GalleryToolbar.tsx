@@ -5,6 +5,7 @@ import {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
 } from '../../../components/ui/ContextMenu';
 import { fontSize } from '../../../theme/typography';
 
@@ -83,7 +84,9 @@ type GalleryToolbarProps = {
   newTagName: string;
   onNewTagNameChange: (value: string) => void;
   onCreateTag: (color?: string) => void;
-  onDeleteTag: (tagId: number) => void;
+  onRenameTag?: (tagId: number, name: string) => Promise<boolean>;
+  onUpdateTagColor?: (tagId: number, color?: string) => Promise<boolean>;
+  onDeleteTag: (tagId: number) => Promise<boolean> | void;
 };
 
 const iconBtn = (active = false): React.CSSProperties => ({
@@ -137,11 +140,17 @@ export const GalleryToolbar = ({
   newTagName,
   onNewTagNameChange,
   onCreateTag,
+  onRenameTag,
+  onUpdateTagColor,
   onDeleteTag,
 }: GalleryToolbarProps): React.JSX.Element => {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [showTagInput, setShowTagInput] = useState(false);
   const [selectedColor, setSelectedColor] = useState<string | undefined>(undefined);
+  const [editingTag, setEditingTag] = useState<TagSummary | null>(null);
+  const [editingTagName, setEditingTagName] = useState('');
+  const [editingTagColor, setEditingTagColor] = useState<string | undefined>(undefined);
+  const [tagEditBusy, setTagEditBusy] = useState(false);
 
   const titleLabel =
     selectedFolderName ??
@@ -160,6 +169,56 @@ export const GalleryToolbar = ({
       onCreateTag(selectedColor);
       setShowTagInput(false);
       setSelectedColor(undefined);
+    }
+  };
+
+  const openTagEditor = (tag: TagSummary): void => {
+    setEditingTag(tag);
+    setEditingTagName(tag.name);
+    setEditingTagColor(tag.color);
+  };
+
+  const closeTagEditor = (): void => {
+    if (tagEditBusy) return;
+    setEditingTag(null);
+    setEditingTagName('');
+    setEditingTagColor(undefined);
+  };
+
+  const handleSaveTagEdit = async (): Promise<void> => {
+    if (!editingTag || !editingTagName.trim()) return;
+    setTagEditBusy(true);
+    try {
+      const nameChanged = editingTagName.trim() !== editingTag.name;
+      const colorChanged = (editingTagColor ?? undefined) !== (editingTag.color ?? undefined);
+      let ok = true;
+      if (nameChanged) ok = onRenameTag ? await onRenameTag(editingTag.id, editingTagName.trim()) : false;
+      if (ok && colorChanged) ok = onUpdateTagColor ? await onUpdateTagColor(editingTag.id, editingTagColor) : false;
+      if (ok) {
+        setEditingTag(null);
+        setEditingTagName('');
+        setEditingTagColor(undefined);
+      }
+    } finally {
+      setTagEditBusy(false);
+    }
+  };
+
+  const handleDeleteEditingTag = async (): Promise<void> => {
+    if (!editingTag) return;
+    const confirmed = window.confirm(`Delete tag "${editingTag.name}"? It will be removed from all objects.`);
+    if (!confirmed) return;
+    setTagEditBusy(true);
+    try {
+      const result = await onDeleteTag(editingTag.id);
+      const ok = result !== false;
+      if (ok) {
+        setEditingTag(null);
+        setEditingTagName('');
+        setEditingTagColor(undefined);
+      }
+    } finally {
+      setTagEditBusy(false);
     }
   };
 
@@ -546,8 +605,16 @@ export const GalleryToolbar = ({
                 </button>
               </ContextMenuTrigger>
               <ContextMenuContent>
+                {onRenameTag && onUpdateTagColor && (
+                  <>
+                    <ContextMenuItem onClick={() => openTagEditor(tag)}>
+                      Edit tag
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                  </>
+                )}
                 <ContextMenuItem
-                  onClick={() => onDeleteTag(tag.id)}
+                  onClick={() => { void onDeleteTag(tag.id); }}
                   className="text-danger focus:text-danger"
                 >
                   Delete tag
@@ -621,6 +688,93 @@ export const GalleryToolbar = ({
           </button>
         )}
       </div>
+      )}
+
+      {editingTag && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.68)', display: 'grid', placeItems: 'center' }}
+          onClick={closeTagEditor}
+        >
+          <div
+            style={{ width: 420, background: T.bg2, border: `1px solid ${T.line2}` }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={{ padding: '18px 22px 14px', borderBottom: `1px solid ${T.line}` }}>
+              <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: fontSize(20), color: T.text, margin: '0 0 4px' }}>Edit Tag</p>
+              <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0 }}>Rename this tag or update its colour.</p>
+            </div>
+
+            <div style={{ padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <p style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, margin: '0 0 8px' }}>Name</p>
+                <input
+                  autoFocus
+                  value={editingTagName}
+                  onChange={(event) => setEditingTagName(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === 'Enter' && editingTagName.trim()) void handleSaveTagEdit(); }}
+                  style={{ width: '100%', height: 32, boxSizing: 'border-box', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(11), outline: 'none', padding: '0 9px' }}
+                />
+              </div>
+
+              <div>
+                <p style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2, margin: '0 0 8px' }}>Colour</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditingTagColor(undefined)}
+                    style={{ height: 24, padding: '0 8px', background: editingTagColor ? 'none' : T.accentGlow, border: `1px solid ${editingTagColor ? T.line2 : T.accent}`, color: editingTagColor ? T.mute : T.accent, fontFamily: MONO, fontSize: fontSize(9), cursor: 'pointer' }}
+                  >
+                    None
+                  </button>
+                  {TAG_COLOR_PRESETS.map((color) => (
+                    <button
+                      key={color.value}
+                      type="button"
+                      onClick={() => setEditingTagColor(color.value)}
+                      title={color.name}
+                      style={{
+                        width: 18, height: 18, borderRadius: '50%',
+                        background: color.value,
+                        border: editingTagColor === color.value ? '2px solid #fff' : '2px solid transparent',
+                        cursor: 'pointer', padding: 0,
+                        transform: editingTagColor === color.value ? 'scale(1.18)' : 'scale(1)',
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '0 22px 18px', borderTop: `1px solid ${T.line}` }}>
+              <button
+                type="button"
+                onClick={() => void handleDeleteEditingTag()}
+                disabled={tagEditBusy}
+                style={{ height: 32, padding: '0 12px', background: 'none', border: `1px solid ${T.danger}`, color: T.danger, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: tagEditBusy ? 'default' : 'pointer', opacity: tagEditBusy ? 0.55 : 1 }}
+              >
+                Delete
+              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={closeTagEditor}
+                  disabled={tagEditBusy}
+                  style={{ height: 32, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: tagEditBusy ? 'default' : 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveTagEdit()}
+                  disabled={tagEditBusy || !editingTagName.trim()}
+                  style={{ height: 32, padding: '0 14px', background: editingTagName.trim() ? T.accent : T.accentGlow, border: `1px solid ${T.accent}`, color: editingTagName.trim() ? T.bg : T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: tagEditBusy || !editingTagName.trim() ? 'default' : 'pointer' }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
