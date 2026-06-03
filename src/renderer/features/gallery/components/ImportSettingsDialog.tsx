@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { FolderNode } from '../../../../shared/ipc';
+import { SanctumConfirmDialog } from '../../../components/ui';
 import { fontSize } from '../../../theme/typography';
 
 const T = {
@@ -288,40 +289,16 @@ export const ImportSettingsDialog = ({
         </div>
       </div>
 
-      {confirmSecureDelete && (
-        <div
-          style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.72)', display: 'grid', placeItems: 'center' }}
-          onClick={(event) => { event.stopPropagation(); setConfirmSecureDelete(false); }}
-        >
-          <div
-            style={{ width: 430, background: T.bg2, border: `1px solid ${T.danger}` }}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div style={{ padding: '18px 22px 14px', borderBottom: `1px solid ${T.line}` }}>
-              <p style={{ fontFamily: SERIF, fontWeight: 300, fontSize: fontSize(20), color: T.text, margin: '0 0 4px' }}>Secure Delete Originals</p>
-              <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0 }}>
-                Source files will be overwritten and deleted after successful import. This cannot be undone.
-              </p>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '16px 22px 18px' }}>
-              <button
-                type="button"
-                onClick={() => setConfirmSecureDelete(false)}
-                style={{ height: 32, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={continueSecureDeleteImport}
-                style={{ height: 32, padding: '0 14px', background: T.danger, border: `1px solid ${T.danger}`, color: T.bg, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <SanctumConfirmDialog
+        open={confirmSecureDelete}
+        onOpenChange={setConfirmSecureDelete}
+        title="Secure Delete Originals"
+        description="Source files will be overwritten and deleted after successful import. This cannot be undone."
+        variant="danger"
+        confirmLabel="Continue"
+        onConfirm={continueSecureDeleteImport}
+        zIndex={10000}
+      />
     </div>
   );
 };

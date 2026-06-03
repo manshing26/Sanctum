@@ -34,6 +34,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from '../../components/ui/ContextMenu';
+import { SanctumConfirmDialog } from '../../components/ui';
 import { StarRating } from '../../components/ui/StarRating';
 import { ItemDetailsSidebar } from './components/ItemDetailsPanel';
 import { MoveToFolderDialog } from './components/MoveToFolderDialog';
@@ -64,6 +65,13 @@ const THUMBNAIL_GRID_MIN_WIDTH: Record<AppearanceSettings['thumbnailSize'], numb
   small: 160,
   medium: 200,
   large: 260,
+};
+
+type VaultConfirmRequest = {
+  title: string;
+  description: string;
+  confirmLabel?: string;
+  variant?: 'warning' | 'danger';
 };
 
 const MIXED_LIST_STYLES = `
@@ -1275,12 +1283,14 @@ const NoteEditorModal: React.FC<{
   const [body, setBody] = useState(note?.body ?? '');
   const [format, setFormat] = useState<NoteFormat>(note?.format ?? 'plain');
   const [isSaving, setIsSaving] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   useEffect(() => {
     setTitle(note?.title ?? '');
     setBody(note?.body ?? '');
     setFormat(note?.format ?? 'plain');
     setIsSaving(false);
+    setConfirmDiscard(false);
   }, [note?.id, note?.title, note?.body, note?.format]);
 
   useEffect(() => {
@@ -1307,7 +1317,10 @@ const NoteEditorModal: React.FC<{
 
   function requestClose(): void {
     if (isSaving) return;
-    if (dirty && !window.confirm('Discard unsaved changes?')) return;
+    if (dirty) {
+      setConfirmDiscard(true);
+      return;
+    }
     onClose();
   }
 
@@ -1320,14 +1333,15 @@ const NoteEditorModal: React.FC<{
   }
 
   return (
-    <div
-      style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.72)', display: 'grid', placeItems: 'center', padding: 24 }}
-      onClick={requestClose}
-    >
+    <>
       <div
-        style={{ width: 'min(920px, calc(100vw - 48px))', height: 'min(760px, calc(100vh - 48px))', background: T.bg2, border: `1px solid ${T.line2}`, display: 'flex', flexDirection: 'column' }}
-        onClick={(event) => event.stopPropagation()}
+        style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.72)', display: 'grid', placeItems: 'center', padding: 24 }}
+        onClick={requestClose}
       >
+        <div
+          style={{ width: 'min(920px, calc(100vw - 48px))', height: 'min(760px, calc(100vh - 48px))', background: T.bg2, border: `1px solid ${T.line2}`, display: 'flex', flexDirection: 'column' }}
+          onClick={(event) => event.stopPropagation()}
+        >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 16px', borderBottom: `1px solid ${T.line}` }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2 }}>· Secure Note ·</div>
@@ -1381,8 +1395,22 @@ const NoteEditorModal: React.FC<{
             </button>
           </div>
         </div>
+        </div>
       </div>
-    </div>
+      <SanctumConfirmDialog
+        open={confirmDiscard}
+        onOpenChange={setConfirmDiscard}
+        title="Discard Unsaved Changes?"
+        description="Your note changes have not been saved."
+        variant="warning"
+        confirmLabel="Discard"
+        onConfirm={() => {
+          setConfirmDiscard(false);
+          onClose();
+        }}
+        zIndex={11000}
+      />
+    </>
   );
 };
 
@@ -1875,6 +1903,23 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   const [selectedNoteIds, setSelectedNoteIds] = useState<string[]>([]);
   const [noteFolderId, setNoteFolderId] = useState<number | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [confirmRequest, setConfirmRequest] = useState<VaultConfirmRequest | null>(null);
+  const confirmResolveRef = useRef<((confirmed: boolean) => void) | null>(null);
+
+  const closeVaultConfirm = useCallback((confirmed: boolean): void => {
+    const resolve = confirmResolveRef.current;
+    confirmResolveRef.current = null;
+    setConfirmRequest(null);
+    resolve?.(confirmed);
+  }, []);
+
+  const requestVaultConfirm = useCallback((request: VaultConfirmRequest): Promise<boolean> => {
+    confirmResolveRef.current?.(false);
+    return new Promise((resolve) => {
+      confirmResolveRef.current = resolve;
+      setConfirmRequest(request);
+    });
+  }, []);
 
   type VaultScope = 'all' | 'video' | 'image' | 'document' | 'root' | 'folder' | 'bookmark' | 'note';
   const vaultScope = selectedViewScope as VaultScope;
@@ -2543,9 +2588,12 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   const handleDeleteByIds = async (itemIds: string[], confirm = true): Promise<boolean> => {
     if (itemIds.length === 0) { toast.warning('Select items to delete.'); return false; }
     if (confirm) {
-      const confirmed = window.confirm(
-        itemIds.length === 1 ? 'Delete this item? This cannot be undone.' : `Delete ${itemIds.length} item(s)? This cannot be undone.`,
-      );
+      const confirmed = await requestVaultConfirm({
+        title: itemIds.length === 1 ? 'Delete Item' : 'Delete Items',
+        description: itemIds.length === 1 ? 'Delete this item? This cannot be undone.' : `Delete ${itemIds.length} item(s)? This cannot be undone.`,
+        confirmLabel: 'Delete',
+        variant: 'danger',
+      });
       if (!confirmed) return false;
     }
     for (const itemId of itemIds) {
@@ -2626,9 +2674,12 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   const handleDeleteSelected = async (): Promise<void> => {
     if (selectedItemIds.length === 0 && selectedBookmarkIds.length === 0 && selectedNoteIds.length === 0) { toast.warning('Select objects to delete.'); return; }
     const total = selectedItemIds.length + selectedBookmarkIds.length + selectedNoteIds.length;
-    const confirmed = window.confirm(
-      total === 1 ? 'Delete this object? This cannot be undone.' : `Delete ${total} object(s)? This cannot be undone.`,
-    );
+    const confirmed = await requestVaultConfirm({
+      title: total === 1 ? 'Delete Object' : 'Delete Objects',
+      description: total === 1 ? 'Delete this object? This cannot be undone.' : `Delete ${total} object(s)? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+    });
     if (!confirmed) return;
     if (selectedItemIds.length > 0) {
       const deleted = await handleDeleteByIds(selectedItemIds, false);
@@ -2795,7 +2846,12 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
 
   // Bookmark-specific handlers
   const handleDeleteBookmark = async (id: string): Promise<void> => {
-    const confirmed = window.confirm('Delete this bookmark? This cannot be undone.');
+    const confirmed = await requestVaultConfirm({
+      title: 'Delete Bookmark',
+      description: 'Delete this bookmark? This cannot be undone.',
+      confirmLabel: 'Delete',
+      variant: 'danger',
+    });
     if (!confirmed) return;
     const result = await window.electronAPI.deleteBookmark({ id });
     if (!result.ok) { toast.error(result.error); return; }
@@ -2879,9 +2935,12 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   const handleDeleteBookmarksByIds = async (bookmarkIds: string[], confirm = true): Promise<boolean> => {
     if (bookmarkIds.length === 0) return false;
     if (confirm) {
-      const confirmed = window.confirm(
-        bookmarkIds.length === 1 ? 'Delete this bookmark? This cannot be undone.' : `Delete ${bookmarkIds.length} bookmark(s)? This cannot be undone.`,
-      );
+      const confirmed = await requestVaultConfirm({
+        title: bookmarkIds.length === 1 ? 'Delete Bookmark' : 'Delete Bookmarks',
+        description: bookmarkIds.length === 1 ? 'Delete this bookmark? This cannot be undone.' : `Delete ${bookmarkIds.length} bookmark(s)? This cannot be undone.`,
+        confirmLabel: 'Delete',
+        variant: 'danger',
+      });
       if (!confirmed) return false;
     }
     for (const id of bookmarkIds) {
@@ -2937,9 +2996,12 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   const handleDeleteNotesByIds = async (noteIds: string[], confirm = true): Promise<boolean> => {
     if (noteIds.length === 0) return false;
     if (confirm) {
-      const confirmed = window.confirm(
-        noteIds.length === 1 ? 'Delete this note? This cannot be undone.' : `Delete ${noteIds.length} note(s)? This cannot be undone.`,
-      );
+      const confirmed = await requestVaultConfirm({
+        title: noteIds.length === 1 ? 'Delete Note' : 'Delete Notes',
+        description: noteIds.length === 1 ? 'Delete this note? This cannot be undone.' : `Delete ${noteIds.length} note(s)? This cannot be undone.`,
+        confirmLabel: 'Delete',
+        variant: 'danger',
+      });
       if (!confirmed) return false;
     }
     for (const id of noteIds) {
@@ -3785,6 +3847,17 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
         note={editingNote}
         onSave={handleUpdateNote}
         onClose={() => setEditingNoteId(null)}
+      />
+
+      <SanctumConfirmDialog
+        open={confirmRequest !== null}
+        onOpenChange={(nextOpen) => { if (!nextOpen) closeVaultConfirm(false); }}
+        title={confirmRequest?.title ?? ''}
+        description={confirmRequest?.description}
+        variant={confirmRequest?.variant ?? 'danger'}
+        confirmLabel={confirmRequest?.confirmLabel ?? 'Confirm'}
+        onConfirm={() => closeVaultConfirm(true)}
+        zIndex={11000}
       />
 
       {viewerItemId && (

@@ -7,6 +7,7 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
 } from '../../../components/ui/ContextMenu';
+import { SanctumConfirmDialog } from '../../../components/ui';
 import { fontSize } from '../../../theme/typography';
 
 const T = {
@@ -151,6 +152,7 @@ export const GalleryToolbar = ({
   const [editingTagName, setEditingTagName] = useState('');
   const [editingTagColor, setEditingTagColor] = useState<string | undefined>(undefined);
   const [tagEditBusy, setTagEditBusy] = useState(false);
+  const [tagPendingDelete, setTagPendingDelete] = useState<TagSummary | null>(null);
 
   const titleLabel =
     selectedFolderName ??
@@ -205,17 +207,16 @@ export const GalleryToolbar = ({
   };
 
   const handleDeleteEditingTag = async (): Promise<void> => {
-    if (!editingTag) return;
-    const confirmed = window.confirm(`Delete tag "${editingTag.name}"? It will be removed from all objects.`);
-    if (!confirmed) return;
+    if (!tagPendingDelete) return;
     setTagEditBusy(true);
     try {
-      const result = await onDeleteTag(editingTag.id);
+      const result = await onDeleteTag(tagPendingDelete.id);
       const ok = result !== false;
       if (ok) {
         setEditingTag(null);
         setEditingTagName('');
         setEditingTagColor(undefined);
+        setTagPendingDelete(null);
       }
     } finally {
       setTagEditBusy(false);
@@ -614,7 +615,7 @@ export const GalleryToolbar = ({
                   </>
                 )}
                 <ContextMenuItem
-                  onClick={() => { void onDeleteTag(tag.id); }}
+                  onClick={() => setTagPendingDelete(tag)}
                   className="text-danger focus:text-danger"
                 >
                   Delete tag
@@ -748,7 +749,7 @@ export const GalleryToolbar = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '0 22px 18px', borderTop: `1px solid ${T.line}` }}>
               <button
                 type="button"
-                onClick={() => void handleDeleteEditingTag()}
+                onClick={() => { if (editingTag) setTagPendingDelete(editingTag); }}
                 disabled={tagEditBusy}
                 style={{ height: 32, padding: '0 12px', background: 'none', border: `1px solid ${T.danger}`, color: T.danger, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: tagEditBusy ? 'default' : 'pointer', opacity: tagEditBusy ? 0.55 : 1 }}
               >
@@ -776,6 +777,18 @@ export const GalleryToolbar = ({
           </div>
         </div>
       )}
+
+      <SanctumConfirmDialog
+        open={tagPendingDelete !== null}
+        onOpenChange={(nextOpen) => { if (!nextOpen && !tagEditBusy) setTagPendingDelete(null); }}
+        title="Delete Tag"
+        description={tagPendingDelete ? `Delete tag "${tagPendingDelete.name}"? It will be removed from all objects.` : undefined}
+        variant="danger"
+        confirmLabel={tagEditBusy ? 'Deleting...' : 'Delete'}
+        busy={tagEditBusy}
+        onConfirm={handleDeleteEditingTag}
+        zIndex={11000}
+      />
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>

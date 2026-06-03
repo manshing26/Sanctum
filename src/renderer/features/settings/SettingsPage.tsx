@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { RestoreCountdownDialog } from '../../components/ui/RestoreCountdownDialog';
 import { PasswordInput } from '../../components/ui/PasswordInput';
+import { SanctumConfirmDialog } from '../../components/ui';
 import type { AuthAuditEntry, SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgress, RestoreProgress } from '../../../shared/ipc';
 import { VAULT_PASSWORD_MIN_LENGTH, isVaultPasswordLongEnough } from '../../../shared/authPolicy';
 import type { SearchEngineId } from '../../../shared/browserSearch';
@@ -557,37 +558,17 @@ const SecuritySection: React.FC = () => {
         </CardSection>
       </SettingCard>
 
-      {confirmClearAudit && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 100,
-            background: 'rgba(0,0,0,0.62)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 24,
-          }}
-        >
-          <div style={{ width: 360, maxWidth: '100%', border: `1px solid ${T.line2}`, background: T.bg2, padding: 20 }}>
-            <p style={{ fontFamily: SERIF, fontSize: fontSize(20), color: T.text, margin: '0 0 6px' }}>Delete all audit records?</p>
-            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, lineHeight: 1.6, margin: '0 0 18px' }}>
-              This clears only the Security audit log. Vault items and settings are not affected.
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <SecondaryBtn type="button" onClick={() => setConfirmClearAudit(false)} disabled={clearingAudit}>
-                Cancel
-              </SecondaryBtn>
-              <DangerBtn type="button" onClick={() => void handleClearAudit()} disabled={clearingAudit}>
-                {clearingAudit ? 'Deleting…' : 'Delete All'}
-              </DangerBtn>
-            </div>
-          </div>
-        </div>
-      )}
+      <SanctumConfirmDialog
+        open={confirmClearAudit}
+        onOpenChange={setConfirmClearAudit}
+        title="Delete all audit records?"
+        description="This clears only the Security audit log. Vault items and settings are not affected."
+        variant="danger"
+        confirmLabel={clearingAudit ? 'Deleting...' : 'Delete All'}
+        busy={clearingAudit}
+        onConfirm={handleClearAudit}
+        zIndex={100}
+      />
     </div>
   );
 };

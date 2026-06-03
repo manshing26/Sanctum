@@ -29,6 +29,14 @@ export {
   DialogDescription,
 } from './Dialog';
 export {
+  SanctumDialog,
+  SanctumConfirmDialog,
+} from './SanctumDialog';
+export type {
+  SanctumDialogSize,
+  SanctumDialogVariant,
+} from './SanctumDialog';
+export {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
