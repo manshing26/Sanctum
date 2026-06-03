@@ -11,6 +11,7 @@ export const mainConfig: Configuration = {
   entry: './src/main/index.ts',
   externals: {
     argon2: 'commonjs2 argon2',
+    sharp: 'commonjs2 sharp',
   },
   // Put your normal webpack config below here
   module: {

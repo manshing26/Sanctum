@@ -1,10 +1,10 @@
-import sharp from 'sharp';
 import { execFile } from 'node:child_process';
 import { constants } from 'node:fs';
 import { access, chmod } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import ffmpegStatic from 'ffmpeg-static';
+import { loadSharp } from './loadSharp';
 
 const THUMBNAIL_SIZE = 240;
 const execFileAsync = promisify(execFile);
@@ -118,6 +118,7 @@ export class ThumbnailService {
     }
 
     try {
+      const sharp = loadSharp();
       const sourceBuffer = mimeType.startsWith('video/')
         ? await this.extractVideoFrame(filePath)
         : await sharp(filePath).toBuffer();

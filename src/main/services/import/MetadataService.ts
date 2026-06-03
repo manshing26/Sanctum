@@ -3,8 +3,8 @@ import { constants } from 'node:fs';
 import { access, chmod } from 'node:fs/promises';
 import { promisify } from 'node:util';
 import ffprobeStatic from 'ffprobe-static';
-import sharp from 'sharp';
 import { isImageMimeType, isVideoMimeType } from '../../../shared/fileTypes';
+import { loadSharp } from './loadSharp';
 
 const execFileAsync = promisify(execFile);
 
@@ -34,6 +34,7 @@ export class MetadataService {
     filePath: string,
   ): Promise<{ metadata: ExtractedMetadata; warning?: string }> {
     try {
+      const sharp = loadSharp();
       const metadata = await sharp(filePath).metadata();
       return {
         metadata: {

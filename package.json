@@ -7,9 +7,10 @@
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "build:mac": "electron-builder --mac",
-    "build:win": "electron-builder --win",
-    "build:both": "electron-builder --mac --win",
+    "prepare:builder": "node scripts/prepare-electron-builder.js",
+    "build:mac": "electron-forge package && npm run prepare:builder && electron-builder --mac",
+    "build:win": "electron-forge package && npm run prepare:builder && electron-builder --win",
+    "build:both": "electron-forge package && npm run prepare:builder && electron-builder --mac --win",
     "lint": "eslint . --ext .ts,.tsx",
     "test": "jest --passWithNoTests"
   },
@@ -98,6 +99,14 @@
     "directories": {
       "output": "dist"
     },
+    "asarUnpack": [
+      "node_modules/sharp/**/*",
+      "node_modules/@img/**/*",
+      "node_modules/argon2/**/*",
+      "node_modules/better-sqlite3/**/*",
+      "node_modules/ffmpeg-static/**/*",
+      "node_modules/ffprobe-static/**/*"
+    ],
     "files": [
       ".webpack/**/*",
       "package.json"
