@@ -133,7 +133,49 @@ const createTab = (url = HOME_URL): BrowserTab => ({
 });
 
 const TAB_PERSIST_KEY = 'pv_browser_tabs';
+const MAX_VISIBLE_TABS = 8;
+const MIN_VISIBLE_TABS = 3;
+const COMPACT_TAB_WIDTH = 112;
+const STACK_CHIP_WIDTH = 54;
+const STACKED_TAB_THRESHOLD = 10;
 type PersistedTabState = { urls: string[]; activeIndex: number };
+
+type VisibleTabWindow = {
+  visibleTabs: BrowserTab[];
+  hiddenBeforeCount: number;
+  hiddenAfterCount: number;
+  previousStackTargetId: string | null;
+  nextStackTargetId: string | null;
+};
+
+const getVisibleTabWindow = (tabs: BrowserTab[], activeTabId: string, maxVisibleTabs = MAX_VISIBLE_TABS): VisibleTabWindow => {
+  if (tabs.length <= STACKED_TAB_THRESHOLD) {
+    return {
+      visibleTabs: tabs,
+      hiddenBeforeCount: 0,
+      hiddenAfterCount: 0,
+      previousStackTargetId: null,
+      nextStackTargetId: null,
+    };
+  }
+
+  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === activeTabId));
+  const visibleCount = Math.max(MIN_VISIBLE_TABS, Math.min(maxVisibleTabs, MAX_VISIBLE_TABS, tabs.length));
+  const halfWindow = Math.floor(visibleCount / 2);
+  let start = activeIndex - halfWindow;
+  start = Math.max(0, Math.min(start, tabs.length - visibleCount));
+  const end = Math.min(tabs.length, start + visibleCount);
+  const hiddenBeforeCount = start;
+  const hiddenAfterCount = tabs.length - end;
+
+  return {
+    visibleTabs: tabs.slice(start, end),
+    hiddenBeforeCount,
+    hiddenAfterCount,
+    previousStackTargetId: hiddenBeforeCount > 0 ? tabs[start - 1].id : null,
+    nextStackTargetId: hiddenAfterCount > 0 ? tabs[end].id : null,
+  };
+};
 
 const loadPersistedTabs = (): { tabs: BrowserTab[]; activeTabId: string } => {
   try {
@@ -579,7 +621,10 @@ export const BrowserWorkspace = ({
   const [pwPanelLoading, setPwPanelLoading] = useState(false);
   const [pwSaveForm, setPwSaveForm] = useState<{ username: string; password: string; label: string } | null>(null);
   const [pwSaving, setPwSaving] = useState(false);
+  const [tabBarWidth, setTabBarWidth] = useState(0);
+  const [audioFrozenTabIds, setAudioFrozenTabIds] = useState<Set<string>>(() => new Set());
   const webviewRefs = useRef<Record<string, WebviewTag | null>>({});
+  const tabBarRef = useRef<HTMLDivElement | null>(null);
   const addressInputRef = useRef<HTMLInputElement | null>(null);
   const captureMenuRef = useRef<HTMLDivElement | null>(null);
   const passwordMenuRef = useRef<HTMLDivElement | null>(null);
@@ -590,14 +635,38 @@ export const BrowserWorkspace = ({
   const challengeWarningCooldownRef = useRef<Record<string, number>>({});
 
   const activeTab = useMemo(() => tabs.find((t) => t.id === activeTabId) ?? tabs[0], [tabs, activeTabId]);
+  const maxVisibleTabs = useMemo(() => {
+    if (tabBarWidth <= 0) return MAX_VISIBLE_TABS;
+    const reservedWidth = STACK_CHIP_WIDTH * 2;
+    return Math.max(MIN_VISIBLE_TABS, Math.min(MAX_VISIBLE_TABS, Math.floor((tabBarWidth - reservedWidth) / COMPACT_TAB_WIDTH)));
+  }, [tabBarWidth]);
+  const visibleTabWindow = useMemo(() => getVisibleTabWindow(tabs, activeTabId, maxVisibleTabs), [tabs, activeTabId, maxVisibleTabs]);
 
   useImperativeHandle(imperativeRef, () => ({}), []);
+
+  useEffect(() => {
+    const node = tabBarRef.current;
+    if (!node) return undefined;
+    const updateWidth = (): void => setTabBarWidth(node.clientWidth);
+    updateWidth();
+    const resizeObserver = new ResizeObserver(updateWidth);
+    resizeObserver.observe(node);
+    return () => resizeObserver.disconnect();
+  }, []);
 
   useEffect(() => {
     const activeIndex = tabs.findIndex((t) => t.id === activeTabId);
     const state: PersistedTabState = { urls: tabs.map((t) => t.url), activeIndex: Math.max(0, activeIndex) };
     localStorage.setItem(TAB_PERSIST_KEY, JSON.stringify(state));
   }, [tabs, activeTabId]);
+
+  useEffect(() => {
+    const unsubscribe = window.electronAPI.onSessionChanged(({ state }) => {
+      if (state.status !== 'locked') return;
+      setAudioFrozenTabIds(new Set(tabs.map((tab) => tab.id)));
+    });
+    return unsubscribe;
+  }, [tabs]);
 
   useEffect(() => {
     if (tabs.length === 0) return;
@@ -780,6 +849,12 @@ export const BrowserWorkspace = ({
       if (index === -1) return prev;
       const next = prev.filter((t) => t.id !== tabId);
       delete webviewRefs.current[tabId];
+      setAudioFrozenTabIds((prevFrozen) => {
+        if (!prevFrozen.has(tabId)) return prevFrozen;
+        const nextFrozen = new Set(prevFrozen);
+        nextFrozen.delete(tabId);
+        return nextFrozen;
+      });
       if (next.length === 0) {
         const replacement = createTab(HOME_URL);
         setActiveTabId(replacement.id);
@@ -804,6 +879,25 @@ export const BrowserWorkspace = ({
     if (!wv) return;
     if (activeTab.isLoading) { wv.stop(); applyTabPatch(activeTab.id, { isLoading: false }); }
     else { wv.reload(); applyTabPatch(activeTab.id, { isLoading: true }); }
+  };
+
+  const handleResumeTabAudio = (tabId: string): void => {
+    const webview = webviewRefs.current[tabId];
+    if (!webview) {
+      toast.error('Could not resume browser audio.');
+      return;
+    }
+    try {
+      webview.setAudioMuted(false);
+      setAudioFrozenTabIds((prevFrozen) => {
+        if (!prevFrozen.has(tabId)) return prevFrozen;
+        const nextFrozen = new Set(prevFrozen);
+        nextFrozen.delete(tabId);
+        return nextFrozen;
+      });
+    } catch {
+      toast.error('Could not resume browser audio.');
+    }
   };
 
   const importCapture = async (rect?: CaptureRect): Promise<void> => {
@@ -1054,6 +1148,7 @@ export const BrowserWorkspace = ({
       webviewRefs.current = {};
       navigationHistoryRef.current = {};
       challengeWarningCooldownRef.current = {};
+      setAudioFrozenTabIds(new Set());
       localStorage.removeItem(TAB_PERSIST_KEY);
       setTabs([freshTab]); setActiveTabId(freshTab.id); setAddressInput(freshTab.url);
       toast.success('Web data cleared and tabs reset.');
@@ -1622,43 +1717,84 @@ export const BrowserWorkspace = ({
         </div>
 
         {/* Tab bar */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, overflowX: 'auto' }}>
-          {tabs.map((tab) => {
-            const active = tab.id === activeTabId;
-            return (
-              <div
-                key={tab.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => setActiveTabId(tab.id)}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveTabId(tab.id); } }}
+        <div style={{ display: 'flex', alignItems: 'flex-end', minWidth: 0, overflow: 'hidden' }}>
+          <div ref={tabBarRef} style={{ display: 'flex', alignItems: 'flex-end', gap: 2, minWidth: 0, flex: 1, overflow: 'hidden' }}>
+            {visibleTabWindow.hiddenBeforeCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (visibleTabWindow.previousStackTargetId) setActiveTabId(visibleTabWindow.previousStackTargetId);
+                }}
+                title={`${visibleTabWindow.hiddenBeforeCount} tabs before`}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  maxWidth: 200, height: 26, padding: '0 8px',
-                  background: active ? T.bg : 'none',
-                  border: `1px solid ${active ? T.line2 : 'transparent'}`,
-                  borderBottom: active ? `1px solid ${T.bg}` : `1px solid transparent`,
-                  color: active ? T.text : T.mute,
+                  height: 26, minWidth: 46, padding: '0 8px',
+                  background: T.bg2, border: `1px solid ${T.line2}`,
+                  color: T.accent,
                   fontFamily: MONO, fontSize: fontSize(10),
                   cursor: 'pointer', flexShrink: 0,
                   userSelect: 'none',
                 }}
               >
-                {tab.isLoading && <IcoSpinner />}
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{tab.title || 'New Tab'}</span>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); handleCloseTab(tab.id); }}
-                  aria-label="Close tab"
-                  title="Close tab (Cmd/Ctrl+W)"
-                  style={{ background: 'none', border: 'none', color: T.mute2, cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0, flexShrink: 0 }}
+                ‹ {visibleTabWindow.hiddenBeforeCount}
+              </button>
+            )}
+            {visibleTabWindow.visibleTabs.map((tab) => {
+              const active = tab.id === activeTabId;
+              const compact = tabs.length > STACKED_TAB_THRESHOLD;
+              return (
+                <div
+                  key={tab.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setActiveTabId(tab.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveTabId(tab.id); } }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: compact ? 4 : 6,
+                    width: compact ? 112 : 150, maxWidth: compact ? 112 : 200, minWidth: compact ? 78 : 90, height: 26, padding: compact ? '0 6px' : '0 8px',
+                    background: active ? T.bg : 'none',
+                    border: `1px solid ${active ? T.line2 : 'transparent'}`,
+                    borderBottom: active ? `1px solid ${T.bg}` : `1px solid transparent`,
+                    color: active ? T.text : T.mute,
+                    fontFamily: MONO, fontSize: fontSize(10),
+                    cursor: 'pointer', flexShrink: 0,
+                    userSelect: 'none',
+                  }}
                 >
-                  <IcoStop />
-                </button>
-              </div>
-            );
-          })}
-          <button type="button" onClick={handleOpenNewTab} aria-label="New tab" title="New tab (Cmd/Ctrl+T)" style={{ width: 28, height: 26, background: 'none', border: 'none', color: T.mute, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {tab.isLoading && <IcoSpinner />}
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{tab.title || 'New Tab'}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleCloseTab(tab.id); }}
+                    aria-label="Close tab"
+                    title="Close tab (Cmd/Ctrl+W)"
+                    style={{ background: 'none', border: 'none', color: T.mute2, cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0, flexShrink: 0 }}
+                  >
+                    <IcoStop />
+                  </button>
+                </div>
+              );
+            })}
+            {visibleTabWindow.hiddenAfterCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (visibleTabWindow.nextStackTargetId) setActiveTabId(visibleTabWindow.nextStackTargetId);
+                }}
+                title={`${visibleTabWindow.hiddenAfterCount} tabs after`}
+                style={{
+                  height: 26, minWidth: 46, padding: '0 8px',
+                  background: T.bg2, border: `1px solid ${T.line2}`,
+                  color: T.accent,
+                  fontFamily: MONO, fontSize: fontSize(10),
+                  cursor: 'pointer', flexShrink: 0,
+                  userSelect: 'none',
+                }}
+              >
+                {visibleTabWindow.hiddenAfterCount} ›
+              </button>
+            )}
+          </div>
+          <button type="button" onClick={handleOpenNewTab} aria-label="New tab" title="New tab (Cmd/Ctrl+T)" style={{ width: 32, height: 26, marginLeft: 4, background: T.bg2, border: `1px solid ${T.line}`, color: T.mute, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <IcoPlus />
           </button>
         </div>
@@ -1809,6 +1945,22 @@ export const BrowserWorkspace = ({
                   onNavigateEvent={handleTabNavigate}
                 />
               </div>
+              )}
+              {!isSuspended && !isNewTab(tab.url) && audioFrozenTabIds.has(tab.id) && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(10,12,11,0.32)', zIndex: 3, pointerEvents: 'none' }}>
+                  <div style={{ pointerEvents: 'auto', display: 'flex', alignItems: 'center', gap: 12, border: `1px solid ${T.line2}`, background: 'rgba(16,17,15,0.96)', padding: '12px 14px', boxShadow: '0 12px 30px rgba(0,0,0,0.35)' }}>
+                    <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text, letterSpacing: '0.04em' }}>
+                      Browser audio paused after lock.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleResumeTabAudio(tab.id)}
+                      style={{ height: 28, padding: '0 12px', background: T.accent, border: `1px solid ${T.accent}`, color: T.bg, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                    >
+                      Resume This Tab
+                    </button>
+                  </div>
+                </div>
               )}
               {tab.hasCrashed && (
                 <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(10,12,11,0.8)' }}>

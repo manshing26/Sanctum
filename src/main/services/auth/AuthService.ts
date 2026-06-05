@@ -50,6 +50,9 @@ type BookmarkRow = {
   vault_object_id: string;
   title_enc: Buffer;
   url_enc: Buffer;
+  thumbnail_enc: Buffer | null;
+  thumbnail_iv: Buffer | null;
+  thumbnail_auth_tag: Buffer | null;
 };
 
 type NoteRow = {
@@ -380,16 +383,50 @@ export class AuthService {
 
     // Re-encrypt bookmarks.
     const bookmarkRows = this.db
-      .prepare('SELECT vault_object_id, title_enc, url_enc FROM bookmarks')
+      .prepare(
+        `SELECT vault_object_id, title_enc, url_enc,
+                thumbnail_enc, thumbnail_iv, thumbnail_auth_tag
+         FROM bookmarks`,
+      )
       .all() as BookmarkRow[];
 
-    type BookmarkUpdate = { id: string; titleEnc: Buffer; urlEnc: Buffer };
+    type BookmarkUpdate = {
+      id: string;
+      titleEnc: Buffer;
+      urlEnc: Buffer;
+      thumbnailEnc: Buffer | null;
+      thumbnailIv: Buffer | null;
+      thumbnailAuthTag: Buffer | null;
+    };
     const bookmarkUpdates: BookmarkUpdate[] = [];
     for (const row of bookmarkRows) {
+      let thumbnailEnc: Buffer | null = null;
+      let thumbnailIv: Buffer | null = null;
+      let thumbnailAuthTag: Buffer | null = null;
+
+      if (row.thumbnail_enc && row.thumbnail_iv && row.thumbnail_auth_tag) {
+        try {
+          const decThumb = this.cryptoService.decryptBuffer(
+            { iv: row.thumbnail_iv, authTag: row.thumbnail_auth_tag, encrypted: row.thumbnail_enc },
+            oldKey,
+          );
+          const reEncThumb = this.cryptoService.encryptBuffer(decThumb, newKey);
+          thumbnailEnc = reEncThumb.encrypted;
+          thumbnailIv = reEncThumb.iv;
+          thumbnailAuthTag = reEncThumb.authTag;
+        } catch {
+          // Older builds could leave bookmark thumbnails encrypted with a
+          // previous key after password change. Drop only the stale thumbnail.
+        }
+      }
+
       bookmarkUpdates.push({
         id: row.vault_object_id,
         titleEnc: reEncField(row.title_enc),
         urlEnc: reEncField(row.url_enc),
+        thumbnailEnc,
+        thumbnailIv,
+        thumbnailAuthTag,
       });
     }
 
@@ -453,10 +490,23 @@ export class AuthService {
         }
 
         const updateBookmark = this.db.prepare(
-          `UPDATE bookmarks SET title_enc = ?, url_enc = ? WHERE vault_object_id = ?`,
+          `UPDATE bookmarks
+           SET title_enc = ?,
+               url_enc = ?,
+               thumbnail_enc = ?,
+               thumbnail_iv = ?,
+               thumbnail_auth_tag = ?
+           WHERE vault_object_id = ?`,
         );
         for (const b of bookmarkUpdates) {
-          updateBookmark.run(b.titleEnc, b.urlEnc, b.id);
+          updateBookmark.run(
+            b.titleEnc,
+            b.urlEnc,
+            b.thumbnailEnc,
+            b.thumbnailIv,
+            b.thumbnailAuthTag,
+            b.id,
+          );
         }
 
         const updateNote = this.db.prepare(
