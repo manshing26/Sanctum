@@ -3,10 +3,12 @@ import { toast } from 'sonner';
 import type {
   BookmarkSummary,
   BrowserCommand,
+  BrowserPopupRequest,
   BrowserSettings,
   DownloadProgress,
   ExtensionStartupError,
   ExtensionSummary,
+  ExternalPrivateBrowserTarget,
   FolderNode,
   PasswordDetail,
 } from '../../../shared/ipc';
@@ -17,6 +19,9 @@ import {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
 } from '../../components/ui/ContextMenu';
 import { fontSize } from '../../theme/typography';
 
@@ -598,6 +603,7 @@ export const BrowserWorkspace = ({
   const [libraryTab, setLibraryTab] = useState<'bookmarks' | 'extensions'>('bookmarks');
   const [leftPanelOpen, setLeftPanelOpen] = useState(false);
   const [bookmarks, setBookmarks] = useState<BookmarkSummary[]>([]);
+  const [privateOpenTargets, setPrivateOpenTargets] = useState<ExternalPrivateBrowserTarget[]>([]);
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [showBookmarkForm, setShowBookmarkForm] = useState(false);
   const [bookmarkTitle, setBookmarkTitle] = useState('');
@@ -614,6 +620,7 @@ export const BrowserWorkspace = ({
   const [isCleaningWeb, setIsCleaningWeb] = useState(false);
   const [isCapturingPage, setIsCapturingPage] = useState(false);
   const [captureMenuOpen, setCaptureMenuOpen] = useState(false);
+  const [popupRequests, setPopupRequests] = useState<BrowserPopupRequest[]>([]);
   const [areaCaptureActive, setAreaCaptureActive] = useState(false);
   const [areaCaptureDrag, setAreaCaptureDrag] = useState<CaptureDrag | null>(null);
   const [pwPanelOpen, setPwPanelOpen] = useState(false);
@@ -627,6 +634,7 @@ export const BrowserWorkspace = ({
   const tabBarRef = useRef<HTMLDivElement | null>(null);
   const addressInputRef = useRef<HTMLInputElement | null>(null);
   const captureMenuRef = useRef<HTMLDivElement | null>(null);
+  const popupMenuRef = useRef<HTMLDivElement | null>(null);
   const passwordMenuRef = useRef<HTMLDivElement | null>(null);
   const gestureCooldownRef = useRef(0);
 
@@ -635,6 +643,8 @@ export const BrowserWorkspace = ({
   const challengeWarningCooldownRef = useRef<Record<string, number>>({});
 
   const activeTab = useMemo(() => tabs.find((t) => t.id === activeTabId) ?? tabs[0], [tabs, activeTabId]);
+  const latestPopupRequest = popupRequests[popupRequests.length - 1] ?? null;
+  const hiddenPopupRequestCount = Math.max(0, popupRequests.length - 1);
   const maxVisibleTabs = useMemo(() => {
     if (tabBarWidth <= 0) return MAX_VISIBLE_TABS;
     const reservedWidth = STACK_CHIP_WIDTH * 2;
@@ -698,6 +708,16 @@ export const BrowserWorkspace = ({
   }, [captureMenuOpen]);
 
   useEffect(() => {
+    if (popupRequests.length === 0) return undefined;
+    const onPointerDown = (event: PointerEvent): void => {
+      if (popupMenuRef.current?.contains(event.target as Node)) return;
+      setPopupRequests([]);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [popupRequests.length]);
+
+  useEffect(() => {
     if (!pwPanelOpen) return undefined;
     const onPointerDown = (event: PointerEvent): void => {
       if (passwordMenuRef.current?.contains(event.target as Node)) return;
@@ -747,6 +767,9 @@ export const BrowserWorkspace = ({
   useEffect(() => {
     void window.browserAPI.listBookmarks().then((r) => { if (r.ok) setBookmarks(r.data); });
     void window.browserAPI.listFoldersTree().then((r) => { if (r.ok) setFolders(r.data); });
+    void window.electronAPI.listPrivateOpenTargets().then((r) => {
+      if (r.ok) setPrivateOpenTargets(r.data.filter((target) => target.available));
+    });
   }, []);
 
   const refreshBrowserSettings = useCallback(async (): Promise<void> => {
@@ -822,6 +845,44 @@ export const BrowserWorkspace = ({
     try { webview.loadURL(nextUrl); } catch { /* ignore */ }
     applyTabPatch(activeTab.id, { url: nextUrl, isLoading: true, hasCrashed: false });
   };
+
+  const openUrlInNewTab = useCallback((url: string): void => {
+    const tab = createTab(url);
+    setTabs((prev) => [...prev, tab]);
+    setActiveTabId(tab.id);
+  }, []);
+
+  const removePopupRequest = useCallback((requestId: string): void => {
+    setPopupRequests((prev) => prev.filter((request) => request.id !== requestId));
+  }, []);
+
+  const handleOpenPopupOnce = useCallback((request: BrowserPopupRequest): void => {
+    removePopupRequest(request.id);
+    openUrlInNewTab(request.url);
+  }, [openUrlInNewTab, removePopupRequest]);
+
+  const handleAlwaysAllowPopupHost = useCallback(async (request: BrowserPopupRequest): Promise<void> => {
+    const result = await window.browserAPI.allowPopupHost(request.requestingHost);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    setBrowserSettings(result.data);
+    removePopupRequest(request.id);
+    openUrlInNewTab(request.url);
+  }, [openUrlInNewTab, removePopupRequest]);
+
+  useEffect(() => {
+    const unsubscribe = window.browserAPI.onPopupBlocked((request) => {
+      const allowedHosts = browserSettings?.allowedPopupHosts ?? [];
+      if (request.allowed || allowedHosts.includes(request.requestingHost)) {
+        openUrlInNewTab(request.url);
+        return;
+      }
+      setPopupRequests((prev) => [...prev.filter((entry) => entry.id !== request.id), request].slice(-4));
+    });
+    return unsubscribe;
+  }, [browserSettings?.allowedPopupHosts, openUrlInNewTab]);
 
   const handleAddressSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();
@@ -1149,6 +1210,7 @@ export const BrowserWorkspace = ({
       navigationHistoryRef.current = {};
       challengeWarningCooldownRef.current = {};
       setAudioFrozenTabIds(new Set());
+      setPopupRequests([]);
       localStorage.removeItem(TAB_PERSIST_KEY);
       setTabs([freshTab]); setActiveTabId(freshTab.id); setAddressInput(freshTab.url);
       toast.success('Web data cleared and tabs reset.');
@@ -1278,6 +1340,15 @@ export const BrowserWorkspace = ({
     await refreshBookmarks();
   };
 
+  const handleOpenBookmarkPrivate = async (bookmark: BookmarkSummary, target: ExternalPrivateBrowserTarget): Promise<void> => {
+    const result = await window.electronAPI.openExternalPrivate({ url: bookmark.url, browser: target.id });
+    if (!result.ok) {
+      toast.error('Could not open private browser.');
+      return;
+    }
+    toast.success('Opened in private browser.');
+  };
+
   const openRenameBookmarkDialog = (bm: BookmarkSummary): void => {
     setRenameBookmarkTarget(bm); setRenameBookmarkTitle(bm.title); setRenameDialogOpen(true);
   };
@@ -1394,6 +1465,18 @@ export const BrowserWorkspace = ({
                         </div>
                       </ContextMenuTrigger>
                       <ContextMenuContent>
+                        {privateOpenTargets.length > 0 && (
+                          <ContextMenuSub>
+                            <ContextMenuSubTrigger>Open Private In...</ContextMenuSubTrigger>
+                            <ContextMenuSubContent>
+                              {privateOpenTargets.map((target) => (
+                                <ContextMenuItem key={target.id} onClick={() => void handleOpenBookmarkPrivate(bm, target)}>
+                                  {target.label}
+                                </ContextMenuItem>
+                              ))}
+                            </ContextMenuSubContent>
+                          </ContextMenuSub>
+                        )}
                         <ContextMenuItem onClick={() => openRenameBookmarkDialog(bm)}>Rename</ContextMenuItem>
                         <ContextMenuItem onClick={() => void handleDeleteBookmark(bm.id)} className="text-danger">Delete</ContextMenuItem>
                       </ContextMenuContent>
@@ -1495,6 +1578,75 @@ export const BrowserWorkspace = ({
               <IcoStar filled={isActiveBookmarked} />
             </button>
           </form>
+
+          {latestPopupRequest && (
+            <div ref={popupMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
+              <button
+                type="button"
+                title="Popup blocked"
+                style={{
+                  height: 28, padding: '0 9px',
+                  background: T.warn,
+                  border: `1px solid ${T.warn}`,
+                  color: T.bg,
+                  fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.08em', textTransform: 'uppercase',
+                  cursor: 'default',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                Popup
+                {hiddenPopupRequestCount > 0 && <span>+{hiddenPopupRequestCount}</span>}
+              </button>
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 32,
+                  right: 0,
+                  zIndex: 38,
+                  width: 310,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  border: `1px solid ${T.line2}`,
+                  background: T.bg2,
+                  boxShadow: '0 12px 30px rgba(0,0,0,0.35)',
+                  padding: 10,
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                  <span style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.warn }}>
+                    Popup blocked from {latestPopupRequest.requestingHost}
+                  </span>
+                  <span title={latestPopupRequest.url} style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {latestPopupRequest.targetHost || latestPopupRequest.url}
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPopupOnce(latestPopupRequest)}
+                    style={{ height: 28, padding: '0 8px', background: T.accent, border: `1px solid ${T.accent}`, color: T.bg, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+                  >
+                    Open Once
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleAlwaysAllowPopupHost(latestPopupRequest)}
+                    style={{ height: 28, padding: '0 8px', background: 'none', border: `1px solid ${T.accent}`, color: T.accent, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+                  >
+                    Always Allow
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removePopupRequest(latestPopupRequest.id)}
+                  style={{ height: 24, padding: '0 8px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
 
           <div ref={captureMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
             <button

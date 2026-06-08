@@ -6,6 +6,7 @@ import type {
   ConflictItem,
   ConflictResolution,
   CreateFolderInput,
+  ExternalPrivateBrowserTarget,
   FolderNode,
   NoteFormat,
   NoteSummary,
@@ -402,6 +403,8 @@ const BookmarkListRow: React.FC<{
   contextTargetIds?: string[];
   tags: TagSummary[];
   onOpen: (bookmark: BookmarkSummary) => void;
+  privateOpenTargets: ExternalPrivateBrowserTarget[];
+  onOpenPrivate: (bookmark: BookmarkSummary, target: ExternalPrivateBrowserTarget) => void;
   onToggleFavorite: (ids: string[], isFavorite: boolean) => void;
   onMove: (ids: string[]) => void;
   onExport: (ids: string[]) => void;
@@ -417,6 +420,8 @@ const BookmarkListRow: React.FC<{
   contextTargetIds,
   tags,
   onOpen,
+  privateOpenTargets,
+  onOpenPrivate,
   onToggleFavorite,
   onMove,
   onExport,
@@ -495,6 +500,18 @@ const BookmarkListRow: React.FC<{
         <ContextMenuItem disabled={targetIds.length > 1} onClick={() => onOpen(bookmark)}>
           Open in Browser
         </ContextMenuItem>
+        {privateOpenTargets.length > 0 && (
+          <ContextMenuSub>
+            <ContextMenuSubTrigger disabled={targetIds.length > 1}>Open Private In...</ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              {privateOpenTargets.map((target) => (
+                <ContextMenuItem key={target.id} onClick={() => onOpenPrivate(bookmark, target)}>
+                  {target.label}
+                </ContextMenuItem>
+              ))}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        )}
         <ContextMenuItem onClick={() => onToggleFavorite(getTargetIds(), !bookmark.isFavorite)}>
           {bookmark.isFavorite ? 'Unfavourite' : 'Favourite'}
         </ContextMenuItem>
@@ -678,6 +695,8 @@ const BookmarkCard: React.FC<{
   contextTargetIds?: string[];
   tags: TagSummary[];
   onOpen: (bookmark: BookmarkSummary) => void;
+  privateOpenTargets: ExternalPrivateBrowserTarget[];
+  onOpenPrivate: (bookmark: BookmarkSummary, target: ExternalPrivateBrowserTarget) => void;
   onToggleFavorite: (ids: string[], isFavorite: boolean) => void;
   onMove: (ids: string[]) => void;
   onExport: (ids: string[]) => void;
@@ -693,6 +712,8 @@ const BookmarkCard: React.FC<{
   contextTargetIds,
   tags,
   onOpen,
+  privateOpenTargets,
+  onOpenPrivate,
   onToggleFavorite,
   onMove,
   onExport,
@@ -844,6 +865,18 @@ const BookmarkCard: React.FC<{
         <ContextMenuItem disabled={targetIds.length > 1} onClick={() => onOpen(bookmark)}>
           Open in Browser
         </ContextMenuItem>
+        {privateOpenTargets.length > 0 && (
+          <ContextMenuSub>
+            <ContextMenuSubTrigger disabled={targetIds.length > 1}>Open Private In...</ContextMenuSubTrigger>
+            <ContextMenuSubContent>
+              {privateOpenTargets.map((target) => (
+                <ContextMenuItem key={target.id} onClick={() => onOpenPrivate(bookmark, target)}>
+                  {target.label}
+                </ContextMenuItem>
+              ))}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        )}
         <ContextMenuItem onClick={() => onToggleFavorite(getTargetIds(), !bookmark.isFavorite)}>
           {bookmark.isFavorite ? 'Unfavourite' : 'Favourite'}
         </ContextMenuItem>
@@ -1424,15 +1457,19 @@ const BookmarkInspector: React.FC<{
   onToggleFavorite: (bookmarkId: string, isFavorite: boolean) => void;
   onSetRating: (bookmarkId: string, rating: number | null) => void;
   onOpenInBrowser?: (url: string) => void;
+  privateOpenTargets: ExternalPrivateBrowserTarget[];
+  onOpenPrivate: (bookmark: BookmarkSummary, target: ExternalPrivateBrowserTarget) => void;
   onChangeThumbnail?: (bookmark: BookmarkSummary) => void;
   onGoToFolder?: (bookmark: BookmarkSummary) => void;
-}> = ({ bookmark, tags, onDelete, onRename, onToggleTag, onToggleFavorite, onSetRating, onOpenInBrowser, onChangeThumbnail, onGoToFolder }) => {
+}> = ({ bookmark, tags, onDelete, onRename, onToggleTag, onToggleFavorite, onSetRating, onOpenInBrowser, privateOpenTargets, onOpenPrivate, onChangeThumbnail, onGoToFolder }) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [titleDraft, setTitleDraft] = useState(bookmark.title);
+  const [privateMenuOpen, setPrivateMenuOpen] = useState(false);
 
   useEffect(() => {
     setTitleDraft(bookmark.title);
     setIsRenaming(false);
+    setPrivateMenuOpen(false);
   }, [bookmark.id, bookmark.title]);
 
   const iconBtn = (): React.CSSProperties => ({
@@ -1519,6 +1556,40 @@ const BookmarkInspector: React.FC<{
             <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.4"><circle cx="5.5" cy="5.5" r="4.5" /><path d="M5.5 1C5.5 1 7 3 7 5.5S5.5 10 5.5 10M5.5 1C5.5 1 4 3 4 5.5S5.5 10 5.5 10M1 5.5h9" /></svg>
             Open
           </button>
+        )}
+        {privateOpenTargets.length > 0 && (
+          <div style={{ position: 'relative', width: 28, height: 28, flex: '0 0 28px' }}>
+            <button
+              type="button"
+              onClick={() => setPrivateMenuOpen((open) => !open)}
+              title="Open outside Sanctum in private browsing"
+              style={{ ...iconBtn(), borderColor: privateMenuOpen ? T.accent : T.line2, color: privateMenuOpen ? T.accent : T.mute }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 4.7h8" />
+                <path d="M4.1 4.7 5 2.5h4l.9 2.2" />
+                <path d="M2.2 8.2c.8-.8 2.1-.8 2.9 0" />
+                <path d="M8.9 8.2c.8-.8 2.1-.8 2.9 0" />
+                <circle cx="3.65" cy="8.9" r="1.45" />
+                <circle cx="10.35" cy="8.9" r="1.45" />
+                <path d="M5.1 8.9h3.8" />
+              </svg>
+            </button>
+            {privateMenuOpen && (
+              <div style={{ position: 'absolute', top: 32, right: 0, zIndex: 20, minWidth: 150, border: `1px solid ${T.line2}`, background: T.bg2, boxShadow: '0 12px 30px rgba(0,0,0,0.35)', padding: 4 }}>
+                {privateOpenTargets.map((target) => (
+                  <button
+                    key={target.id}
+                    type="button"
+                    onClick={() => { setPrivateMenuOpen(false); onOpenPrivate(bookmark, target); }}
+                    style={{ width: '100%', height: 28, padding: '0 10px', background: 'none', border: 'none', color: T.text, cursor: 'pointer', fontFamily: MONO, fontSize: fontSize(10), textAlign: 'left' }}
+                  >
+                    {target.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
         <button type="button"
           onClick={() => onToggleFavorite(bookmark.id, !bookmark.isFavorite)}
@@ -1893,6 +1964,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   const [selectedBookmarkId, setSelectedBookmarkId] = useState<string | null>(null);
   const [selectedBookmarkIds, setSelectedBookmarkIds] = useState<string[]>([]);
   const [thumbPickerBookmark, setThumbPickerBookmark] = useState<BookmarkSummary | null>(null);
+  const [privateOpenTargets, setPrivateOpenTargets] = useState<ExternalPrivateBrowserTarget[]>([]);
   // null = all bookmarks (no folder filter), number = filter by that folder
   const [bookmarkFolderId, setBookmarkFolderId] = useState<number | null>(null);
 
@@ -1925,6 +1997,20 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   const vaultScope = selectedViewScope as VaultScope;
   const isBookmarkScope = vaultScope === 'bookmark';
   const isNoteScope = vaultScope === 'note';
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadTargets = async (): Promise<void> => {
+      const result = await window.electronAPI.listPrivateOpenTargets();
+      if (!cancelled && result.ok) {
+        setPrivateOpenTargets(result.data.filter((target) => target.available));
+      }
+    };
+    void loadTargets();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const selectedBookmark = selectedItemIds.length === 0
     ? bookmarks.find((b) => b.id === selectedBookmarkId) ?? null
@@ -3235,9 +3321,19 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     setMoveDialogNoteIds([]);
     setMoveDialogOpen(true);
   };
+  const handleOpenBookmarkPrivate = async (bookmark: BookmarkSummary, target: ExternalPrivateBrowserTarget): Promise<void> => {
+    const result = await window.electronAPI.openExternalPrivate({ url: bookmark.url, browser: target.id });
+    if (!result.ok) {
+      toast.error('Could not open private browser.');
+      return;
+    }
+    toast.success('Opened in private browser.');
+  };
   const bookmarkActionProps = {
     tags,
     onOpen: (bookmark: BookmarkSummary) => onOpenUrlInBrowser?.(bookmark.url),
+    privateOpenTargets,
+    onOpenPrivate: (bookmark: BookmarkSummary, target: ExternalPrivateBrowserTarget) => void handleOpenBookmarkPrivate(bookmark, target),
     onToggleFavorite: (ids: string[], isFavorite: boolean) => void handleToggleBookmarkFavoriteByIds(ids, isFavorite),
     onMove: openMoveDialogForBookmarkIds,
     onExport: (ids: string[]) => void handleExportBookmarks(ids),
@@ -3757,6 +3853,8 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
                     onToggleFavorite={(bookmarkId, isFavorite) => void handleToggleBookmarkFavoriteByIds([bookmarkId], isFavorite)}
                     onSetRating={(bookmarkId, rating) => void handleSetBookmarkRating(bookmarkId, rating)}
                     onOpenInBrowser={onOpenUrlInBrowser}
+                    privateOpenTargets={privateOpenTargets}
+                    onOpenPrivate={(bookmark, target) => void handleOpenBookmarkPrivate(bookmark, target)}
                     onChangeThumbnail={(b) => setThumbPickerBookmark(b)}
                     onGoToFolder={showGoToFolderActions ? handleGoToBookmarkFolder : undefined}
                   />

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, powerMonitor, protocol, session, webContents } from 'electron';
+import { app, BrowserWindow, Menu, powerMonitor, protocol, session, webContents, type WebContents } from 'electron';
 import type { Input } from 'electron';
 import type {
   BrowserCommand,
@@ -493,13 +493,45 @@ export const bootstrapApp = (): void => {
         return false;
       }
     };
+    const normalizePopupHost = (host: string): string => host.trim().toLowerCase().replace(/^www\./, '');
+    const buildPopupRequest = (contents: WebContents, targetUrl: string): import('../shared/ipc').BrowserPopupRequest | null => {
+      try {
+        const target = new URL(targetUrl);
+        if (target.protocol !== 'http:' && target.protocol !== 'https:') {
+          return null;
+        }
+        const requestingUrl = contents.getURL();
+        const requestingHost = normalizePopupHost(requestingUrl ? new URL(requestingUrl).hostname : '');
+        if (!requestingHost) {
+          return null;
+        }
+        const allowedPopupHosts = settingsService.getBrowserSettings().allowedPopupHosts;
+        return {
+          id: `popup_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+          url: target.toString(),
+          requestingHost,
+          targetHost: normalizePopupHost(target.hostname),
+          allowed: allowedPopupHosts.includes(requestingHost),
+          createdAt: Date.now(),
+        };
+      } catch {
+        return null;
+      }
+    };
 
     app.on('web-contents-created', (_event, contents) => {
       if (contents.getType() !== 'webview') {
         return;
       }
 
-      contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+      contents.setWindowOpenHandler(({ url }) => {
+        const request = buildPopupRequest(contents, url);
+        if (request) {
+          const hostWindow = contents.hostWebContents ? BrowserWindow.fromWebContents(contents.hostWebContents) : BrowserWindow.fromWebContents(contents);
+          hostWindow?.webContents.send(IPC_CHANNELS.popupBlocked, request);
+        }
+        return { action: 'deny' };
+      });
       contents.on('before-input-event', (event, input) => {
         const command = commandFromKeyboardInput(input);
         if (!command) {

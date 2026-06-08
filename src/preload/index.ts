@@ -5,6 +5,7 @@ import {
   type AssignItemTagInput,
   type AssignItemsTagInput,
   type BrowserCommand,
+  type BrowserPopupRequest,
   type AppearanceSettings,
   type BackupProgress,
   type BackupVaultInput,
@@ -35,6 +36,7 @@ import {
   type ImportProgress,
   type ListItemsQueryInput,
   type OpenMediaSessionInput,
+  type OpenExternalPrivateInput,
   type OpenTemporaryFileInput,
   type UnlockVaultInput,
   type UpdateSecuritySettingsInput,
@@ -146,6 +148,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getBrowserSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getBrowserSettings),
   updateBrowserSettings: (input: UpdateBrowserSettingsInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.updateBrowserSettings, input),
+  listPrivateOpenTargets: () => ipcRenderer.invoke(IPC_CHANNELS.listPrivateOpenTargets),
+  openExternalPrivate: (input: OpenExternalPrivateInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.openExternalPrivate, input),
   onChangePasswordProgress: (handler: (payload: ChangePasswordProgress) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: ChangePasswordProgress) => {
       handler(payload);
@@ -254,6 +259,16 @@ contextBridge.exposeInMainWorld('browserAPI', {
       ipcRenderer.removeListener(IPC_CHANNELS.browserCommand, listener);
     };
   },
+  onPopupBlocked: (handler: (request: BrowserPopupRequest) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, request: BrowserPopupRequest) => {
+      handler(request);
+    };
+    ipcRenderer.on(IPC_CHANNELS.popupBlocked, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.popupBlocked, listener);
+    };
+  },
+  allowPopupHost: (host: string) => ipcRenderer.invoke(IPC_CHANNELS.allowPopupHost, host),
   getAppearanceSettings: () =>
     ipcRenderer.invoke(IPC_CHANNELS.getAppearanceSettings) as Promise<{
       ok: boolean;

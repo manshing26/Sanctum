@@ -40,6 +40,7 @@ const BROWSER_KEYS = {
   homepage: 'browser.homepage',
   searchEngine: 'browser.search_engine',
   customSearchTemplate: 'browser.custom_search_template',
+  allowedPopupHosts: 'browser.allowed_popup_hosts',
 } as const;
 
 const BROWSER_DEFAULTS: BrowserSettings = {
@@ -49,6 +50,7 @@ const BROWSER_DEFAULTS: BrowserSettings = {
   homepage: '',
   searchEngine: DEFAULT_SEARCH_ENGINE_ID,
   customSearchTemplate: '',
+  allowedPopupHosts: [],
 };
 
 const parseBoolean = (value: string | undefined): boolean => value === 'true';
@@ -66,6 +68,17 @@ const parseTextSize = (value: string | undefined): AppearanceSettings['textSize'
   return value === 'small' || value === 'medium' || value === 'large'
     ? value
     : APPEARANCE_DEFAULTS.textSize;
+};
+const normalizeHost = (host: string): string => host.trim().toLowerCase().replace(/^www\./, '');
+const parseHostList = (value: string | undefined): string[] => {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return [...new Set(parsed.filter((entry) => typeof entry === 'string').map(normalizeHost).filter(Boolean))];
+  } catch {
+    return [];
+  }
 };
 
 export class SettingsService {
@@ -154,6 +167,7 @@ export class SettingsService {
       homepage: this.getSetting(BROWSER_KEYS.homepage) ?? BROWSER_DEFAULTS.homepage,
       searchEngine: parseSearchEngine(this.getSetting(BROWSER_KEYS.searchEngine)),
       customSearchTemplate: this.getSetting(BROWSER_KEYS.customSearchTemplate) ?? BROWSER_DEFAULTS.customSearchTemplate,
+      allowedPopupHosts: parseHostList(this.getSetting(BROWSER_KEYS.allowedPopupHosts)),
     };
   }
 
@@ -178,6 +192,23 @@ export class SettingsService {
       if (error) throw new Error(error);
       this.setSetting(BROWSER_KEYS.customSearchTemplate, input.customSearchTemplate.trim());
     }
+    if (Array.isArray(input.allowedPopupHosts)) {
+      const hosts = [...new Set(input.allowedPopupHosts.map(normalizeHost).filter(Boolean))];
+      this.setSetting(BROWSER_KEYS.allowedPopupHosts, JSON.stringify(hosts));
+    }
+    return this.getBrowserSettings();
+  }
+
+  allowPopupHost(host: string): BrowserSettings {
+    const normalized = normalizeHost(host);
+    if (!normalized) {
+      throw new Error('Invalid popup host.');
+    }
+    const settings = this.getBrowserSettings();
+    if (settings.allowedPopupHosts.includes(normalized)) {
+      return settings;
+    }
+    this.setSetting(BROWSER_KEYS.allowedPopupHosts, JSON.stringify([...settings.allowedPopupHosts, normalized]));
     return this.getBrowserSettings();
   }
 

@@ -5,6 +5,10 @@ export const IPC_CHANNELS = {
   openBrowserWindow: 'browser:open-window',
   closeBrowserWindow: 'browser:close-window',
   browserCommand: 'browser:command',
+  popupBlocked: 'browser:popup-blocked',
+  allowPopupHost: 'browser:popups:allow-host',
+  listPrivateOpenTargets: 'browser:list-private-open-targets',
+  openExternalPrivate: 'browser:open-external-private',
   clearBrowserData: 'browser:clear-data',
   importPageCapture: 'browser:import-page-capture',
   listBookmarks: 'browser:bookmarks:list',
@@ -277,9 +281,32 @@ export type BrowserSettings = {
   homepage: string;
   searchEngine: import('./browserSearch').SearchEngineId;
   customSearchTemplate: string;
+  allowedPopupHosts: string[];
 };
 
 export type UpdateBrowserSettingsInput = Partial<BrowserSettings>;
+
+export type BrowserPopupRequest = {
+  id: string;
+  url: string;
+  requestingHost: string;
+  targetHost: string;
+  allowed: boolean;
+  createdAt: number;
+};
+
+export type ExternalPrivateBrowserId = 'chrome' | 'brave' | 'edge' | 'firefox';
+
+export type ExternalPrivateBrowserTarget = {
+  id: ExternalPrivateBrowserId;
+  label: string;
+  available: boolean;
+};
+
+export type OpenExternalPrivateInput = {
+  url: string;
+  browser: ExternalPrivateBrowserId;
+};
 
 export type FolderNode = {
   id: number;
@@ -696,6 +723,8 @@ export type ElectronAPI = {
   updateBrowserSettings: (
     input: UpdateBrowserSettingsInput,
   ) => Promise<OperationResult<BrowserSettings>>;
+  listPrivateOpenTargets: () => Promise<OperationResult<ExternalPrivateBrowserTarget[]>>;
+  openExternalPrivate: (input: OpenExternalPrivateInput) => Promise<OperationResult>;
   listPasswords: () => Promise<OperationResult<PasswordSummary[]>>;
   createPassword: (i: CreatePasswordInput) => Promise<OperationResult<PasswordSummary>>;
   updatePassword: (i: UpdatePasswordInput) => Promise<OperationResult<PasswordSummary>>;
@@ -729,6 +758,8 @@ export type ElectronAPI = {
 export type BrowserAPI = {
   closeBrowserWindow: () => Promise<void>;
   onBrowserCommand: (handler: (command: BrowserCommand) => void) => () => void;
+  onPopupBlocked: (handler: (request: BrowserPopupRequest) => void) => () => void;
+  allowPopupHost: (host: string) => Promise<OperationResult<BrowserSettings>>;
   getAppearanceSettings: () => Promise<OperationResult<AppearanceSettings>>;
   clearData: () => Promise<OperationResult>;
   importPageCapture: (input: ImportPageCaptureInput) => Promise<OperationResult<ImportResult>>;
