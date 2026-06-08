@@ -440,7 +440,17 @@ const BookmarkListRow: React.FC<{
       tabIndex={0}
       onClick={onClick}
       onContextMenu={() => onContextMenuOpen?.(bookmark.id)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e as unknown as React.MouseEvent); } }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          onOpen(bookmark);
+        } else if (e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          onClick(e as unknown as React.MouseEvent);
+        }
+      }}
       className="pv-list-row"
       style={{
         background: selected ? T.accentGlow : 'none',
@@ -602,7 +612,15 @@ const FileListRow: React.FC<{
       onDoubleClick={onOpen}
       onContextMenu={() => onContextMenuOpen?.(item.id)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e as unknown as React.MouseEvent); }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          onOpen();
+        } else if (e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          onClick(e as unknown as React.MouseEvent);
+        }
       }}
       className="pv-list-row"
       style={{
@@ -736,7 +754,17 @@ const BookmarkCard: React.FC<{
       onMouseLeave={() => setHovered(false)}
       onClick={onClick}
       onContextMenu={() => onContextMenuOpen?.(bookmark.id)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e as unknown as React.MouseEvent); } }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          onOpen(bookmark);
+        } else if (e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          onClick(e as unknown as React.MouseEvent);
+        }
+      }}
       style={{
         position: 'relative',
         width: '100%',
@@ -955,7 +983,17 @@ const NoteListRow: React.FC<{
       onClick={onClick}
       onDoubleClick={() => onEdit(note)}
       onContextMenu={() => onContextMenuOpen?.(note.id)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e as unknown as React.MouseEvent); } }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          onEdit(note);
+        } else if (e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          onClick(e as unknown as React.MouseEvent);
+        }
+      }}
       className="pv-list-row"
       style={{
         background: selected ? T.accentGlow : 'none',
@@ -1054,7 +1092,17 @@ const NoteCard: React.FC<{
       onClick={onClick}
       onDoubleClick={() => onEdit(note)}
       onContextMenu={() => onContextMenuOpen?.(note.id)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e as unknown as React.MouseEvent); } }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          onEdit(note);
+        } else if (e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          onClick(e as unknown as React.MouseEvent);
+        }
+      }}
       style={{
         position: 'relative',
         width: '100%',
@@ -1932,6 +1980,11 @@ type MixedObject =
       note: NoteSummary;
     };
 
+type KeyboardObject = {
+  id: string;
+  kind: 'file' | 'bookmark' | 'note';
+};
+
 const mixedObjectSize = (object: MixedObject): number =>
   object.kind === 'file' ? object.item.size : object.kind === 'note' ? object.note.body.length : 0;
 
@@ -2222,6 +2275,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [thumbnailSize, setThumbnailSize] = useState<AppearanceSettings['thumbnailSize']>('medium');
   const [isMultiSelect, setIsMultiSelect] = useState(false);
+  const [keyboardFocusedObjectId, setKeyboardFocusedObjectId] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const importToastIdRef = useRef<string | number | null>(null);
   const exportToastIdRef = useRef<string | number | null>(null);
@@ -2371,11 +2425,13 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
       clearSelection();
       clearBookmarkSelection();
       clearNoteSelection();
+      setKeyboardFocusedObjectId(null);
     }
     setIsMultiSelect((prev) => !prev);
   };
 
   const handleItemClick = (itemId: string, multiKey = false): void => {
+    setKeyboardFocusedObjectId(itemId);
     setShowInspector(true);
     if (isMultiSelect || multiKey) {
       if (!isMultiSelect) setIsMultiSelect(true);
@@ -2394,6 +2450,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   };
 
   const handleItemContextMenu = (itemId: string): void => {
+    setKeyboardFocusedObjectId(itemId);
     clearBookmarkSelection();
     clearNoteSelection();
     setSelectedBookmarkId(null);
@@ -2404,6 +2461,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
 
   const handleEmptyBackgroundClick = (): void => {
     if (selectedItemIds.length === 0 && selectedBookmarkIds.length === 0 && selectedNoteIds.length === 0) return;
+    setKeyboardFocusedObjectId(null);
     clearSelection();
     clearBookmarkSelection();
     clearNoteSelection();
@@ -3125,6 +3183,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   };
 
   const handleNoteContextMenu = (noteId: string): void => {
+    setKeyboardFocusedObjectId(noteId);
     clearSelection();
     clearBookmarkSelection();
     setSelectedBookmarkId(null);
@@ -3134,6 +3193,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   };
 
   const openNoteEditor = (note: NoteSummary): void => {
+    setKeyboardFocusedObjectId(note.id);
     clearSelection();
     clearBookmarkSelection();
     setSelectedBookmarkId(null);
@@ -3155,6 +3215,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   };
 
   const handleNoteCardClick = (id: string): void => {
+    setKeyboardFocusedObjectId(id);
     setShowInspector(true);
     if (isMultiSelect) {
       toggleSelectedNote(id);
@@ -3307,6 +3368,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     return [clickedBookmarkId];
   };
   const handleBookmarkContextMenu = (bookmarkId: string): void => {
+    setKeyboardFocusedObjectId(bookmarkId);
     clearSelection();
     setSelectedBookmarkIds([bookmarkId]);
     setSelectedBookmarkId(bookmarkId);
@@ -3342,6 +3404,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     onGoToFolder: showGoToFolderActions ? handleGoToBookmarkFolder : undefined,
   };
   const handleBookmarkCardClick = (id: string): void => {
+    setKeyboardFocusedObjectId(id);
     setShowInspector(true);
     if (isMultiSelect) {
       toggleSelectedBookmark(id);
@@ -3364,6 +3427,131 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   };
 
   const vaultMarqueeContainerRef = useRef<HTMLDivElement>(null);
+
+  const keyboardObjects = useMemo<KeyboardObject[]>(() => {
+    if (isNoteScope) {
+      return visibleNotes.map((note) => ({ id: note.id, kind: 'note' as const }));
+    }
+    if (isBookmarkScope) {
+      return visibleBookmarks.map((bookmark) => ({ id: bookmark.id, kind: 'bookmark' as const }));
+    }
+    if (showBookmarksInMixedView || showNotesInMixedView) {
+      return renderedMixedObjects.map((object) => ({ id: object.id, kind: object.kind }));
+    }
+    return filteredItems.slice(0, renderCount).map((item) => ({ id: item.id, kind: 'file' as const }));
+  }, [filteredItems, isBookmarkScope, isNoteScope, renderCount, renderedMixedObjects, showBookmarksInMixedView, showNotesInMixedView, visibleBookmarks, visibleNotes]);
+
+  const focusKeyboardObjectElement = useCallback((objectId: string): void => {
+    window.requestAnimationFrame(() => {
+      const selector = `[data-gallery-item-id="${CSS.escape(objectId)}"]`;
+      const element = vaultMarqueeContainerRef.current?.querySelector<HTMLElement>(selector);
+      element?.focus({ preventScroll: true });
+      element?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+  }, []);
+
+  const selectKeyboardObject = useCallback((object: KeyboardObject): void => {
+    setKeyboardFocusedObjectId(object.id);
+    if (!isMultiSelect) {
+      clearSelection();
+      clearBookmarkSelection();
+      clearNoteSelection();
+      if (object.kind === 'file') {
+        setSelectedItems([object.id]);
+        setSelectedBookmarkId(null);
+        setSelectedNoteId(null);
+      } else if (object.kind === 'bookmark') {
+        setSelectedBookmarkId(object.id);
+        setSelectedNoteId(null);
+      } else {
+        setSelectedBookmarkId(null);
+        setSelectedNoteId(object.id);
+      }
+    }
+    setShowInspector(true);
+    focusKeyboardObjectElement(object.id);
+  }, [clearSelection, focusKeyboardObjectElement, isMultiSelect, setSelectedItems]);
+
+  const openKeyboardObject = useCallback((object: KeyboardObject): void => {
+    selectKeyboardObject(object);
+    if (object.kind === 'file') {
+      handleOpenViewer(object.id);
+      return;
+    }
+    if (object.kind === 'bookmark') {
+      const bookmark = visibleBookmarks.find((entry) => entry.id === object.id) ?? bookmarks.find((entry) => entry.id === object.id);
+      if (bookmark) onOpenUrlInBrowser?.(bookmark.url);
+      return;
+    }
+    const note = visibleNotes.find((entry) => entry.id === object.id) ?? notes.find((entry) => entry.id === object.id);
+    if (note) openNoteEditor(note);
+  }, [bookmarks, handleOpenViewer, notes, onOpenUrlInBrowser, openNoteEditor, selectKeyboardObject, visibleBookmarks, visibleNotes]);
+
+  const getCurrentKeyboardObject = useCallback((): KeyboardObject | null => {
+    const selectedId =
+      keyboardFocusedObjectId ??
+      selectedItemIds[selectedItemIds.length - 1] ??
+      selectedBookmarkId ??
+      selectedBookmarkIds[selectedBookmarkIds.length - 1] ??
+      selectedNoteId ??
+      selectedNoteIds[selectedNoteIds.length - 1] ??
+      null;
+    if (!selectedId) return null;
+    return keyboardObjects.find((object) => object.id === selectedId) ?? null;
+  }, [keyboardFocusedObjectId, keyboardObjects, selectedBookmarkId, selectedBookmarkIds, selectedItemIds, selectedNoteId, selectedNoteIds]);
+
+  const findNextKeyboardObject = useCallback((direction: 'up' | 'down' | 'left' | 'right'): KeyboardObject | null => {
+    if (keyboardObjects.length === 0) return null;
+    const current = getCurrentKeyboardObject();
+    if (!current) return keyboardObjects[0];
+
+    const currentIndex = keyboardObjects.findIndex((object) => object.id === current.id);
+    if (currentIndex < 0) return keyboardObjects[0];
+
+    if (viewMode === 'list') {
+      const delta = direction === 'up' || direction === 'left' ? -1 : 1;
+      return keyboardObjects[Math.max(0, Math.min(keyboardObjects.length - 1, currentIndex + delta))] ?? null;
+    }
+
+    const container = vaultMarqueeContainerRef.current;
+    if (!container) return keyboardObjects[Math.max(0, Math.min(keyboardObjects.length - 1, currentIndex + (direction === 'up' || direction === 'left' ? -1 : 1)))] ?? null;
+
+    const getRect = (id: string): DOMRect | null =>
+      container.querySelector<HTMLElement>(`[data-gallery-item-id="${CSS.escape(id)}"]`)?.getBoundingClientRect() ?? null;
+
+    const currentRect = getRect(current.id);
+    if (!currentRect) return keyboardObjects[0];
+    const currentCenterX = currentRect.left + currentRect.width / 2;
+    const currentCenterY = currentRect.top + currentRect.height / 2;
+
+    let best: { object: KeyboardObject; score: number } | null = null;
+    for (const object of keyboardObjects) {
+      if (object.id === current.id) continue;
+      const rect = getRect(object.id);
+      if (!rect) continue;
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const dx = centerX - currentCenterX;
+      const dy = centerY - currentCenterY;
+      const primary =
+        direction === 'right' ? dx :
+        direction === 'left' ? -dx :
+        direction === 'down' ? dy :
+        -dy;
+      if (primary <= 4) continue;
+      const secondary = direction === 'left' || direction === 'right' ? Math.abs(dy) : Math.abs(dx);
+      const score = primary * 1000 + secondary;
+      if (!best || score < best.score) best = { object, score };
+    }
+    return best?.object ?? current;
+  }, [getCurrentKeyboardObject, keyboardObjects, viewMode]);
+
+  const isTypingTarget = (target: EventTarget | null): boolean => {
+    if (!(target instanceof HTMLElement)) return false;
+    const tagName = target.tagName.toLowerCase();
+    return tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target.isContentEditable;
+  };
+
   const selectedVaultObjectIds = useMemo(
     () => [...selectedItemIds, ...selectedBookmarkIds, ...selectedNoteIds],
     [selectedBookmarkIds, selectedItemIds, selectedNoteIds],
@@ -3381,6 +3569,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     setSelectedNoteIds(nextNoteIds);
     setSelectedBookmarkId(nextItemIds.length === 0 && nextNoteIds.length === 0 && nextBookmarkIds.length === 1 ? nextBookmarkIds[0] : null);
     setSelectedNoteId(nextItemIds.length === 0 && nextBookmarkIds.length === 0 && nextNoteIds.length === 1 ? nextNoteIds[0] : null);
+    setKeyboardFocusedObjectId(objectIds[objectIds.length - 1] ?? null);
     if (objectIds.length > 0) setShowInspector(true);
   }, [filteredItems, setSelectedItems, visibleBookmarks, visibleNotes]);
   const {
@@ -3395,6 +3584,43 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     onEmptyBackgroundClick: handleEmptyBackgroundClick,
   });
 
+  const isVaultKeyboardBlocked =
+    viewerItemId !== null ||
+    editingNoteId !== null ||
+    confirmRequest !== null ||
+    moveDialogOpen ||
+    importSettingsOpen ||
+    deleteFolderDialog !== null ||
+    conflictDialog !== null ||
+    thumbPickerBookmark !== null ||
+    showNewFolderDialog ||
+    isVaultMarqueeSelecting;
+
+  const handleVaultKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (isVaultKeyboardBlocked || isTypingTarget(event.target)) return;
+    if ((event.target as HTMLElement | null)?.closest('.sanctum-ctx-content, [role="menu"], [data-radix-popper-content-wrapper]')) return;
+
+    if (event.key === 'Enter') {
+      const current = getCurrentKeyboardObject() ?? keyboardObjects[0] ?? null;
+      if (!current) return;
+      event.preventDefault();
+      openKeyboardObject(current);
+      return;
+    }
+
+    const direction =
+      event.key === 'ArrowUp' ? 'up' :
+      event.key === 'ArrowDown' ? 'down' :
+      event.key === 'ArrowLeft' ? 'left' :
+      event.key === 'ArrowRight' ? 'right' :
+      null;
+    if (!direction) return;
+    const next = findNextKeyboardObject(direction);
+    if (!next) return;
+    event.preventDefault();
+    selectKeyboardObject(next);
+  }, [findNextKeyboardObject, getCurrentKeyboardObject, isVaultKeyboardBlocked, keyboardObjects, openKeyboardObject, selectKeyboardObject]);
+
   return (
     <div
       style={{
@@ -3405,6 +3631,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
         overflow: 'hidden',
         background: T.bg2,
       }}
+      onKeyDown={handleVaultKeyDown}
       onDragOver={(e) => e.preventDefault()}
       onDragEnter={(e) => { e.preventDefault(); if (!isBookmarkScope && !isNoteScope) setIsDragOver(true); }}
       onDragLeave={(e) => { if (e.currentTarget === e.target) setIsDragOver(false); }}

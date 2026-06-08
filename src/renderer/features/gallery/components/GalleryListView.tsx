@@ -189,7 +189,15 @@ const ListRow: React.FC<{
       onClick={(e) => onToggleSelect(item.id, e.metaKey || e.ctrlKey)}
       onDoubleClick={() => onOpen(item.id)}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleSelect(item.id); }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          onOpen(item.id);
+        } else if (e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          onToggleSelect(item.id);
+        }
       }}
       style={{
         display: 'grid',
