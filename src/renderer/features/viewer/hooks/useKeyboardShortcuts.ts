@@ -57,23 +57,27 @@ export const useKeyboardShortcuts = (handlers: KeyboardHandlers): void => {
         return;
       }
 
-      if (event.key === 'ArrowLeft') {
+      if (event.key === 'ArrowUp') {
         event.preventDefault();
-        if (event.shiftKey) {
-          handlers.onVideoSeekBackward?.();
-        } else {
-          handlers.onPrev();
-        }
+        handlers.onPrev();
         return;
       }
 
-      if (event.key === 'ArrowRight') {
+      if (event.key === 'ArrowDown') {
         event.preventDefault();
-        if (event.shiftKey) {
-          handlers.onVideoSeekForward?.();
-        } else {
-          handlers.onNext();
-        }
+        handlers.onNext();
+        return;
+      }
+
+      if (event.key === 'ArrowLeft' && handlers.onVideoSeekBackward) {
+        event.preventDefault();
+        handlers.onVideoSeekBackward();
+        return;
+      }
+
+      if (event.key === 'ArrowRight' && handlers.onVideoSeekForward) {
+        event.preventDefault();
+        handlers.onVideoSeekForward();
         return;
       }
 
@@ -122,9 +126,9 @@ export const useKeyboardShortcuts = (handlers: KeyboardHandlers): void => {
       }
     };
 
-    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, true);
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keydown', onKeyDown, true);
     };
   }, [handlers]);
 };

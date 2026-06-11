@@ -25,42 +25,48 @@ export class BackupService {
   ): Promise<void> {
     this.ensureUnlocked();
 
+    onProgress?.({ total: 0, processed: 0, phase: 'preparing' });
+
     // Flush WAL into the main DB file so the copied .db is fully consistent.
     this.db.pragma('wal_checkpoint(TRUNCATE)');
 
+    const encFiles = fs.existsSync(this.vaultPaths.filesDir)
+      ? fs.readdirSync(this.vaultPaths.filesDir).filter((f) => f.endsWith('.enc'))
+      : [];
     const itemCount = (this.db.prepare('SELECT COUNT(1) AS count FROM vault_items').get() as { count: number }).count;
-    // total = item files + db + version.json
-    const total = itemCount + 2;
+    // total = encrypted blobs + db + version marker + manifest
+    const total = encFiles.length + 3;
     let processed = 0;
+
+    onProgress?.({ total, processed, phase: 'adding' });
 
     await new Promise<void>((resolve, reject) => {
       const output = fs.createWriteStream(outputPath);
       const archive = archiver('zip', { zlib: { level: 1 } });
 
-      output.on('close', resolve);
+      output.on('close', () => {
+        onProgress?.({ total, processed: total, phase: 'complete' });
+        resolve();
+      });
       archive.on('error', reject);
       archive.pipe(output);
 
       // Add the database file.
       archive.file(this.vaultPaths.dbPath, { name: 'privatevault.db' });
       processed += 1;
-      onProgress?.({ total, processed });
+      onProgress?.({ total, processed, phase: 'adding' });
 
       // Add vault version marker.
       archive.file(this.vaultPaths.versionPath, { name: 'vault/version.json' });
       processed += 1;
-      onProgress?.({ total, processed });
+      onProgress?.({ total, processed, phase: 'adding' });
 
       // Add each encrypted item file, reporting progress per file.
-      const encFiles = fs.existsSync(this.vaultPaths.filesDir)
-        ? fs.readdirSync(this.vaultPaths.filesDir).filter((f) => f.endsWith('.enc'))
-        : [];
-
       for (const filename of encFiles) {
         const filePath = path.join(this.vaultPaths.filesDir, filename);
         archive.file(filePath, { name: `vault/files/${filename}` });
         processed += 1;
-        onProgress?.({ total, processed, currentFile: filename });
+        onProgress?.({ total, processed, currentFile: filename, phase: 'adding' });
       }
 
       // Add manifest.
@@ -75,6 +81,10 @@ export class BackupService {
         ],
       }, null, 2);
       archive.append(manifest, { name: 'backup_manifest.json' });
+      processed += 1;
+      onProgress?.({ total, processed, currentFile: 'backup_manifest.json', phase: 'adding' });
+
+      onProgress?.({ total, processed: total, phase: 'finalizing' });
 
       void archive.finalize();
     });

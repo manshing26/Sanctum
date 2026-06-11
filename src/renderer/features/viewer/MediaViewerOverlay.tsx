@@ -464,9 +464,9 @@ const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 const ShortcutHelp = ({ onClose }: { onClose: () => void }): React.JSX.Element => {
   const groups = [
-    { title: 'General', rows: [['Close', 'Esc'], ['Previous item', 'Left'], ['Next item', 'Right'], ['Fullscreen', 'F'], ['Shortcuts', '?']] },
+    { title: 'General', rows: [['Close', 'Esc'], ['Previous item', 'Up'], ['Next item', 'Down'], ['Fullscreen', 'F'], ['Shortcuts', '?']] },
     { title: 'Image', rows: [['Zoom in', '+ / = / Wheel up'], ['Zoom out', '- / Wheel down'], ['Pan zoomed image', 'Drag'], ['Rotate', 'R'], ['Reset', '0']] },
-    { title: 'Video', rows: [['Play / pause', 'Space'], ['Seek back 5s', 'Shift + Left'], ['Seek forward 5s', 'Shift + Right'], ['Mute', 'M'], ['Reset speed', '0']] },
+    { title: 'Video', rows: [['Play / pause', 'Space'], ['Seek back 5s', 'Left'], ['Seek forward 5s', 'Right'], ['Mute', 'M'], ['Reset speed', '0']] },
     { title: 'PDF / Documents', rows: [['PDF zoom in', '+ / ='], ['PDF zoom out', '-'], ['PDF reset zoom', '0'], ['Scroll document', 'Mouse / trackpad']] },
   ];
 
@@ -787,7 +787,7 @@ export const MediaViewerOverlay = ({
               showControls ? 'opacity-100' : 'opacity-0',
             )}
             aria-label="Previous"
-            title="Previous (Left)"
+            title="Previous (Up)"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
@@ -801,7 +801,7 @@ export const MediaViewerOverlay = ({
               showControls ? 'opacity-100' : 'opacity-0',
             )}
             aria-label="Next"
-            title="Next (Right)"
+            title="Next (Down)"
           >
             <ChevronRight className="h-6 w-6" />
           </button>

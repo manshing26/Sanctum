@@ -9,6 +9,7 @@ import {
 import { RenameItemDialog } from './RenameItemDialog';
 import { getVaultFileKind, isPreviewableMimeType } from '../../../../shared/fileTypes';
 import { fontSize } from '../../../theme/typography';
+import { formatDuration } from '../../../lib/utils';
 
 const T = {
   bg: '#0a0c0b',
@@ -46,12 +47,6 @@ type GalleryCardProps = {
   onGoToFolder?: (itemId: string) => void;
   isMultiSelect: boolean;
   tags?: TagSummary[];
-};
-
-const formatDuration = (seconds: number): string => {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
 const formatFileSize = (bytes: number): string => {

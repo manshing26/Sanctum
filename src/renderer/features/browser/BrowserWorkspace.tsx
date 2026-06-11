@@ -23,6 +23,7 @@ import {
   ContextMenuSubContent,
   ContextMenuSubTrigger,
 } from '../../components/ui/ContextMenu';
+import { SanctumConfirmDialog } from '../../components/ui';
 import { fontSize } from '../../theme/typography';
 
 // ── Design tokens ────────────────────────────────────────────────────
@@ -612,6 +613,7 @@ export const BrowserWorkspace = ({
   const [extensionStartupErrors, setExtensionStartupErrors] = useState<ExtensionStartupError[]>([]);
   const [browserSettings, setBrowserSettings] = useState<BrowserSettings | null>(null);
   const [isCleaningWeb, setIsCleaningWeb] = useState(false);
+  const [cleanWebConfirmOpen, setCleanWebConfirmOpen] = useState(false);
   const [isCapturingPage, setIsCapturingPage] = useState(false);
   const [captureMenuOpen, setCaptureMenuOpen] = useState(false);
   const [popupRequests, setPopupRequests] = useState<BrowserPopupRequest[]>([]);
@@ -1208,12 +1210,12 @@ export const BrowserWorkspace = ({
     }
   };
 
-  const handleCleanWeb = async (): Promise<void> => {
-    if (isCleaningWeb) return;
+  const handleCleanWeb = async (): Promise<boolean> => {
+    if (isCleaningWeb) return false;
     setIsCleaningWeb(true);
     try {
       const r = await window.browserAPI.clearData();
-      if (!r.ok) { toast.error(r.error); return; }
+      if (!r.ok) { toast.error(r.error); return false; }
       const freshTab = createTab(HOME_URL);
       webviewRefs.current = {};
       navigationHistoryRef.current = {};
@@ -1223,6 +1225,7 @@ export const BrowserWorkspace = ({
       localStorage.removeItem(TAB_PERSIST_KEY);
       setTabs([freshTab]); setActiveTabId(freshTab.id); setAddressInput(freshTab.url);
       toast.success('Web data cleared and tabs reset.');
+      return true;
     } finally { setIsCleaningWeb(false); }
   };
 
@@ -1791,7 +1794,9 @@ export const BrowserWorkspace = ({
 
           <button
             type="button"
-            onClick={() => void handleCleanWeb()}
+            onClick={() => {
+              if (!isCleaningWeb) setCleanWebConfirmOpen(true);
+            }}
             disabled={isCleaningWeb}
             title="Clear all browser data and reset tabs"
             style={{
@@ -2102,6 +2107,22 @@ export const BrowserWorkspace = ({
           })}
         </div>
       )}
+
+      <SanctumConfirmDialog
+        open={cleanWebConfirmOpen}
+        onOpenChange={setCleanWebConfirmOpen}
+        title="Clean browser data?"
+        description="This will clear cookies, local storage, cache, service workers, and reset open browser tabs. Saved Vault bookmarks and passwords will not be deleted."
+        variant="warning"
+        size="md"
+        confirmLabel="Clean Web"
+        cancelLabel="Cancel"
+        busy={isCleaningWeb}
+        onConfirm={async () => {
+          const cleaned = await handleCleanWeb();
+          if (cleaned) setCleanWebConfirmOpen(false);
+        }}
+      />
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>

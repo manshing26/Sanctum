@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetTitle } from '../../../components/ui/Sheet';
 import { StarRating } from '../../../components/ui/StarRating';
 import { getVaultFileKind, isPreviewableMimeType } from '../../../../shared/fileTypes';
 import { fontSize } from '../../../theme/typography';
+import { formatDuration } from '../../../lib/utils';
 
 const T = {
   bg: '#0a0c0b',
@@ -274,7 +275,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
         {fieldRow('Type', item.mimeType, true)}
         {fieldRow('Size', formatFileSize(item.size), true)}
         {item.width && item.height && fieldRow('Dimensions', `${item.width} × ${item.height}`, true)}
-        {item.durationSeconds !== undefined && item.durationSeconds > 0 && fieldRow('Duration', `${item.durationSeconds.toFixed(1)}s`, true)}
+        {item.durationSeconds !== undefined && item.durationSeconds > 0 && fieldRow('Duration', formatDuration(item.durationSeconds), true)}
         {fieldRow('Cipher', <span style={{ color: T.accent, fontFamily: MONO, fontSize: fontSize(10) }}>aes-256-gcm</span>)}
       </div>
 

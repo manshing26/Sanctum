@@ -739,7 +739,20 @@ const BackupCard: React.FC = () => {
     } finally { unsub(); setIsRunning(false); setProgress(null); }
   };
 
-  const pct = progress && progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0;
+  const pct = progress
+    ? progress.phase === 'finalizing' || progress.phase === 'complete'
+      ? 100
+      : progress.total > 0
+        ? Math.round((progress.processed / progress.total) * 100)
+        : 0
+    : 0;
+  const progressLabel = progress?.phase === 'preparing'
+    ? 'Preparing backup...'
+    : progress?.phase === 'finalizing'
+      ? 'Finalizing backup...'
+      : progress
+        ? `Backing up ${progress.processed} / ${progress.total} entries...`
+        : '';
 
   return (
     <SettingCard>
@@ -751,7 +764,7 @@ const BackupCard: React.FC = () => {
             </svg>
             {isRunning ? 'Backing up…' : 'Create Backup'}
           </SecondaryBtn>
-          {isRunning && progress && <ProgressBar pct={pct} label={`Backing up ${progress.processed} / ${progress.total} entries…`} />}
+          {isRunning && progress && <ProgressBar pct={pct} label={progressLabel} />}
           {successPath && !isRunning && (
             <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.success, wordBreak: 'break-all' }}>Saved to {successPath}</p>
           )}

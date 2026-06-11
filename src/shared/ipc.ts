@@ -674,6 +674,7 @@ export type BackupProgress = {
   total: number;
   processed: number;
   currentFile?: string;
+  phase?: 'preparing' | 'adding' | 'finalizing' | 'complete';
 };
 
 export type BackupVaultInput = {

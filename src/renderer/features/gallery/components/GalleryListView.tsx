@@ -10,6 +10,7 @@ import {
 } from '../../../components/ui/ContextMenu';
 import { getVaultFileKind, isPreviewableMimeType } from '../../../../shared/fileTypes';
 import { fontSize } from '../../../theme/typography';
+import { formatDuration } from '../../../lib/utils';
 
 const T = {
   bg: '#0a0c0b',
@@ -55,12 +56,6 @@ type GalleryListViewProps = {
   sentinelRef: React.RefObject<HTMLDivElement | null>;
   isMultiSelect: boolean;
   listLayoutVariant?: 'default' | 'object-type';
-};
-
-const formatDuration = (seconds: number): string => {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
 const formatFileSize = (bytes: number): string => {
