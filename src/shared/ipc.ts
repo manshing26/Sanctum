@@ -528,6 +528,7 @@ export type NoteSummary = {
   format: NoteFormat;
   folderId: number | null;
   isFavorite: boolean;
+  rating?: number;
   tags: TagSummary[];
   createdAt: string;
   updatedAt: string;

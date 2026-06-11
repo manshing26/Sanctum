@@ -46,6 +46,7 @@ import { useGalleryState } from './state/useGalleryState';
 import { useMarqueeSelection } from './hooks/useMarqueeSelection';
 import { MediaViewerOverlay } from '../viewer/MediaViewerOverlay';
 import { fontSize } from '../../theme/typography';
+import { formatDuration } from '../../lib/utils';
 
 const T = {
   bg: '#0a0c0b',
@@ -66,6 +67,13 @@ const THUMBNAIL_GRID_MIN_WIDTH: Record<AppearanceSettings['thumbnailSize'], numb
   small: 160,
   medium: 200,
   large: 260,
+};
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 };
 
 type VaultConfirmRequest = {
@@ -237,6 +245,17 @@ const ListRating: React.FC<{ rating?: number }> = ({ rating }) => (
   </span>
 );
 
+const fileInfoLabel = (item: VaultItemSummary): string => {
+  const kind = getVaultFileKind(item.mimeType);
+  if (kind === 'video') {
+    return item.durationSeconds && item.durationSeconds > 0 ? formatDuration(item.durationSeconds) : '-';
+  }
+  if (kind === 'image') {
+    return item.width && item.height ? `${item.width}×${item.height}` : '-';
+  }
+  return formatFileSize(item.size);
+};
+
 const ListFavoriteButton: React.FC<{
   active: boolean;
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
@@ -295,7 +314,8 @@ const MixedListHeader: React.FC<{
   isMultiSelect: boolean;
   allVisibleSelected: boolean;
   onToggleSelectAllVisible: () => void;
-}> = ({ isMultiSelect, allVisibleSelected, onToggleSelectAllVisible }) => (
+  finalColumnLabel?: 'Info' | 'Date';
+}> = ({ isMultiSelect, allVisibleSelected, onToggleSelectAllVisible, finalColumnLabel = 'Info' }) => (
   <div className="pv-list-row pv-list-header">
     <HeaderSelectBox visible={isMultiSelect} checked={allVisibleSelected} onToggle={onToggleSelectAllVisible} />
     <span />
@@ -303,7 +323,7 @@ const MixedListHeader: React.FC<{
     <span className="pv-list-col-rating" style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Rating</span>
     <span className="pv-list-col-tags" style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Tags</span>
     <span className="pv-list-col-fav" style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Fav</span>
-    <span className="pv-list-col-date" style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>Date</span>
+    <span className="pv-list-col-date" style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute2 }}>{finalColumnLabel}</span>
   </div>
 );
 
@@ -670,7 +690,7 @@ const FileListRow: React.FC<{
         }}
       />
       <span className="pv-list-col-date" style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, whiteSpace: 'nowrap' }}>
-        {new Date(item.createdAt).toLocaleDateString()}
+        {fileInfoLabel(item)}
       </span>
     </div>
   );
@@ -1013,7 +1033,7 @@ const NoteListRow: React.FC<{
           <span>{noteFormatLabel(note.format)}</span>
         </div>
       </div>
-      <ListRating />
+      <ListRating rating={note.rating} />
       <div className="pv-list-col-tags">
         {note.tags.slice(0, 3).map((t) => <ListTagChip key={t.id} tag={t} />)}
       </div>
@@ -1182,6 +1202,7 @@ const NoteCard: React.FC<{
           <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute, letterSpacing: '0.04em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {noteFormatLabel(note.format)}
           </span>
+          <GridRating rating={note.rating} />
         </div>
       </div>
     </div>
@@ -1226,10 +1247,11 @@ const NoteInspector: React.FC<{
   onEdit: (note: NoteSummary) => void;
   onDelete: (id: string) => void;
   onToggleFavorite: (id: string, isFavorite: boolean) => void;
+  onSetRating: (id: string, rating: number | null) => void;
   onToggleTag: (noteId: string, tagId: number, assigned: boolean) => void;
   onExport: (id: string) => void;
   onGoToFolder?: (note: NoteSummary) => void;
-}> = ({ note, tags, onEdit, onDelete, onToggleFavorite, onToggleTag, onExport, onGoToFolder }) => {
+}> = ({ note, tags, onEdit, onDelete, onToggleFavorite, onSetRating, onToggleTag, onExport, onGoToFolder }) => {
   const iconBtn = (): React.CSSProperties => ({
     width: 28, height: 28,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1327,6 +1349,11 @@ const NoteInspector: React.FC<{
           <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, textTransform: 'uppercase' }}>Cipher</span>
           <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.accent }}>aes-256-gcm</span>
         </div>
+      </div>
+      <div style={{ borderTop: `1px solid ${T.line}`, marginBottom: 14 }} />
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2, marginBottom: 8 }}>· Rating ·</div>
+        <StarRating value={note.rating} onChange={(rating) => onSetRating(note.id, rating)} />
       </div>
       <div style={{ borderTop: `1px solid ${T.line}`, marginBottom: 14 }} />
       <div>
@@ -1975,6 +2002,7 @@ type MixedObject =
       name: string;
       folderId: number | null;
       isFavorite: boolean;
+      rating?: number;
       tags: TagSummary[];
       typeLabel: ObjectTypeLabel;
       note: NoteSummary;
@@ -1989,7 +2017,7 @@ const mixedObjectSize = (object: MixedObject): number =>
   object.kind === 'file' ? object.item.size : object.kind === 'note' ? object.note.body.length : 0;
 
 const mixedObjectRating = (object: MixedObject): number =>
-  object.kind === 'file' ? object.item.rating ?? 0 : object.kind === 'bookmark' ? object.bookmark.rating ?? 0 : 0;
+  object.kind === 'file' ? object.item.rating ?? 0 : object.kind === 'bookmark' ? object.bookmark.rating ?? 0 : object.note.rating ?? 0;
 
 const compareCreatedNewest = (a: { createdAt: string }, b: { createdAt: string }): number =>
   new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -2167,9 +2195,9 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
         case 'name_desc': return b.title.localeCompare(a.title);
         case 'size_desc': return b.body.length - a.body.length || compareCreatedNewest(a, b);
         case 'size_asc': return a.body.length - b.body.length || compareCreatedOldest(a, b);
+        case 'rating_desc': return (b.rating ?? 0) - (a.rating ?? 0) || compareCreatedNewest(a, b);
+        case 'rating_asc': return (a.rating ?? 0) - (b.rating ?? 0) || compareCreatedOldest(a, b);
         case 'newest':
-        case 'rating_desc':
-        case 'rating_asc':
         default: return compareCreatedNewest(a, b);
       }
     });
@@ -2218,6 +2246,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
         name: note.title,
         folderId: note.folderId ?? null,
         isFavorite: note.isFavorite,
+        rating: note.rating,
         tags: note.tags,
         typeLabel: 'NOTE' as ObjectTypeLabel,
         note,
@@ -2784,6 +2813,20 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
       bookmark.id === bookmarkId ? { ...bookmark, rating: rating ?? undefined } : bookmark
     )));
     await loadBookmarks();
+  };
+
+  const handleSetNoteRating = async (noteId: string, rating: number | null): Promise<void> => {
+    const result = await window.electronAPI.setRating({ itemId: noteId, rating });
+    if (!result.ok) { toast.error(result.error); return; }
+    setNotes((prev) => prev.map((note) => (
+      note.id === noteId ? { ...note, rating: rating ?? undefined } : note
+    )));
+    const refreshed = await window.electronAPI.listNotes();
+    if (!refreshed.ok) {
+      toast.error(refreshed.error);
+      return;
+    }
+    setNotes(refreshed.data);
   };
 
   const handleRenameItem = async (itemId: string, newName: string): Promise<void> => {
@@ -3812,6 +3855,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
                   isMultiSelect={isNoteMultiSelect}
                   allVisibleSelected={allVisibleSelected}
                   onToggleSelectAllVisible={handleToggleSelectAllVisible}
+                  finalColumnLabel="Date"
                 />
                 {visibleNotes.map((note) => (
                   <NoteListRow
@@ -3872,6 +3916,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
                   isMultiSelect={isBookmarkMultiSelect}
                   allVisibleSelected={allVisibleSelected}
                   onToggleSelectAllVisible={handleToggleSelectAllVisible}
+                  finalColumnLabel="Date"
                 />
                 {visibleBookmarks.map((b) => (
                   <BookmarkListRow
@@ -4102,6 +4147,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
                     onEdit={openNoteEditor}
                     onDelete={(id) => void handleDeleteNotesByIds([id])}
                     onToggleFavorite={(noteId, isFavorite) => void handleToggleNoteFavoriteByIds([noteId], isFavorite)}
+                    onSetRating={(noteId, rating) => void handleSetNoteRating(noteId, rating)}
                     onToggleTag={(noteId, tagId, assigned) => void handleToggleNoteTag(noteId, tagId, assigned)}
                     onExport={(id) => void handleExportNote(id)}
                     onGoToFolder={showGoToFolderActions ? handleGoToNoteFolder : undefined}

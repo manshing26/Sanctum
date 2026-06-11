@@ -38,9 +38,14 @@ const EXTENSION_MIME_TYPES: Record<string, string> = {
   '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   '.ppt': 'application/vnd.ms-powerpoint',
   '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.epub': 'application/epub+zip',
   '.odt': 'application/vnd.oasis.opendocument.text',
   '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
   '.odp': 'application/vnd.oasis.opendocument.presentation',
+  '.ott': 'application/vnd.oasis.opendocument.text-template',
+  '.ots': 'application/vnd.oasis.opendocument.spreadsheet-template',
+  '.otp': 'application/vnd.oasis.opendocument.presentation-template',
+  '.otd': 'application/vnd.oasis.opendocument.text',
 };
 
 const extensionOf = (filename: string): string => {
@@ -85,23 +90,10 @@ export const isPreviewableMimeType = (mimeType: string): boolean =>
   isMediaMimeType(mimeType) || isPdfMimeType(mimeType) || isReadableDocumentMimeType(mimeType);
 
 export const isDocumentMimeType = (mimeType: string): boolean =>
-  mimeType.startsWith('text/') ||
-  isReadableDocumentMimeType(mimeType) ||
-  isPdfMimeType(mimeType) ||
-  mimeType === 'application/json' ||
-  mimeType === 'application/xml' ||
-  mimeType === 'application/rtf' ||
-  mimeType.includes('wordprocessingml') ||
-  mimeType.includes('spreadsheetml') ||
-  mimeType.includes('presentationml') ||
-  mimeType.includes('msword') ||
-  mimeType.includes('ms-excel') ||
-  mimeType.includes('ms-powerpoint') ||
-  mimeType.includes('opendocument');
+  !isMediaMimeType(mimeType);
 
 export const getVaultFileKind = (mimeType: string): VaultFileKind => {
   if (isImageMimeType(mimeType)) return 'image';
   if (isVideoMimeType(mimeType)) return 'video';
-  if (isDocumentMimeType(mimeType)) return 'document';
-  return 'file';
+  return 'document';
 };

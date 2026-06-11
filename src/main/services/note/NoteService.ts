@@ -23,6 +23,7 @@ type NoteRow = {
   format: NoteFormat;
   folder_id: number | null;
   is_favorite: number | null;
+  rating: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -42,7 +43,7 @@ type EncryptedPayload = {
 
 const NOTE_SELECT = `
   SELECT n.vault_object_id, n.title_enc, n.body_enc, n.format,
-         vo.folder_id, vo.is_favorite, vo.created_at, vo.updated_at
+         vo.folder_id, vo.is_favorite, vo.rating, vo.created_at, vo.updated_at
   FROM notes n
   INNER JOIN vault_objects vo ON vo.id = n.vault_object_id
 `;
@@ -121,6 +122,7 @@ export class NoteService {
       format: row.format,
       folderId: row.folder_id,
       isFavorite: Boolean(row.is_favorite),
+      rating: row.rating ?? undefined,
       tags: this.getNoteTags(row.vault_object_id),
       createdAt: row.created_at,
       updatedAt: row.updated_at,

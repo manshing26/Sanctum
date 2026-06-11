@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { VaultItemSummary } from '../../../../shared/ipc';
+import type { TagSummary, VaultItemSummary } from '../../../../shared/ipc';
 import { RenameItemDialog } from './RenameItemDialog';
 import { useMarqueeSelection } from '../hooks/useMarqueeSelection';
 import {
@@ -56,6 +56,7 @@ type GalleryListViewProps = {
   sentinelRef: React.RefObject<HTMLDivElement | null>;
   isMultiSelect: boolean;
   listLayoutVariant?: 'default' | 'object-type';
+  tags?: TagSummary[];
 };
 
 const formatFileSize = (bytes: number): string => {
@@ -65,7 +66,16 @@ const formatFileSize = (bytes: number): string => {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 };
 
-const isVideo = (mimeType: string): boolean => mimeType.startsWith('video/');
+const fileInfoLabel = (item: VaultItemSummary): string => {
+  const kind = getVaultFileKind(item.mimeType);
+  if (kind === 'video') {
+    return item.durationSeconds && item.durationSeconds > 0 ? formatDuration(item.durationSeconds) : '—';
+  }
+  if (kind === 'image') {
+    return item.width && item.height ? `${item.width}×${item.height}` : '—';
+  }
+  return formatFileSize(item.size);
+};
 const typeBadgeLabel = (item: VaultItemSummary): 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'FILE' => {
   const kind = getVaultFileKind(item.mimeType);
   if (kind === 'video') return 'VIDEO';
@@ -98,20 +108,47 @@ const TypeBadge: React.FC<{ label: 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'FILE' }> = 
 type ListLayoutVariant = NonNullable<GalleryListViewProps['listLayoutVariant']>;
 
 const getGridTemplateColumns = (isMultiSelect: boolean, variant: ListLayoutVariant): string => {
-  if (variant === 'object-type') {
-    return isMultiSelect
-      ? '20px 50px minmax(0,1.8fr) 82px 76px 24px'
-      : '50px minmax(0,1.8fr) 82px 76px 24px';
-  }
-
+  void variant;
   return isMultiSelect
-    ? '20px 32px 50px minmax(0,1.6fr) minmax(80px,.7fr) 70px 60px 24px'
-    : '32px 50px minmax(0,1.6fr) minmax(80px,.7fr) 70px 60px 24px';
+    ? '20px 50px minmax(0,1fr) 72px minmax(80px,130px) 34px minmax(76px,110px)'
+    : '50px minmax(0,1fr) 72px minmax(80px,130px) 34px minmax(76px,110px)';
 };
+
+const ListRating: React.FC<{ rating?: number | null }> = ({ rating }) => {
+  const value = rating ?? 0;
+  return (
+    <span
+      className="gv-list-col-rating"
+      title={`${value}/5 rating`}
+      style={{ fontFamily: MONO, fontSize: fontSize(10), color: value > 0 ? '#d8b84e' : T.mute2, whiteSpace: 'nowrap' }}
+    >
+      {value > 0 ? `${value}/5` : '—'}
+    </span>
+  );
+};
+
+const ListTagChip: React.FC<{ tag: Pick<TagSummary, 'id' | 'name' | 'color'> }> = ({ tag }) => (
+  <span style={{
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 3,
+    minWidth: 0,
+    maxWidth: 72,
+    padding: '1px 5px',
+    background: T.accentGlow,
+    border: `1px solid ${T.line2}`,
+    fontFamily: MONO,
+    fontSize: fontSize(8),
+    color: T.accent,
+    overflow: 'hidden',
+  }}>
+    {tag.color && <span style={{ width: 5, height: 5, borderRadius: '50%', background: tag.color, flexShrink: 0 }} />}
+    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tag.name}</span>
+  </span>
+);
 
 // ── Single list row ──────────────────────────────────────────────────
 const ListRow: React.FC<{
-  index: number;
   item: VaultItemSummary;
   thumbnailUrl?: string;
   isSelected: boolean;
@@ -133,8 +170,8 @@ const ListRow: React.FC<{
   onGoToFolder?: (itemId: string) => void;
   isMultiSelect: boolean;
   layoutVariant: ListLayoutVariant;
+  tags: TagSummary[];
 }> = ({
-  index,
   item,
   thumbnailUrl,
   isSelected,
@@ -156,6 +193,7 @@ const ListRow: React.FC<{
   onGoToFolder,
   isMultiSelect,
   layoutVariant,
+  tags,
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -166,15 +204,17 @@ const ListRow: React.FC<{
   const openViewerDisabled = isOpenViewerDisabled();
 
   const typeLabel = typeBadgeLabel(item);
-
-  const infoLabel = isVideo(item.mimeType) && item.durationSeconds && item.durationSeconds > 0
-    ? formatDuration(item.durationSeconds)
-    : item.width && item.height
-      ? `${item.width}×${item.height}`
-      : '—';
+  const infoLabel = fileInfoLabel(item);
+  const itemTags = (item.tagIds ?? [])
+    .map((tagId) => tags.find((tag) => tag.id === tagId))
+    .filter((tag): tag is TagSummary => Boolean(tag));
+  const visibleTags = itemTags.length > 0
+    ? itemTags
+    : (item.tags ?? []).map((name, tagIndex) => ({ id: tagIndex * -1 - 1, name }));
 
   const rowContent = (
     <div
+      className={`gv-list-row${isMultiSelect ? ' gv-list-row--select' : ''}`}
       data-gallery-item-id={item.id}
       role="button"
       tabIndex={0}
@@ -199,9 +239,8 @@ const ListRow: React.FC<{
         gridTemplateColumns: getGridTemplateColumns(isMultiSelect, layoutVariant),
         alignItems: 'center',
         columnGap: 8,
-        padding: layoutVariant === 'object-type' ? '7px 12px' : '0 12px',
-        minHeight: layoutVariant === 'object-type' ? 42 : undefined,
-        height: layoutVariant === 'object-type' ? undefined : 40,
+        padding: '7px 12px',
+        minHeight: 44,
         background: isSelected ? T.accentGlow : hovered ? 'rgba(220,220,200,0.03)' : 'transparent',
         borderLeft: isSelected ? `2px solid ${T.accent}` : '2px solid transparent',
         borderBottom: `1px solid ${T.line}`,
@@ -227,13 +266,6 @@ const ListRow: React.FC<{
             </svg>
           )}
         </div>
-      )}
-
-      {/* Index */}
-      {layoutVariant !== 'object-type' && (
-        <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, textAlign: 'right', paddingRight: 4 }}>
-          {String(index + 1).padStart(2, '0')}
-        </span>
       )}
 
       {/* Thumbnail */}
@@ -284,25 +316,20 @@ const ListRow: React.FC<{
         </div>
       </div>
 
-      {/* Folder */}
-      {layoutVariant !== 'object-type' && (
-        <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {item.folderId != null ? '—' : 'root'}
-        </span>
-      )}
+      {/* Rating */}
+      <ListRating rating={item.rating} />
 
-      {/* Size */}
-      <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, textAlign: 'right' }}>
-        {formatFileSize(item.size)}
-      </span>
-
-      {/* Info */}
-      <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, textAlign: 'right' }}>
-        {infoLabel}
-      </span>
+      {/* Tags */}
+      <div className="gv-list-col-tags" style={{ display: 'flex', gap: 3, minWidth: 0, overflow: 'hidden' }}>
+        {visibleTags.slice(0, 2).map((tag) => <ListTagChip key={tag.id} tag={tag} />)}
+        {visibleTags.length > 2 && (
+          <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2 }}>+{visibleTags.length - 2}</span>
+        )}
+      </div>
 
       {/* Favorite */}
       <button
+        className="gv-list-col-fav"
         type="button"
         onClick={(e) => { e.stopPropagation(); onToggleFavorite(item.id, !item.isFavorite); }}
         title={item.isFavorite ? 'Unfavourite' : 'Favourite'}
@@ -320,6 +347,11 @@ const ListRow: React.FC<{
           <path d="M5.5 1.2l1.2 2.4 2.65.39-1.92 1.87.45 2.64L5.5 7.2 3.12 8.5l.45-2.64L1.65 3.99l2.65-.39z" />
         </svg>
       </button>
+
+      {/* Info */}
+      <span className="gv-list-col-info" style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, textAlign: 'right' }}>
+        {infoLabel}
+      </span>
     </div>
   );
 
@@ -439,7 +471,7 @@ const ListHeader: React.FC<{
   onToggleSelectAllVisible?: () => void;
   layoutVariant: ListLayoutVariant;
 }> = ({ isMultiSelect, allVisibleSelected = false, onToggleSelectAllVisible, layoutVariant }) => (
-  <div style={{
+  <div className={`gv-list-row${isMultiSelect ? ' gv-list-row--select' : ''}`} style={{
     display: 'grid',
     gridTemplateColumns: getGridTemplateColumns(isMultiSelect, layoutVariant),
     alignItems: 'center',
@@ -456,17 +488,12 @@ const ListHeader: React.FC<{
         onToggle={onToggleSelectAllVisible}
       />
     )}
-    {layoutVariant !== 'object-type' && (
-      <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>№</span>
-    )}
     <span />
-    <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Name</span>
-    {layoutVariant !== 'object-type' && (
-      <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Folder</span>
-    )}
-    <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>Size</span>
-    <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>Info</span>
-    <span />
+    <span style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Title</span>
+    <span className="gv-list-col-rating" style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Rating</span>
+    <span className="gv-list-col-tags" style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Tags</span>
+    <span className="gv-list-col-fav" style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Fav</span>
+    <span className="gv-list-col-info" style={{ fontFamily: MONO, fontSize: fontSize(8), color: T.mute2, letterSpacing: '0.1em', textTransform: 'uppercase', textAlign: 'right' }}>Info</span>
   </div>
 );
 
@@ -501,6 +528,7 @@ export const GalleryListView = ({
   sentinelRef,
   isMultiSelect,
   listLayoutVariant = 'default',
+  tags = [],
 }: GalleryListViewProps): React.JSX.Element => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const { isSelecting, overlayStyle, onMouseDown } = useMarqueeSelection({
@@ -529,9 +557,10 @@ export const GalleryListView = ({
 
   return (
     <div
+      className="gv-list"
       ref={containerRef}
       onMouseDown={onMouseDown}
-      style={{ position: 'relative', minHeight: '100%', userSelect: 'none' }}
+      style={{ position: 'relative', minHeight: '100%', userSelect: 'none', containerType: 'inline-size' }}
     >
       <ListHeader
         isMultiSelect={isMultiSelect}
@@ -540,10 +569,9 @@ export const GalleryListView = ({
         layoutVariant={listLayoutVariant}
       />
 
-      {items.map((item, idx) => (
+      {items.map((item) => (
         <ListRow
           key={item.id}
-          index={idx}
           item={item}
           thumbnailUrl={thumbnails[item.id]}
           isSelected={selectedItemIds.includes(item.id)}
@@ -565,6 +593,7 @@ export const GalleryListView = ({
           onGoToFolder={onGoToFolder}
           isMultiSelect={isMultiSelect}
           layoutVariant={listLayoutVariant}
+          tags={tags}
         />
       ))}
 
@@ -603,7 +632,29 @@ export const GalleryListView = ({
         />
       )}
 
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @container (max-width: 720px) {
+          .gv-list-col-info { display: none !important; }
+          .gv-list-row { grid-template-columns: 50px minmax(0,1fr) 72px minmax(80px,130px) 34px !important; }
+          .gv-list-row--select { grid-template-columns: 20px 50px minmax(0,1fr) 72px minmax(80px,130px) 34px !important; }
+        }
+        @container (max-width: 620px) {
+          .gv-list-col-fav { display: none !important; }
+          .gv-list-row { grid-template-columns: 50px minmax(0,1fr) 72px minmax(80px,130px) !important; }
+          .gv-list-row--select { grid-template-columns: 20px 50px minmax(0,1fr) 72px minmax(80px,130px) !important; }
+        }
+        @container (max-width: 520px) {
+          .gv-list-col-tags { display: none !important; }
+          .gv-list-row { grid-template-columns: 50px minmax(0,1fr) 72px !important; }
+          .gv-list-row--select { grid-template-columns: 20px 50px minmax(0,1fr) 72px !important; }
+        }
+        @container (max-width: 430px) {
+          .gv-list-col-rating { display: none !important; }
+          .gv-list-row { grid-template-columns: 50px minmax(0,1fr) !important; }
+          .gv-list-row--select { grid-template-columns: 20px 50px minmax(0,1fr) !important; }
+        }
+      `}</style>
     </div>
   );
 };

@@ -344,9 +344,15 @@ export class VaultService {
   }
 
   setRating(itemId: string, rating: number | null): void {
-    this.db
+    if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) {
+      throw new Error('Rating must be between 1 and 5.');
+    }
+    const result = this.db
       .prepare(`UPDATE vault_objects SET rating = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
       .run(rating, itemId);
+    if (result.changes === 0) {
+      throw new Error('Item not found.');
+    }
   }
 
   setFavorite(itemId: string, isFavorite: boolean): void {
