@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   IPC_CHANNELS,
+  type BookmarksChangedPayload,
   type CreateBookmarkInput,
   type DeleteBookmarkInput,
   type UpdateBookmarkThumbnailInput,
@@ -49,6 +50,19 @@ type BrowserLaunchConfig = {
   macApps: Array<{ appName: string; executable: string }>;
   winExecutables: string[];
   linuxExecutables: string[];
+};
+
+const broadcastBookmarksChanged = (
+  reason: BookmarksChangedPayload['reason'],
+  windows: Array<Electron.BrowserWindow | null>,
+): void => {
+  const payload: BookmarksChangedPayload = { reason };
+  const sent = new Set<number>();
+  for (const window of windows) {
+    if (!window || window.isDestroyed() || sent.has(window.id)) continue;
+    sent.add(window.id);
+    window.webContents.send(IPC_CHANNELS.bookmarksChanged, payload);
+  }
 };
 
 const PRIVATE_BROWSER_CONFIGS: BrowserLaunchConfig[] = [
@@ -292,10 +306,9 @@ export const registerBrowserHandlers = ({
 
   ipcMain.handle(IPC_CHANNELS.createBookmark, async (_event, input: CreateBookmarkInput) => {
     try {
-      return {
-        ok: true as const,
-        data: await bookmarkService.createBookmark(input),
-      };
+      const data = await bookmarkService.createBookmark(input);
+      broadcastBookmarksChanged('created', [mainWindowController.getWindow(), browserWindowController.getWindow()]);
+      return { ok: true as const, data };
     } catch (error) {
       return {
         ok: false as const,
@@ -307,6 +320,7 @@ export const registerBrowserHandlers = ({
   ipcMain.handle(IPC_CHANNELS.deleteBookmark, (_event, input: DeleteBookmarkInput) => {
     try {
       bookmarkService.deleteBookmark(input.id);
+      broadcastBookmarksChanged('deleted', [mainWindowController.getWindow(), browserWindowController.getWindow()]);
       return { ok: true as const };
     } catch (error) {
       return {
@@ -318,7 +332,9 @@ export const registerBrowserHandlers = ({
 
   ipcMain.handle(IPC_CHANNELS.updateBookmarkThumbnail, async (_event, input: UpdateBookmarkThumbnailInput) => {
     try {
-      return { ok: true as const, data: await bookmarkService.updateThumbnail(input) };
+      const data = await bookmarkService.updateThumbnail(input);
+      broadcastBookmarksChanged('updated', [mainWindowController.getWindow(), browserWindowController.getWindow()]);
+      return { ok: true as const, data };
     } catch (error) {
       return {
         ok: false as const,
@@ -372,7 +388,9 @@ export const registerBrowserHandlers = ({
 
   ipcMain.handle(IPC_CHANNELS.renameBookmark, (_event, input: { id: string; title: string }) => {
     try {
-      return { ok: true as const, data: bookmarkService.renameBookmark(input.id, input.title) };
+      const data = bookmarkService.renameBookmark(input.id, input.title);
+      broadcastBookmarksChanged('updated', [mainWindowController.getWindow(), browserWindowController.getWindow()]);
+      return { ok: true as const, data };
     } catch (error) {
       return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to rename bookmark.' };
     }
@@ -381,6 +399,7 @@ export const registerBrowserHandlers = ({
   ipcMain.handle(IPC_CHANNELS.assignBookmarkFolder, (_event, input: AssignBookmarkFolderInput) => {
     try {
       bookmarkService.assignBookmarkFolder(input);
+      broadcastBookmarksChanged('updated', [mainWindowController.getWindow(), browserWindowController.getWindow()]);
       return { ok: true as const };
     } catch (error) {
       return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to assign folder.' };
@@ -390,6 +409,7 @@ export const registerBrowserHandlers = ({
   ipcMain.handle(IPC_CHANNELS.assignBookmarksFolder, (_event, input: AssignBookmarksFolderInput) => {
     try {
       bookmarkService.assignBookmarksFolder(input);
+      broadcastBookmarksChanged('updated', [mainWindowController.getWindow(), browserWindowController.getWindow()]);
       return { ok: true as const };
     } catch (error) {
       return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to assign folder.' };
@@ -399,6 +419,7 @@ export const registerBrowserHandlers = ({
   ipcMain.handle(IPC_CHANNELS.assignBookmarkTag, (_event, input: AssignBookmarkTagInput) => {
     try {
       bookmarkService.assignBookmarkTag(input);
+      broadcastBookmarksChanged('updated', [mainWindowController.getWindow(), browserWindowController.getWindow()]);
       return { ok: true as const };
     } catch (error) {
       return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to assign tag.' };
@@ -408,6 +429,7 @@ export const registerBrowserHandlers = ({
   ipcMain.handle(IPC_CHANNELS.unassignBookmarkTag, (_event, input: UnassignBookmarkTagInput) => {
     try {
       bookmarkService.unassignBookmarkTag(input);
+      broadcastBookmarksChanged('updated', [mainWindowController.getWindow(), browserWindowController.getWindow()]);
       return { ok: true as const };
     } catch (error) {
       return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to unassign tag.' };
@@ -417,6 +439,7 @@ export const registerBrowserHandlers = ({
   ipcMain.handle(IPC_CHANNELS.assignBookmarksTag, (_event, input: AssignBookmarksTagInput) => {
     try {
       bookmarkService.assignBookmarksTag(input);
+      broadcastBookmarksChanged('updated', [mainWindowController.getWindow(), browserWindowController.getWindow()]);
       return { ok: true as const };
     } catch (error) {
       return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to assign tags.' };
@@ -426,6 +449,7 @@ export const registerBrowserHandlers = ({
   ipcMain.handle(IPC_CHANNELS.unassignBookmarksTag, (_event, input: UnassignBookmarksTagInput) => {
     try {
       bookmarkService.unassignBookmarksTag(input);
+      broadcastBookmarksChanged('updated', [mainWindowController.getWindow(), browserWindowController.getWindow()]);
       return { ok: true as const };
     } catch (error) {
       return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to unassign tags.' };
@@ -442,7 +466,9 @@ export const registerBrowserHandlers = ({
 
   ipcMain.handle(IPC_CHANNELS.importBookmarks, async (_event, input: ImportBookmarksInput) => {
     try {
-      return { ok: true as const, data: await bookmarkService.importBookmarks(input.html) };
+      const data = await bookmarkService.importBookmarks(input.html);
+      broadcastBookmarksChanged('imported', [mainWindowController.getWindow(), browserWindowController.getWindow()]);
+      return { ok: true as const, data };
     } catch (error) {
       return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to import bookmarks.' };
     }

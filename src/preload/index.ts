@@ -45,6 +45,7 @@ import {
   type UpdateTagColorInput,
   type SetRatingInput,
   type SessionChangedPayload,
+  type BookmarksChangedPayload,
   type CreatePasswordInput,
   type UpdatePasswordInput,
   type DeletePasswordInput,
@@ -143,6 +144,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on(IPC_CHANNELS.sessionChanged, listener);
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.sessionChanged, listener);
+    };
+  },
+  onBookmarksChanged: (handler: (payload: BookmarksChangedPayload) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: BookmarksChangedPayload) => {
+      handler(payload);
+    };
+    ipcRenderer.on(IPC_CHANNELS.bookmarksChanged, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.bookmarksChanged, listener);
     };
   },
   getAppearanceSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getAppearanceSettings),
@@ -269,6 +279,15 @@ contextBridge.exposeInMainWorld('browserAPI', {
     ipcRenderer.on(IPC_CHANNELS.popupBlocked, listener);
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.popupBlocked, listener);
+    };
+  },
+  onBookmarksChanged: (handler: (payload: BookmarksChangedPayload) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: BookmarksChangedPayload) => {
+      handler(payload);
+    };
+    ipcRenderer.on(IPC_CHANNELS.bookmarksChanged, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.bookmarksChanged, listener);
     };
   },
   allowPopupHost: (host: string) => ipcRenderer.invoke(IPC_CHANNELS.allowPopupHost, host),

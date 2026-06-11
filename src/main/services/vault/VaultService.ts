@@ -650,6 +650,7 @@ export class VaultService {
     metadata: MediaMetadata = {},
     thumbnail?: ThumbnailInput,
     folderId?: number | null,
+    overrideName?: string,
   ): Promise<VaultItemSummary> {
     const metaRow = this.db
       .prepare('SELECT rating, is_favorite FROM vault_objects WHERE id = ?')
@@ -660,7 +661,7 @@ export class VaultService {
       .all(existingItemId) as Array<{ tag_id: number }>;
 
     await this.deleteItem(existingItemId);
-    const newItem = await this.addEncryptedFile(sourcePath, metadata, thumbnail, folderId);
+    const newItem = await this.addEncryptedFile(sourcePath, metadata, thumbnail, folderId, overrideName);
 
     if (metaRow) {
       if (metaRow.rating !== null) this.setRating(newItem.id, metaRow.rating);

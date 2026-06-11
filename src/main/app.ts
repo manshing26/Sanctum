@@ -319,6 +319,7 @@ export const bootstrapApp = (): void => {
       secureDeleteService,
       metadataService,
       thumbnailService,
+      vaultPaths,
     );
     const downloadService = new DownloadService(
       browserSession,

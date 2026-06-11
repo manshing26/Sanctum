@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { MetadataService } from './MetadataService';
 import { ThumbnailService } from './ThumbnailService';
 import { SettingsService } from '../settings/SettingsService';
 import { SecureDeleteService } from '../security/SecureDeleteService';
 import { VaultService } from '../vault/VaultService';
+import { VaultPaths } from '../vault/VaultPaths';
 import type { ConflictResolution, ImportRequest, ImportResult } from '../../../shared/ipc';
 import { getMimeTypeForFilename, isMediaMimeType } from '../../../shared/fileTypes';
 
@@ -24,6 +26,7 @@ export class ImportService {
     private readonly secureDeleteService: SecureDeleteService,
     private readonly metadataService: MetadataService,
     private readonly thumbnailService: ThumbnailService,
+    private readonly vaultPaths: VaultPaths,
   ) {}
 
   async importFiles(request: ImportRequest, onProgress?: ImportProgressCallback): Promise<ImportResult> {
@@ -39,12 +42,13 @@ export class ImportService {
   }
 
   private async runImportFiles(request: ImportRequest, onProgress?: ImportProgressCallback): Promise<ImportResult> {
+    const stagingWarnings = await this.clearImportStaging();
     const result: ImportResult = {
       imported: 0,
       skipped: 0,
       failed: 0,
       errors: [],
-      warnings: [],
+      warnings: stagingWarnings,
     };
 
     const securitySettings = this.settingsService.getSecuritySettings();
@@ -62,6 +66,7 @@ export class ImportService {
     let failed = 0;
 
     for (const filePath of request.filePaths) {
+      let stagedPath: string | null = null;
       try {
         const resolution = resolutionMap.get(filePath);
 
@@ -73,14 +78,15 @@ export class ImportService {
         }
 
         await fs.promises.access(filePath, fs.constants.R_OK);
+        stagedPath = await this.stageImportFile(filePath);
         const mimeType = getMimeTypeForFilename(filePath);
         const { metadata, warning } = isMediaMimeType(mimeType)
-          ? await this.metadataService.extract(filePath, mimeType)
+          ? await this.metadataService.extract(stagedPath, mimeType)
           : { metadata: {} };
         if (warning) result.warnings?.push(`${filePath}: ${warning}`);
 
         const { thumbnail, warning: thumbnailWarning } = await this.thumbnailService.generate(
-          filePath,
+          stagedPath,
           mimeType,
         );
         if (thumbnailWarning) {
@@ -93,10 +99,11 @@ export class ImportService {
           if (resolution?.action === 'replace' && resolution.existingItemId) {
             await this.vaultService.replaceItem(
               resolution.existingItemId,
-              filePath,
+              stagedPath,
               metadata,
               thumbnail,
               effectiveFolderId,
+              path.basename(filePath),
             );
           } else {
             let importName = path.basename(filePath);
@@ -104,7 +111,7 @@ export class ImportService {
               importName = await this.resolveUniqueFilename(importName, effectiveFolderId);
             }
             await this.vaultService.addEncryptedFile(
-              filePath,
+              stagedPath,
               metadata,
               thumbnail,
               effectiveFolderId,
@@ -117,7 +124,7 @@ export class ImportService {
             const shouldFallbackToUnfiled =
               errorMessage.includes('Folder not found') || errorMessage.includes('FOREIGN KEY');
             if (shouldFallbackToUnfiled) {
-              await this.vaultService.addEncryptedFile(filePath, metadata, thumbnail, null);
+              await this.vaultService.addEncryptedFile(stagedPath, metadata, thumbnail, null, path.basename(filePath));
               result.warnings?.push(
                 `${filePath}: Folder assignment failed, item imported to Root.`,
               );
@@ -142,6 +149,9 @@ export class ImportService {
         const message = error instanceof Error ? error.message : 'Unknown import error';
         result.errors.push(`${filePath}: ${message}`);
       } finally {
+        if (stagedPath) {
+          await this.removeStagedFile(stagedPath, result);
+        }
         processed += 1;
         onProgress?.({
           total,
@@ -157,6 +167,38 @@ export class ImportService {
     }
 
     return result;
+  }
+
+  private get stagingDir(): string {
+    return path.join(this.vaultPaths.tempDir, 'import-staging');
+  }
+
+  private async clearImportStaging(): Promise<string[]> {
+    try {
+      await fs.promises.rm(this.stagingDir, { recursive: true, force: true });
+      await fs.promises.mkdir(this.stagingDir, { recursive: true });
+      return [];
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown cleanup error';
+      return [`Import staging cleanup skipped: ${message}`];
+    }
+  }
+
+  private async stageImportFile(sourcePath: string): Promise<string> {
+    await fs.promises.mkdir(this.stagingDir, { recursive: true });
+    const extension = path.extname(sourcePath);
+    const stagedPath = path.join(this.stagingDir, `${randomUUID()}${extension}`);
+    await fs.promises.copyFile(sourcePath, stagedPath);
+    return stagedPath;
+  }
+
+  private async removeStagedFile(stagedPath: string, result: ImportResult): Promise<void> {
+    try {
+      await fs.promises.rm(stagedPath, { force: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown cleanup error';
+      result.warnings?.push(`${stagedPath}: Import staging cleanup skipped: ${message}`);
+    }
   }
 
   private async resolveUniqueFilename(filename: string, folderId: number | null): Promise<string> {

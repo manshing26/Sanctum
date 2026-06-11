@@ -6,6 +6,7 @@ export const IPC_CHANNELS = {
   closeBrowserWindow: 'browser:close-window',
   browserCommand: 'browser:command',
   popupBlocked: 'browser:popup-blocked',
+  bookmarksChanged: 'browser:bookmarks-changed',
   allowPopupHost: 'browser:popups:allow-host',
   listPrivateOpenTargets: 'browser:list-private-open-targets',
   openExternalPrivate: 'browser:open-external-private',
@@ -129,6 +130,12 @@ export type AuthAuditEntry = {
   success: boolean;
   message: string;
   createdAt: string;
+};
+
+export type BookmarksChangedReason = 'created' | 'updated' | 'deleted' | 'imported';
+
+export type BookmarksChangedPayload = {
+  reason: BookmarksChangedReason;
 };
 
 export type SessionChangeReason = 'manual' | 'idle_timeout' | 'window_minimize' | 'system_lock' | 'system_sleep';
@@ -777,6 +784,7 @@ export type ElectronAPI = {
     input: UpdateSecuritySettingsInput,
   ) => Promise<OperationResult<SecuritySettings>>;
   onSessionChanged: (handler: (payload: SessionChangedPayload) => void) => () => void;
+  onBookmarksChanged: (handler: (payload: BookmarksChangedPayload) => void) => () => void;
   getAppearanceSettings: () => Promise<OperationResult<AppearanceSettings>>;
   updateAppearanceSettings: (
     input: UpdateAppearanceSettingsInput,
@@ -821,6 +829,7 @@ export type BrowserAPI = {
   closeBrowserWindow: () => Promise<void>;
   onBrowserCommand: (handler: (command: BrowserCommand) => void) => () => void;
   onPopupBlocked: (handler: (request: BrowserPopupRequest) => void) => () => void;
+  onBookmarksChanged: (handler: (payload: BookmarksChangedPayload) => void) => () => void;
   allowPopupHost: (host: string) => Promise<OperationResult<BrowserSettings>>;
   getAppearanceSettings: () => Promise<OperationResult<AppearanceSettings>>;
   clearData: () => Promise<OperationResult>;

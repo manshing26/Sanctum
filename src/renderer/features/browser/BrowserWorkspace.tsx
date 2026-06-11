@@ -605,12 +605,6 @@ export const BrowserWorkspace = ({
   const [bookmarks, setBookmarks] = useState<BookmarkSummary[]>([]);
   const [privateOpenTargets, setPrivateOpenTargets] = useState<ExternalPrivateBrowserTarget[]>([]);
   const [folders, setFolders] = useState<FolderNode[]>([]);
-  const [showBookmarkForm, setShowBookmarkForm] = useState(false);
-  const [bookmarkTitle, setBookmarkTitle] = useState('');
-  const [bookmarkUrl, setBookmarkUrl] = useState('');
-  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
-  const [renameBookmarkTarget, setRenameBookmarkTarget] = useState<BookmarkSummary | null>(null);
-  const [renameBookmarkTitle, setRenameBookmarkTitle] = useState('');
   const [collapsedDomains, setCollapsedDomains] = useState<Record<string, boolean>>({});
   const [downloads, setDownloads] = useState<Record<string, DownloadEntry>>({});
   const [extensions, setExtensions] = useState<ExtensionSummary[]>([]);
@@ -764,18 +758,33 @@ export const BrowserWorkspace = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingUrl]);
 
-  useEffect(() => {
-    void window.browserAPI.listBookmarks().then((r) => { if (r.ok) setBookmarks(r.data); });
-    void window.browserAPI.listFoldersTree().then((r) => { if (r.ok) setFolders(r.data); });
-    void window.electronAPI.listPrivateOpenTargets().then((r) => {
-      if (r.ok) setPrivateOpenTargets(r.data.filter((target) => target.available));
-    });
-  }, []);
-
   const refreshBrowserSettings = useCallback(async (): Promise<void> => {
     const r = await window.browserAPI.getBrowserSettings();
     if (r.ok) setBrowserSettings(r.data);
   }, []);
+
+  const refreshBookmarks = useCallback(async (): Promise<void> => {
+    const [bookmarkResult, folderResult] = await Promise.all([
+      window.browserAPI.listBookmarks(),
+      window.browserAPI.listFoldersTree(),
+    ]);
+    if (bookmarkResult.ok) setBookmarks(bookmarkResult.data);
+    if (folderResult.ok) setFolders(folderResult.data);
+  }, []);
+
+  useEffect(() => {
+    void refreshBookmarks();
+    void window.electronAPI.listPrivateOpenTargets().then((r) => {
+      if (r.ok) setPrivateOpenTargets(r.data.filter((target) => target.available));
+    });
+  }, [refreshBookmarks]);
+
+  useEffect(() => {
+    const unsubscribe = window.browserAPI.onBookmarksChanged(() => {
+      void refreshBookmarks();
+    });
+    return unsubscribe;
+  }, [refreshBookmarks]);
 
   useEffect(() => {
     void refreshBrowserSettings();
@@ -1291,12 +1300,6 @@ export const BrowserWorkspace = ({
     }
   };
 
-
-  const refreshBookmarks = async (): Promise<void> => {
-    const r = await window.browserAPI.listBookmarks();
-    if (r.ok) setBookmarks(r.data);
-  };
-
   const extractOgImageFromTab = async (tabId: string): Promise<string | undefined> => {
     const webview = webviewRefs.current[tabId];
     if (!webview) return undefined;
@@ -1313,18 +1316,6 @@ export const BrowserWorkspace = ({
     } catch { return undefined; }
   };
 
-  const handleCreateBookmark = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault();
-    const norm = bookmarkUrl.trim().toLowerCase();
-    if (bookmarks.some((bm) => bm.url.trim().toLowerCase() === norm)) { toast.warning('Bookmark already exists for this URL.'); return; }
-    const thumbnailDataUrl = activeTab ? await extractOgImageFromTab(activeTab.id) : undefined;
-    const r = await window.browserAPI.createBookmark({ title: bookmarkTitle, url: bookmarkUrl, thumbnailDataUrl });
-    if (!r.ok) return;
-    setBookmarkTitle(''); setBookmarkUrl(''); setShowBookmarkForm(false);
-    toast.success('Bookmark added.');
-    await refreshBookmarks();
-  };
-
   const handleSaveCurrentAsBookmark = async (): Promise<void> => {
     if (!activeTab) return;
     const norm = activeTab.url.trim().toLowerCase();
@@ -1332,11 +1323,6 @@ export const BrowserWorkspace = ({
     const thumbnailDataUrl = await extractOgImageFromTab(activeTab.id);
     await window.browserAPI.createBookmark({ title: activeTab.title, url: activeTab.url, thumbnailDataUrl });
     toast.success('Bookmark added.');
-    await refreshBookmarks();
-  };
-
-  const handleDeleteBookmark = async (id: string): Promise<void> => {
-    await window.browserAPI.deleteBookmark({ id });
     await refreshBookmarks();
   };
 
@@ -1349,21 +1335,6 @@ export const BrowserWorkspace = ({
     toast.success('Opened in private browser.');
   };
 
-  const openRenameBookmarkDialog = (bm: BookmarkSummary): void => {
-    setRenameBookmarkTarget(bm); setRenameBookmarkTitle(bm.title); setRenameDialogOpen(true);
-  };
-
-  const handleRenameBookmark = async (): Promise<void> => {
-    if (!renameBookmarkTarget) return;
-    const trimmed = renameBookmarkTitle.trim();
-    if (!trimmed || trimmed === renameBookmarkTarget.title) { setRenameDialogOpen(false); return; }
-    const created = await window.browserAPI.createBookmark({ title: trimmed, url: renameBookmarkTarget.url });
-    if (!created.ok) { toast.error(created.error); return; }
-    await window.browserAPI.deleteBookmark({ id: renameBookmarkTarget.id });
-    setRenameDialogOpen(false); setRenameBookmarkTarget(null); setRenameBookmarkTitle('');
-    toast.success('Bookmark renamed.');
-    await refreshBookmarks();
-  };
 
   const handleOpenBookmark = (url: string): void => {
     loadInActiveTab(url);
@@ -1394,33 +1365,6 @@ export const BrowserWorkspace = ({
   // ── Bookmarks panel content ──────────────────────────────────────
   const bookmarksContent = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
-      <button
-        type="button"
-        onClick={() => setShowBookmarkForm((p) => !p)}
-        style={{
-          height: 28, padding: '0 12px', flexShrink: 0,
-          background: showBookmarkForm ? T.accentGlow : 'none',
-          border: `1px solid ${showBookmarkForm ? T.accent : T.line2}`,
-          color: showBookmarkForm ? T.accent : T.mute,
-          fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase',
-          cursor: 'pointer',
-        }}
-      >
-        {showBookmarkForm ? 'Cancel' : '+ Add Bookmark'}
-      </button>
-
-      {showBookmarkForm && (
-        <form onSubmit={(e) => void handleCreateBookmark(e)} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <input value={bookmarkTitle} onChange={(e) => setBookmarkTitle(e.target.value)} placeholder="Title"
-            style={{ height: 28, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none' }} />
-          <input value={bookmarkUrl} onChange={(e) => setBookmarkUrl(e.target.value)} placeholder="https://…"
-            style={{ height: 28, padding: '0 8px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(10), outline: 'none' }} />
-          <button type="submit" style={{ height: 28, background: T.accent, border: 'none', color: T.bg, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
-            Save
-          </button>
-        </form>
-      )}
-
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {bookmarks.length === 0 ? (
           <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, margin: '8px 0' }}>No bookmarks saved.</p>
@@ -1477,8 +1421,6 @@ export const BrowserWorkspace = ({
                             </ContextMenuSubContent>
                           </ContextMenuSub>
                         )}
-                        <ContextMenuItem onClick={() => openRenameBookmarkDialog(bm)}>Rename</ContextMenuItem>
-                        <ContextMenuItem onClick={() => void handleDeleteBookmark(bm.id)} className="text-danger">Delete</ContextMenuItem>
                       </ContextMenuContent>
                     </ContextMenu>
                   ))}
@@ -2158,35 +2100,6 @@ export const BrowserWorkspace = ({
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* Rename bookmark modal */}
-      {renameDialogOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.7)', display: 'grid', placeItems: 'center' }}
-          onClick={() => { setRenameDialogOpen(false); setRenameBookmarkTarget(null); setRenameBookmarkTitle(''); }}>
-          <div style={{ width: 360, background: T.bg2, border: `1px solid ${T.line2}`, padding: 24 }} onClick={(e) => e.stopPropagation()}>
-            <p style={{ fontFamily: MONO, fontSize: fontSize(12), color: T.text, margin: '0 0 4px', letterSpacing: '0.04em' }}>Rename Bookmark</p>
-            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: '0 0 16px' }}>Update bookmark title.</p>
-            <input
-              value={renameBookmarkTitle}
-              onChange={(e) => setRenameBookmarkTitle(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && renameBookmarkTitle.trim()) void handleRenameBookmark(); }}
-              placeholder="Bookmark title"
-              autoFocus
-              style={{ width: '100%', height: 32, padding: '0 10px', background: T.bg, border: `1px solid ${T.line2}`, color: T.text, fontFamily: MONO, fontSize: fontSize(11), outline: 'none', marginBottom: 14 }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button type="button" onClick={() => { setRenameDialogOpen(false); setRenameBookmarkTarget(null); setRenameBookmarkTitle(''); }}
-                style={{ height: 30, padding: '0 14px', background: 'none', border: `1px solid ${T.line2}`, color: T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                Cancel
-              </button>
-              <button type="button" onClick={() => void handleRenameBookmark()} disabled={!renameBookmarkTitle.trim()}
-                style={{ height: 30, padding: '0 14px', background: renameBookmarkTitle.trim() ? T.accent : T.accentGlow, border: `1px solid ${T.accent}`, color: renameBookmarkTitle.trim() ? T.bg : T.mute, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: renameBookmarkTitle.trim() ? 'pointer' : 'default' }}>
-                Save
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
