@@ -13,6 +13,9 @@ export class DatabaseService {
 
   private initialize(): void {
     this.db.pragma('journal_mode = WAL');
+    this.db.pragma('synchronous = FULL');
+    this.db.pragma('foreign_keys = ON');
+    this.db.pragma('busy_timeout = 5000');
 
     // Baseline schema — v4 shapes. CREATE IF NOT EXISTS is safe to re-run.
     this.db.exec(`
@@ -531,10 +534,16 @@ export class DatabaseService {
   }
 
   close(): void {
+    try {
+      this.db.pragma('wal_checkpoint(TRUNCATE)');
+    } catch {
+      // Close should still proceed if checkpointing fails on a damaged DB.
+    }
     this.db.close();
   }
 
   reopen(): void {
+    this.close();
     this.db = new BetterSqlite3(this.vaultPaths.dbPath);
     this.initialize();
   }

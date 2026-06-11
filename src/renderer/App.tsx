@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import type { AuthScreenMode, RestoreProgress, SessionState } from '../shared/ipc';
+import type { AuthScreenMode, RestoreProgress, SessionState, VaultHealthReport } from '../shared/ipc';
 import { PasswordInput } from './components/ui/PasswordInput';
 import { VaultPage } from './features/gallery/VaultPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { BrowserWorkspace, type BrowserWorkspaceHandle } from './features/browser/BrowserWorkspace';
 import { RestoreCountdownDialog } from './components/ui/RestoreCountdownDialog';
+import { SanctumConfirmDialog } from './components/ui';
 import { PasswordManagerPage } from './features/passwords/PasswordManagerPage';
 import { VAULT_PASSWORD_MIN_LENGTH, isVaultPasswordLongEnough } from '../shared/authPolicy';
 import { applyTextScale, fontSize } from './theme/typography';
@@ -638,6 +639,9 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AppTab>('gallery');
   const [shouldMountBrowser, setShouldMountBrowser] = useState(false);
   const [pendingBrowserUrl, setPendingBrowserUrl] = useState<string | null>(null);
+  const [healthPrompt, setHealthPrompt] = useState<VaultHealthReport | null>(null);
+  const [isRepairingHealth, setIsRepairingHealth] = useState(false);
+  const healthScanRanRef = useRef(false);
   const browserRef = useRef<BrowserWorkspaceHandle>(null);
 
   useEffect(() => {
@@ -685,8 +689,56 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (isUnlocked) {
       setShouldMountBrowser(true);
+    } else {
+      healthScanRanRef.current = false;
+      setHealthPrompt(null);
     }
   }, [isUnlocked]);
+
+  useEffect(() => {
+    if (!isUnlocked || healthScanRanRef.current) return;
+    healthScanRanRef.current = true;
+    void window.electronAPI.scanVaultHealth().then((result) => {
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      if (result.data.status !== 'ok') {
+        setHealthPrompt(result.data);
+      }
+    });
+  }, [isUnlocked]);
+
+  const handleRepairHealthPrompt = async (): Promise<void> => {
+    setIsRepairingHealth(true);
+    try {
+      const result = await window.electronAPI.repairCorruptVaultData();
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      setHealthPrompt(null);
+      toast.success('Vault data repaired.');
+      window.location.reload();
+    } finally {
+      setIsRepairingHealth(false);
+    }
+  };
+
+  const handleRecoverMalformedPrompt = async (): Promise<void> => {
+    setIsRepairingHealth(true);
+    try {
+      const result = await window.electronAPI.recoverMalformedDatabase();
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      setHealthPrompt(null);
+      toast.success('Vault database rebuilt. Restart Sanctum to finish recovery.');
+    } finally {
+      setIsRepairingHealth(false);
+    }
+  };
 
   const handleUnlock = async (password: string): Promise<void> => {
     setIsBusy(true);
@@ -792,6 +844,34 @@ export const App: React.FC = () => {
           <CreateAccountScreen onCreate={handleCreate} isBusy={isBusy} error={authError} />
         )}
       </div>
+
+      <SanctumConfirmDialog
+        open={Boolean(healthPrompt)}
+        onOpenChange={(open) => { if (!open) setHealthPrompt(null); }}
+        title={healthPrompt?.status === 'malformed_database' ? 'Vault database needs recovery' : 'Repair corrupted vault data?'}
+        description={
+          healthPrompt?.status === 'malformed_database'
+            ? 'Sanctum detected database damage. A recovery copy will be saved before rebuilding vault data.'
+            : 'Sanctum detected unreadable vault records. Repair deletes only corrupted objects and orphaned data.'
+        }
+        variant="danger"
+        confirmLabel={
+          isRepairingHealth
+            ? 'Working...'
+            : healthPrompt?.status === 'malformed_database'
+              ? 'Rebuild'
+              : 'Repair'
+        }
+        busy={isRepairingHealth}
+        onConfirm={healthPrompt?.status === 'malformed_database' ? handleRecoverMalformedPrompt : handleRepairHealthPrompt}
+        zIndex={10000}
+      >
+        <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0, lineHeight: 1.6 }}>
+          {healthPrompt?.status === 'malformed_database'
+            ? 'If rebuild succeeds, restart Sanctum before importing or editing vault data again.'
+            : `Issues found: ${healthPrompt ? Object.values(healthPrompt.counts).reduce((total, value) => total + value, 0) : 0}.`}
+        </p>
+      </SanctumConfirmDialog>
     </div>
   );
 };

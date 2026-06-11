@@ -448,12 +448,17 @@ export class VaultService {
 
   async clearAllItems(): Promise<{ deleted: number }> {
     this.ensureUnlocked();
-    const objectCount = (this.db
-      .prepare('SELECT COUNT(1) AS total FROM vault_objects')
-      .get() as { total: number }).total;
-    const passwordCount = (this.db
-      .prepare('SELECT COUNT(1) AS total FROM passwords')
-      .get() as { total: number }).total;
+    const safeCount = (tableName: string): number => {
+      try {
+        return (this.db
+          .prepare(`SELECT COUNT(1) AS total FROM ${tableName}`)
+          .get() as { total: number }).total;
+      } catch {
+        return 0;
+      }
+    };
+    const objectCount = safeCount('vault_objects');
+    const passwordCount = safeCount('passwords');
 
     const fileEntries = await fs.readdir(this.vaultPaths.filesDir);
     for (const entry of fileEntries) {
@@ -468,13 +473,112 @@ export class VaultService {
 
     await this.clearTemporaryOpenFiles();
 
-    this.db.transaction(() => {
-      // CASCADE from vault_objects clears files, bookmarks, notes, and object_tags.
-      this.db.prepare('DELETE FROM vault_objects').run();
-      this.db.prepare('DELETE FROM passwords').run();
-      this.db.prepare('DELETE FROM folders').run();
-      this.db.prepare('DELETE FROM tags').run();
-    })();
+    this.db.pragma('foreign_keys = OFF');
+    try {
+      this.db.transaction(() => {
+        this.db.exec(`
+          DROP TABLE IF EXISTS object_tags;
+          DROP TABLE IF EXISTS vault_items;
+          DROP TABLE IF EXISTS bookmarks;
+          DROP TABLE IF EXISTS notes;
+          DROP TABLE IF EXISTS vault_objects;
+          DROP TABLE IF EXISTS passwords;
+          DROP TABLE IF EXISTS folders;
+          DROP TABLE IF EXISTS tags;
+
+          CREATE TABLE folders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            parent_id INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (parent_id, name),
+            FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE
+          );
+
+          CREATE TABLE tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            color TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE vault_objects (
+            id          TEXT    PRIMARY KEY,
+            type        TEXT    NOT NULL CHECK (type IN ('file', 'bookmark', 'note')),
+            folder_id   INTEGER REFERENCES folders(id) ON DELETE SET NULL,
+            is_favorite INTEGER NOT NULL DEFAULT 0,
+            rating      INTEGER,
+            created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE vault_items (
+            vault_object_id       TEXT PRIMARY KEY REFERENCES vault_objects(id) ON DELETE CASCADE,
+            encrypted_filename    TEXT NOT NULL,
+            original_filename_enc BLOB NOT NULL,
+            mime_type             TEXT,
+            file_size             INTEGER NOT NULL,
+            media_width           INTEGER,
+            media_height          INTEGER,
+            media_duration_seconds REAL,
+            thumbnail_enc         BLOB,
+            thumbnail_iv          BLOB,
+            thumbnail_auth_tag    BLOB,
+            thumbnail_mime_type   TEXT,
+            iv                    BLOB NOT NULL,
+            auth_tag              BLOB NOT NULL,
+            content_hash          TEXT
+          );
+
+          CREATE TABLE bookmarks (
+            vault_object_id    TEXT PRIMARY KEY REFERENCES vault_objects(id) ON DELETE CASCADE,
+            title_enc          BLOB NOT NULL,
+            url_enc            BLOB NOT NULL,
+            thumbnail_enc      BLOB,
+            thumbnail_iv       BLOB,
+            thumbnail_auth_tag BLOB
+          );
+
+          CREATE TABLE notes (
+            vault_object_id TEXT PRIMARY KEY REFERENCES vault_objects(id) ON DELETE CASCADE,
+            title_enc       BLOB NOT NULL,
+            body_enc        BLOB NOT NULL,
+            format          TEXT NOT NULL DEFAULT 'plain' CHECK (format IN ('plain', 'markdown'))
+          );
+
+          CREATE TABLE object_tags (
+            object_id TEXT    NOT NULL REFERENCES vault_objects(id) ON DELETE CASCADE,
+            tag_id    INTEGER NOT NULL REFERENCES tags(id)          ON DELETE CASCADE,
+            PRIMARY KEY (object_id, tag_id)
+          );
+
+          CREATE TABLE passwords (
+            id           TEXT PRIMARY KEY,
+            domain_enc   BLOB NOT NULL,
+            username_enc BLOB NOT NULL,
+            password_enc BLOB NOT NULL,
+            label_enc    BLOB,
+            notes_enc    BLOB,
+            created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_vault_objects_folder_id   ON vault_objects(folder_id);
+          CREATE INDEX IF NOT EXISTS idx_vault_objects_type        ON vault_objects(type);
+          CREATE INDEX IF NOT EXISTS idx_vault_objects_is_favorite ON vault_objects(is_favorite);
+          CREATE INDEX IF NOT EXISTS idx_vault_objects_created_at  ON vault_objects(created_at);
+          CREATE INDEX IF NOT EXISTS idx_object_tags_object_id     ON object_tags(object_id);
+          CREATE INDEX IF NOT EXISTS idx_object_tags_tag_id        ON object_tags(tag_id);
+          CREATE INDEX IF NOT EXISTS idx_folders_parent_id         ON folders(parent_id);
+          CREATE INDEX IF NOT EXISTS idx_passwords_updated         ON passwords(updated_at);
+        `);
+      })();
+    } finally {
+      this.db.pragma('foreign_keys = ON');
+    }
+    this.db.pragma('wal_checkpoint(TRUNCATE)');
     return { deleted: objectCount + passwordCount };
   }
 

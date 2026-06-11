@@ -2277,6 +2277,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   const [isMultiSelect, setIsMultiSelect] = useState(false);
   const [keyboardFocusedObjectId, setKeyboardFocusedObjectId] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const isImportRunningRef = useRef(false);
   const importToastIdRef = useRef<string | number | null>(null);
   const exportToastIdRef = useRef<string | number | null>(null);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
@@ -2568,6 +2569,11 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     deleteOriginals = false,
     conflictResolutions?: ConflictResolution[],
   ): Promise<void> => {
+    if (isImportRunningRef.current) {
+      toast.warning('Import already in progress.');
+      return;
+    }
+    isImportRunningRef.current = true;
     const includesVideo = filePaths.some((filePath) =>
       isVideoMimeType(getMimeTypeForFilename(filePath)),
     );
@@ -2576,29 +2582,33 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
       toast.dismiss(importToastIdRef.current);
       importToastIdRef.current = null;
     };
-    if (includesVideo && importToastIdRef.current === null) {
-      importToastIdRef.current = toast('Importing video...', { duration: Infinity });
+    if (importToastIdRef.current === null) {
+      importToastIdRef.current = toast(includesVideo ? 'Importing video...' : 'Importing files...', { duration: Infinity });
     }
 
-    if (!conflictResolutions) {
-      const scanResult = await window.electronAPI.scanImportConflicts({ filePaths, folderId });
-      if (!scanResult.ok) { dismissImportToast(); toast.error(scanResult.error); return; }
-      if (scanResult.data.conflicts.length > 0) {
-        dismissImportToast();
-        setConflictDialog({ conflicts: scanResult.data.conflicts, filePaths, folderId, deleteOriginals });
-        return;
+    try {
+      if (!conflictResolutions) {
+        const scanResult = await window.electronAPI.scanImportConflicts({ filePaths, folderId });
+        if (!scanResult.ok) { dismissImportToast(); toast.error(scanResult.error); return; }
+        if (scanResult.data.conflicts.length > 0) {
+          dismissImportToast();
+          setConflictDialog({ conflicts: scanResult.data.conflicts, filePaths, folderId, deleteOriginals });
+          return;
+        }
       }
+      const importResult = await window.electronAPI.importFiles({ filePaths, folderId, deleteOriginals: deleteOriginals || undefined, conflictResolutions });
+      if (!importResult.ok) { dismissImportToast(); toast.error(importResult.error); return; }
+      const refreshed = await refresh();
+      if (!refreshed.ok) { dismissImportToast(); toast.error(refreshed.error); return; }
+      const { imported, skipped, failed } = importResult.data;
+      const parts = [`Imported ${imported} file(s)`];
+      if (skipped > 0) parts.push(`${skipped} skipped`);
+      if (failed > 0) parts.push(`${failed} failed`);
+      dismissImportToast();
+      toast.success(parts.join(', '));
+    } finally {
+      isImportRunningRef.current = false;
     }
-    const importResult = await window.electronAPI.importFiles({ filePaths, folderId, deleteOriginals: deleteOriginals || undefined, conflictResolutions });
-    if (!importResult.ok) { dismissImportToast(); toast.error(importResult.error); return; }
-    const refreshed = await refresh();
-    if (!refreshed.ok) { dismissImportToast(); toast.error(refreshed.error); return; }
-    const { imported, skipped, failed } = importResult.data;
-    const parts = [`Imported ${imported} file(s)`];
-    if (skipped > 0) parts.push(`${skipped} skipped`);
-    if (failed > 0) parts.push(`${failed} failed`);
-    dismissImportToast();
-    toast.success(parts.join(', '));
   };
 
   const handleConflictConfirm = (decisions: ConflictResolution[]): void => {

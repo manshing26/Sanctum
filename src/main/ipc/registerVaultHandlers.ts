@@ -23,10 +23,12 @@ import { VaultService } from '../services/vault/VaultService';
 import { BackupService } from '../services/vault/BackupService';
 import { RestoreService } from '../services/vault/RestoreService';
 import { AuthService } from '../services/auth/AuthService';
+import { VaultRecoveryService } from '../services/vault/VaultRecoveryService';
 
 type RegisterVaultHandlersParams = {
   importService: ImportService;
   vaultService: VaultService;
+  vaultRecoveryService: VaultRecoveryService;
   authService: AuthService;
   backupService: BackupService;
   restoreService: RestoreService;
@@ -71,11 +73,59 @@ const confirmRiskyExportTarget = async (
 export const registerVaultHandlers = ({
   importService,
   vaultService,
+  vaultRecoveryService,
   authService,
   backupService,
   restoreService,
   mainWindowController,
 }: RegisterVaultHandlersParams): void => {
+  ipcMain.handle(IPC_CHANNELS.scanVaultHealth, () => {
+    try {
+      return { ok: true as const, data: vaultRecoveryService.scanHealth() };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to scan vault health.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.repairCorruptVaultData, async () => {
+    try {
+      const data = await vaultRecoveryService.repairCorruptData();
+      authService.recordAuditEvent('repair_vault', true, 'Vault data repaired.');
+      return { ok: true as const, data };
+    } catch (error) {
+      try {
+        authService.recordAuditEvent('repair_vault', false, 'Vault repair failed.');
+      } catch {
+        // ignore audit write failure
+      }
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to repair vault data.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.recoverMalformedDatabase, async () => {
+    try {
+      const data = await vaultRecoveryService.recoverMalformedDatabase();
+      authService.recordAuditEvent('repair_vault', true, 'Vault database rebuilt.');
+      return { ok: true as const, data };
+    } catch (error) {
+      try {
+        authService.recordAuditEvent('repair_vault', false, 'Vault database rebuild failed.');
+      } catch {
+        // ignore audit write failure
+      }
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to rebuild vault database.',
+      };
+    }
+  });
+
   ipcMain.handle(IPC_CHANNELS.importFiles, async (_event, input: ImportRequest) => {
     try {
       const window = mainWindowController.getWindow();

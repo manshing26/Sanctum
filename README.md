@@ -18,6 +18,7 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - **Ratings** — 1-5 star rating for files and bookmarks.
 - **Search and filters** — search across mixed vault objects, including tags; filter by scope, tags, and favourites.
 - **Grid and list views** — mixed file/bookmark/note layouts with object type badges.
+- **Keyboard navigation** — arrow keys move through Vault list/grid items; `Enter` opens the focused file, bookmark, or note; `Space` remains selection/toggle.
 - **Bulk workflows** — select by checkbox, select all, or drag box; bulk move, favourite, export, and delete.
 
 ### File Import, Preview, and Export
@@ -35,7 +36,7 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - **Media viewer** — full-screen image, video, PDF, and document viewer with keyboard shortcut help.
 - **Image viewer controls** — zoom, wheel zoom, rotate, reset, fullscreen, and drag-to-pan for zoomed images.
 - **Thumbnail generation** — automatic thumbnails via `sharp` for images and `ffmpeg` for video first frames.
-- **Fast image metadata** — image dimensions are read with `sharp`; `ffprobe` is kept for video metadata.
+- **Fast media metadata** — image dimensions are read with `sharp`; video dimensions/duration are extracted with `ffmpeg`.
 
 ### Secure Notes
 
@@ -53,6 +54,7 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - Browser area screenshots can be captured into Vault and then reused as bookmark thumbnails.
 - Bookmark thumbnail picker supports filename search/filter.
 - Open bookmarks in the built-in browser.
+- Open bookmarks in an installed external private browser: Chrome, Brave, Edge, or Firefox.
 - Import/export Netscape HTML bookmark files; selected bookmark export is supported.
 - Bookmarks share folders, tags, favourites, ratings, and mixed vault views with files.
 
@@ -65,13 +67,14 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 ### Built-in Private Browser
 
 - Chromium `webview` in a separate Electron session partition.
-- Multi-tab browsing with address bar, back/forward/reload, tab close/new-tab shortcuts, and trackpad/mouse back-forward navigation.
+- Multi-tab browsing with address bar, stacked tab counts, back/forward/reload, tab close/new-tab shortcuts, and trackpad/mouse back-forward navigation.
 - Configurable default search engine.
 - Sanctum-owned new tab page.
 - Save images/videos from the browser directly into the vault.
 - Capture the visible browser page or drag-select an area and import it directly into Vault as an encrypted PNG.
 - Blocks camera, microphone, notifications, and other permission requests.
-- Pop-ups are blocked.
+- Pop-ups are blocked by default; user-approved pop-ups open as Sanctum tabs, not native windows.
+- Browser audio is muted on vault lock and can be resumed per tab after unlock.
 - Optional third-party cookie blocking.
 - Clear-on-exit for cookies, cache, localStorage, IndexedDB, service workers, and related web storage.
 - Browser extension support for manual/dev use.
@@ -105,6 +108,7 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - In-app document preview fetches decrypted bytes through a temporary session URL; supported previews render in memory.
 - HTML/DOCX preview output is sanitized before rendering; SVG is displayed as source text.
 - The built-in browser runs in an isolated Electron partition separate from vault state.
+- External private-browser opening sends the URL to the OS and the selected browser; privacy then depends on that browser's private/incognito mode.
 - Auto-lock can trigger on idle timeout, window minimize, OS lock, and system sleep.
 
 Sanctum protects data at rest and reduces accidental plaintext exposure. It does not protect decrypted content from software with full access to the unlocked user session or operating system.
@@ -122,7 +126,7 @@ Sanctum protects data at rest and reduces accidental plaintext exposure. It does
 | Database | SQLite via `better-sqlite3` with WAL mode |
 | Encryption | Node.js `crypto` AES-256-GCM |
 | KDF | `argon2` Argon2id |
-| Thumbnails | `sharp`, `ffmpeg-static`, `ffprobe-static` |
+| Thumbnails and media metadata | `sharp`, `ffmpeg-static` |
 | Document preview | `pdfjs-dist`, `mammoth`, `dompurify` |
 | Backup/zip | `archiver`, `adm-zip` |
 | Bundler | Webpack via Electron Forge |

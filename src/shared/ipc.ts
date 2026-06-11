@@ -48,6 +48,9 @@ export const IPC_CHANNELS = {
   sessionChanged: 'auth:session-changed',
   listAuthAuditLog: 'auth:list-audit-log',
   clearAuthAuditLog: 'auth:clear-audit-log',
+  scanVaultHealth: 'vault:scan-health',
+  repairCorruptVaultData: 'vault:repair-corrupt-data',
+  recoverMalformedDatabase: 'vault:recover-malformed-database',
   importFiles: 'vault:import-files',
   listItems: 'vault:list-items',
   listItemsQuery: 'vault:list-items-query',
@@ -122,7 +125,7 @@ export type SessionState = {
 
 export type AuthAuditEntry = {
   id: number;
-  eventType: 'unlock' | 'change_password' | 'delete_all_vault_items' | 'restore_vault';
+  eventType: 'unlock' | 'change_password' | 'delete_all_vault_items' | 'restore_vault' | 'repair_vault';
   success: boolean;
   message: string;
   createdAt: string;
@@ -186,6 +189,62 @@ export type ScanImportConflictsResult = {
 export type OperationResult<T = undefined> =
   | (T extends undefined ? { ok: true } : { ok: true; data: T })
   | { ok: false; error: string };
+
+export type CorruptVaultEntryKind =
+  | 'file'
+  | 'bookmark'
+  | 'note'
+  | 'password'
+  | 'thumbnail'
+  | 'object_tag'
+  | 'folder_reference'
+  | 'orphan_blob'
+  | 'database';
+
+export type CorruptVaultRepairAction =
+  | 'delete_object'
+  | 'delete_password'
+  | 'clear_thumbnail'
+  | 'delete_orphan_row'
+  | 'delete_orphan_blob'
+  | 'clear_folder_reference'
+  | 'rebuild_database';
+
+export type CorruptVaultEntry = {
+  id: string;
+  kind: CorruptVaultEntryKind;
+  issue: string;
+  action: CorruptVaultRepairAction;
+};
+
+export type VaultHealthReport = {
+  status: 'ok' | 'corrupt_data' | 'malformed_database';
+  databaseOk: boolean;
+  entries: CorruptVaultEntry[];
+  counts: {
+    files: number;
+    bookmarks: number;
+    notes: number;
+    passwords: number;
+    thumbnails: number;
+    orphanRows: number;
+    orphanBlobs: number;
+    folderReferences: number;
+  };
+  checkedAt: string;
+  message?: string;
+};
+
+export type VaultRepairResult = {
+  deletedObjects: number;
+  deletedPasswords: number;
+  clearedThumbnails: number;
+  deletedOrphanRows: number;
+  deletedOrphanBlobs: number;
+  clearedFolderReferences: number;
+  backupPath?: string;
+  requiresRestart?: boolean;
+};
 
 export type VaultItemSummary = {
   id: string;
@@ -667,6 +726,9 @@ export type ElectronAPI = {
   getSession: () => Promise<SessionState>;
   listAuthAuditLog: () => Promise<OperationResult<AuthAuditEntry[]>>;
   clearAuthAuditLog: () => Promise<OperationResult>;
+  scanVaultHealth: () => Promise<OperationResult<VaultHealthReport>>;
+  repairCorruptVaultData: () => Promise<OperationResult<VaultRepairResult>>;
+  recoverMalformedDatabase: () => Promise<OperationResult<VaultRepairResult>>;
   importFiles: (input: ImportRequest) => Promise<OperationResult<ImportResult>>;
   scanImportConflicts: (input: ScanImportConflictsInput) => Promise<OperationResult<ScanImportConflictsResult>>;
   listItems: () => Promise<VaultItemSummary[]>;

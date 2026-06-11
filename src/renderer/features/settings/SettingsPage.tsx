@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { RestoreCountdownDialog } from '../../components/ui/RestoreCountdownDialog';
 import { PasswordInput } from '../../components/ui/PasswordInput';
 import { SanctumConfirmDialog } from '../../components/ui';
-import type { AuthAuditEntry, SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgress, RestoreProgress } from '../../../shared/ipc';
+import type { AuthAuditEntry, SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgress, RestoreProgress, VaultHealthReport } from '../../../shared/ipc';
 import { VAULT_PASSWORD_MIN_LENGTH, isVaultPasswordLongEnough } from '../../../shared/authPolicy';
 import type { SearchEngineId } from '../../../shared/browserSearch';
 import { validateCustomSearchTemplate } from '../../../shared/browserSearch';
@@ -50,6 +50,8 @@ const auditEventLabel = (eventType: AuthAuditEntry['eventType']): string => {
       return 'Delete All';
     case 'restore_vault':
       return 'Restore';
+    case 'repair_vault':
+      return 'Repair';
     case 'unlock':
     default:
       return 'Unlock';
@@ -308,6 +310,27 @@ const ProgressBar: React.FC<{ pct: number; label: string }> = ({ pct, label }) =
     </div>
   </div>
 );
+
+const healthProblemCount = (report: VaultHealthReport | null): number => {
+  if (!report) return 0;
+  return Object.values(report.counts).reduce((total, value) => total + value, 0);
+};
+
+const healthSummaryText = (report: VaultHealthReport): string => {
+  if (report.status === 'ok') return 'No vault data problems detected.';
+  if (report.status === 'malformed_database') return 'The database needs rebuild recovery.';
+  const parts = [
+    report.counts.files ? `${report.counts.files} file${report.counts.files === 1 ? '' : 's'}` : '',
+    report.counts.bookmarks ? `${report.counts.bookmarks} bookmark${report.counts.bookmarks === 1 ? '' : 's'}` : '',
+    report.counts.notes ? `${report.counts.notes} note${report.counts.notes === 1 ? '' : 's'}` : '',
+    report.counts.passwords ? `${report.counts.passwords} password${report.counts.passwords === 1 ? '' : 's'}` : '',
+    report.counts.thumbnails ? `${report.counts.thumbnails} thumbnail${report.counts.thumbnails === 1 ? '' : 's'}` : '',
+    report.counts.orphanRows ? `${report.counts.orphanRows} orphan row${report.counts.orphanRows === 1 ? '' : 's'}` : '',
+    report.counts.orphanBlobs ? `${report.counts.orphanBlobs} orphan blob${report.counts.orphanBlobs === 1 ? '' : 's'}` : '',
+    report.counts.folderReferences ? `${report.counts.folderReferences} folder reference${report.counts.folderReferences === 1 ? '' : 's'}` : '',
+  ].filter(Boolean);
+  return parts.length > 0 ? `Found ${parts.join(', ')}.` : 'Corrupted vault data was detected.';
+};
 
 // ── Change Password ──────────────────────────────────────────────────
 const ChangePasswordCard: React.FC = () => {
@@ -813,6 +836,12 @@ const StorageSection: React.FC = () => {
   const [isWiping, setIsWiping] = useState(false);
   const [wipePassword, setWipePassword] = useState('');
   const [wipeError, setWipeError] = useState<string | null>(null);
+  const [healthReport, setHealthReport] = useState<VaultHealthReport | null>(null);
+  const [healthError, setHealthError] = useState<string | null>(null);
+  const [isScanningHealth, setIsScanningHealth] = useState(false);
+  const [isRepairingHealth, setIsRepairingHealth] = useState(false);
+  const [confirmRepair, setConfirmRepair] = useState(false);
+  const [confirmRebuild, setConfirmRebuild] = useState(false);
 
   const handleWipeVault = async (): Promise<void> => {
     if (!wipePassword) return;
@@ -838,12 +867,108 @@ const StorageSection: React.FC = () => {
     setWipeError(null);
   };
 
+  const handleScanHealth = async (): Promise<void> => {
+    setIsScanningHealth(true);
+    setHealthError(null);
+    try {
+      const result = await window.electronAPI.scanVaultHealth();
+      if (!result.ok) {
+        setHealthError(result.error);
+        toast.error(result.error);
+        return;
+      }
+      setHealthReport(result.data);
+      if (result.data.status === 'ok') toast.success('Vault health check passed.');
+      if (result.data.status === 'corrupt_data') toast.warning('Vault repair is available.');
+      if (result.data.status === 'malformed_database') toast.error('Vault database needs recovery.');
+    } finally {
+      setIsScanningHealth(false);
+    }
+  };
+
+  const handleRepairHealth = async (): Promise<void> => {
+    setIsRepairingHealth(true);
+    setHealthError(null);
+    try {
+      const result = await window.electronAPI.repairCorruptVaultData();
+      if (!result.ok) {
+        setHealthError(result.error);
+        toast.error(result.error);
+        return;
+      }
+      setConfirmRepair(false);
+      toast.success('Vault data repaired.');
+      await handleScanHealth();
+    } finally {
+      setIsRepairingHealth(false);
+    }
+  };
+
+  const handleRecoverMalformed = async (): Promise<void> => {
+    setIsRepairingHealth(true);
+    setHealthError(null);
+    try {
+      const result = await window.electronAPI.recoverMalformedDatabase();
+      if (!result.ok) {
+        setHealthError(result.error);
+        toast.error(result.error);
+        return;
+      }
+      setConfirmRebuild(false);
+      toast.success('Vault database rebuilt. Restart Sanctum to finish recovery.');
+      setHealthReport(null);
+    } finally {
+      setIsRepairingHealth(false);
+    }
+  };
+
+  const totalHealthProblems = healthProblemCount(healthReport);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <SectionHeading title="Storage" sub="Manage vault storage and data." />
 
       <BackupCard />
       <RestoreCard />
+
+      <SettingCard>
+        <CardSection
+          title="Vault Recovery"
+          description="Scan encrypted vault records for unreadable objects, broken references, orphaned blobs, and database damage."
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <SecondaryBtn onClick={() => void handleScanHealth()} disabled={isScanningHealth || isRepairingHealth}>
+                {isScanningHealth ? 'Scanning...' : 'Scan Vault Health'}
+              </SecondaryBtn>
+              {healthReport?.status === 'corrupt_data' && (
+                <DangerBtn onClick={() => setConfirmRepair(true)} disabled={isRepairingHealth}>
+                  Repair {totalHealthProblems} Issue{totalHealthProblems === 1 ? '' : 's'}
+                </DangerBtn>
+              )}
+              {healthReport?.status === 'malformed_database' && (
+                <DangerBtn onClick={() => setConfirmRebuild(true)} disabled={isRepairingHealth}>
+                  Rebuild Vault Database
+                </DangerBtn>
+              )}
+            </div>
+            {healthReport && (
+              <div style={{
+                padding: '10px 12px',
+                border: `1px solid ${healthReport.status === 'ok' ? T.line2 : healthReport.status === 'malformed_database' ? T.danger : T.warn}`,
+                background: T.bg,
+                fontFamily: MONO,
+                fontSize: fontSize(10),
+                color: healthReport.status === 'ok' ? T.success : healthReport.status === 'malformed_database' ? T.danger : T.warn,
+                lineHeight: 1.6,
+              }}>
+                {healthSummaryText(healthReport)}
+              </div>
+            )}
+            {healthError && <ErrorBanner message={healthError} />}
+          </div>
+        </CardSection>
+      </SettingCard>
 
       <SettingCard>
         <CardSection title="Vault Data" description="All files, bookmarks, notes, passwords, folders, and tags are encrypted locally.">
@@ -896,6 +1021,38 @@ const StorageSection: React.FC = () => {
           </div>
         </div>
       )}
+
+      <SanctumConfirmDialog
+        open={confirmRepair}
+        onOpenChange={setConfirmRepair}
+        title="Repair corrupted vault data?"
+        description="Sanctum will delete only unreadable objects and orphaned records. Valid vault data is kept."
+        variant="danger"
+        confirmLabel={isRepairingHealth ? 'Repairing...' : 'Repair'}
+        busy={isRepairingHealth}
+        onConfirm={handleRepairHealth}
+        zIndex={10000}
+      >
+        <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0, lineHeight: 1.6 }}>
+          {healthReport ? healthSummaryText(healthReport) : 'Corrupted vault data was detected.'}
+        </p>
+      </SanctumConfirmDialog>
+
+      <SanctumConfirmDialog
+        open={confirmRebuild}
+        onOpenChange={setConfirmRebuild}
+        title="Rebuild vault database?"
+        description="Sanctum will create a recovery copy first, then reset vault data so the app can open again."
+        variant="danger"
+        confirmLabel={isRepairingHealth ? 'Rebuilding...' : 'Rebuild'}
+        busy={isRepairingHealth}
+        onConfirm={handleRecoverMalformed}
+        zIndex={10000}
+      >
+        <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, margin: 0, lineHeight: 1.6 }}>
+          Use this only when SQLite reports the vault database is malformed. Files are copied to a recovery folder before the rebuild.
+        </p>
+      </SanctumConfirmDialog>
     </div>
   );
 };

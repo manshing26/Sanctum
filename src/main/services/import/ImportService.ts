@@ -16,6 +16,8 @@ export type ImportProgressCallback = (progress: {
 }) => void;
 
 export class ImportService {
+  private importQueue: Promise<void> = Promise.resolve();
+
   constructor(
     private readonly vaultService: VaultService,
     private readonly settingsService: SettingsService,
@@ -25,6 +27,18 @@ export class ImportService {
   ) {}
 
   async importFiles(request: ImportRequest, onProgress?: ImportProgressCallback): Promise<ImportResult> {
+    const task = this.importQueue.then(
+      () => this.runImportFiles(request, onProgress),
+      () => this.runImportFiles(request, onProgress),
+    );
+    this.importQueue = task.then(
+      () => undefined,
+      () => undefined,
+    );
+    return task;
+  }
+
+  private async runImportFiles(request: ImportRequest, onProgress?: ImportProgressCallback): Promise<ImportResult> {
     const result: ImportResult = {
       imported: 0,
       skipped: 0,

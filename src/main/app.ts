@@ -37,6 +37,7 @@ import { MediaSessionService } from './services/vault/MediaSessionService';
 import { BackupService } from './services/vault/BackupService';
 import { RestoreService } from './services/vault/RestoreService';
 import { VaultService } from './services/vault/VaultService';
+import { VaultRecoveryService } from './services/vault/VaultRecoveryService';
 import { SessionStore } from './state/SessionStore';
 import { MainWindowController } from './windows/MainWindowController';
 import { BROWSER_PARTITION, BrowserWindowController } from './windows/BrowserWindowController';
@@ -304,6 +305,13 @@ export const bootstrapApp = (): void => {
       sessionStore,
       vaultPaths,
     );
+    const vaultRecoveryService = new VaultRecoveryService(
+      database.getDb(),
+      cryptoService,
+      sessionStore,
+      vaultPaths,
+      vaultService,
+    );
     void vaultService.clearTemporaryOpenFiles();
     const importService = new ImportService(
       vaultService,
@@ -467,6 +475,7 @@ export const bootstrapApp = (): void => {
     registerVaultHandlers({
       importService,
       vaultService,
+      vaultRecoveryService,
       authService,
       backupService,
       restoreService,
@@ -574,6 +583,9 @@ export const bootstrapApp = (): void => {
         clearBrowserData();
       }
       session.defaultSession.protocol.unhandle('privatevault-media');
+    });
+    app.once('will-quit', () => {
+      database.close();
     });
   });
 

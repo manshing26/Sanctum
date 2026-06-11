@@ -31,6 +31,7 @@ export const registerAuthHandlers = ({ authService, mainWindowController, onLock
   ipcMain.handle(IPC_CHANNELS.unlockVault, async (_event, input: UnlockVaultInput) => {
     try {
       await authService.unlockVault(input.password);
+      mainWindowController.getWindow()?.webContents.setAudioMuted(false);
       return { ok: true as const };
     } catch (error) {
       return {
