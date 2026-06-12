@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { RestoreCountdownDialog } from '../../components/ui/RestoreCountdownDialog';
 import { PasswordInput } from '../../components/ui/PasswordInput';
-import { SanctumConfirmDialog } from '../../components/ui';
+import { SanctumConfirmDialog, SanctumDialog } from '../../components/ui';
 import type { AuthAuditEntry, SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgress, RestoreProgress, VaultHealthReport } from '../../../shared/ipc';
 import { VAULT_PASSWORD_MIN_LENGTH, isVaultPasswordLongEnough } from '../../../shared/authPolicy';
 import type { SearchEngineId } from '../../../shared/browserSearch';
@@ -843,12 +843,86 @@ const RestoreCard: React.FC = () => {
   );
 };
 
+const ResetCompleteDialog: React.FC = () => {
+  const [seconds, setSeconds] = useState(10);
+  const calledRef = React.useRef(false);
+
+  const exit = (): void => {
+    if (calledRef.current) return;
+    calledRef.current = true;
+    void window.electronAPI.exitApp();
+  };
+
+  useEffect(() => {
+    if (seconds <= 0) {
+      exit();
+      return;
+    }
+    const id = setTimeout(() => setSeconds((s) => s - 1), 1000);
+    return () => clearTimeout(id);
+  }, [seconds]);
+
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 10050,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'rgba(0,0,0,0.72)',
+      backdropFilter: 'blur(6px)',
+    }}>
+      <div style={{
+        width: 380,
+        maxWidth: 'calc(100vw - 48px)',
+        border: `1px solid ${T.line2}`,
+        background: T.bg2,
+        padding: 24,
+        textAlign: 'center',
+      }}>
+        <div style={{
+          width: 46,
+          height: 46,
+          margin: '0 auto 12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: `1px solid ${T.success}`,
+          background: 'rgba(106,158,127,0.12)',
+          color: T.success,
+        }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+        <p style={{ margin: '0 0 6px', fontFamily: SERIF, fontSize: fontSize(20), color: T.text }}>Sanctum Reset</p>
+        <p style={{ margin: '0 0 18px', fontFamily: MONO, fontSize: fontSize(11), lineHeight: 1.6, color: T.mute }}>
+          Local Sanctum data has been deleted. The app will close now. Open Sanctum again to create a new vault.
+        </p>
+        <DangerBtn onClick={exit} style={{ width: '100%', justifyContent: 'center' }}>
+          Exit Now
+        </DangerBtn>
+        <p style={{ margin: '12px 0 0', fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>
+          Closing automatically in {seconds}s...
+        </p>
+      </div>
+    </div>
+  );
+};
+
 // ── Storage ──────────────────────────────────────────────────────────
 const StorageSection: React.FC = () => {
   const [showWipeDialog, setShowWipeDialog] = useState(false);
   const [isWiping, setIsWiping] = useState(false);
   const [wipePassword, setWipePassword] = useState('');
   const [wipeError, setWipeError] = useState<string | null>(null);
+  const [showFullResetDialog, setShowFullResetDialog] = useState(false);
+  const [isFullResetting, setIsFullResetting] = useState(false);
+  const [fullResetComplete, setFullResetComplete] = useState(false);
+  const [fullResetPassword, setFullResetPassword] = useState('');
+  const [fullResetPhrase, setFullResetPhrase] = useState('');
+  const [fullResetError, setFullResetError] = useState<string | null>(null);
   const [healthReport, setHealthReport] = useState<VaultHealthReport | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [isScanningHealth, setIsScanningHealth] = useState(false);
@@ -878,6 +952,39 @@ const StorageSection: React.FC = () => {
     setShowWipeDialog(false);
     setWipePassword('');
     setWipeError(null);
+  };
+
+  const closeFullResetDialog = (): void => {
+    if (isFullResetting) return;
+    setShowFullResetDialog(false);
+    setFullResetPassword('');
+    setFullResetPhrase('');
+    setFullResetError(null);
+  };
+
+  const handleFullReset = async (): Promise<void> => {
+    if (!fullResetPassword || fullResetPhrase.trim().toUpperCase() !== 'RESET SANCTUM') return;
+    setFullResetError(null);
+    setIsFullResetting(true);
+    try {
+      const result = await window.electronAPI.resetAllAppData({
+        password: fullResetPassword,
+        confirmation: fullResetPhrase,
+      });
+      if (!result.ok) {
+        setFullResetError(result.error);
+        toast.error(result.error);
+        setIsFullResetting(false);
+        return;
+      }
+      setShowFullResetDialog(false);
+      setFullResetComplete(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to reset Sanctum.';
+      setFullResetError(message);
+      toast.error(message);
+      setIsFullResetting(false);
+    }
   };
 
   const handleScanHealth = async (): Promise<void> => {
@@ -936,10 +1043,12 @@ const StorageSection: React.FC = () => {
   };
 
   const totalHealthProblems = healthProblemCount(healthReport);
+  const fullResetPhraseValid = fullResetPhrase.trim().toUpperCase() === 'RESET SANCTUM';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <SectionHeading title="Storage" sub="Manage vault storage and data." />
+      {fullResetComplete && <ResetCompleteDialog />}
 
       <BackupCard />
       <RestoreCard />
@@ -995,6 +1104,22 @@ const StorageSection: React.FC = () => {
         </CardSection>
       </SettingCard>
 
+      <SettingCard>
+        <CardSection
+          title="Reset Sanctum"
+          description="Return Sanctum to first launch. This deletes the vault password, encrypted vault data, app settings, audit log, browser data, and saved browser tabs."
+        >
+          <DangerBtn onClick={() => {
+            setFullResetError(null);
+            setFullResetPassword('');
+            setFullResetPhrase('');
+            setShowFullResetDialog(true);
+          }}>
+            Reset Sanctum
+          </DangerBtn>
+        </CardSection>
+      </SettingCard>
+
       {/* Wipe confirm modal */}
       {showWipeDialog && (
         <div style={{
@@ -1034,6 +1159,76 @@ const StorageSection: React.FC = () => {
           </div>
         </div>
       )}
+
+      <SanctumDialog
+        open={showFullResetDialog}
+        onOpenChange={(open) => { if (!open) closeFullResetDialog(); else setShowFullResetDialog(true); }}
+        title="Reset Sanctum completely?"
+        description="This returns Sanctum to first launch. It deletes the vault password, encrypted files, bookmarks, notes, passwords, folders, tags, audit log, settings, browser data, and saved browser tabs. External backup files are not deleted."
+        variant="danger"
+        size="md"
+        busy={isFullResetting}
+        closeOnOverlay={!isFullResetting}
+        footer={(
+          <>
+            <SecondaryBtn onClick={closeFullResetDialog} disabled={isFullResetting}>Cancel</SecondaryBtn>
+            <DangerBtn
+              onClick={() => void handleFullReset()}
+              disabled={isFullResetting || !fullResetPassword || !fullResetPhraseValid}
+            >
+              {isFullResetting ? 'Resetting...' : 'Reset Sanctum'}
+            </DangerBtn>
+          </>
+        )}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <FieldLabel>Current vault password</FieldLabel>
+            <PasswordInput
+              autoFocus
+              value={fullResetPassword}
+              onChange={(e) => { setFullResetPassword(e.target.value); setFullResetError(null); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && fullResetPassword && fullResetPhraseValid && !isFullResetting) {
+                  void handleFullReset();
+                }
+              }}
+              placeholder="Enter vault password"
+              autoComplete="current-password"
+              error={!!fullResetError}
+              disabled={isFullResetting}
+            />
+          </div>
+          <div>
+            <FieldLabel>Type RESET SANCTUM to confirm</FieldLabel>
+            <input
+              value={fullResetPhrase}
+              onChange={(e) => { setFullResetPhrase(e.target.value); setFullResetError(null); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && fullResetPassword && fullResetPhraseValid && !isFullResetting) {
+                  void handleFullReset();
+                }
+              }}
+              placeholder="RESET SANCTUM"
+              disabled={isFullResetting}
+              style={{
+                width: '100%',
+                height: 34,
+                boxSizing: 'border-box',
+                background: T.bg,
+                border: `1px solid ${fullResetError ? T.danger : T.line2}`,
+                color: T.text,
+                fontFamily: MONO,
+                fontSize: fontSize(11),
+                letterSpacing: '0.08em',
+                padding: '0 10px',
+                outline: 'none',
+              }}
+            />
+          </div>
+          {fullResetError && <ErrorBanner message={fullResetError} />}
+        </div>
+      </SanctumDialog>
 
       <SanctumConfirmDialog
         open={confirmRepair}

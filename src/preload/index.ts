@@ -24,6 +24,7 @@ import {
   type RenameItemInput,
   type RenameTagInput,
   type RenameFolderInput,
+  type ResetAllAppDataInput,
   type ScanImportConflictsInput,
   type ToggleFavoriteInput,
   type UnassignItemTagInput,
@@ -78,6 +79,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openBrowserWindow: () => ipcRenderer.invoke(IPC_CHANNELS.openBrowserWindow),
   closeBrowserWindow: () => ipcRenderer.invoke(IPC_CHANNELS.closeBrowserWindow),
   appVersion: () => ipcRenderer.invoke(IPC_CHANNELS.getVersion),
+  resetAllAppData: (input: ResetAllAppDataInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.resetAllAppData, input),
+  exitApp: () => ipcRenderer.invoke(IPC_CHANNELS.exitApp),
   createVaultPassword: (input: CreateVaultPasswordInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.createVaultPassword, input),
   unlockVault: (input: UnlockVaultInput) =>

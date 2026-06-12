@@ -18,4 +18,8 @@ export const registerIpcHandlers = (): void => {
     }
     app.exit(0);
   });
+
+  ipcMain.handle(IPC_CHANNELS.exitApp, () => {
+    app.exit(0);
+  });
 };

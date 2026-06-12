@@ -5,6 +5,7 @@ import { fontSize } from '../../theme/typography';
 export interface PasswordInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> {
   error?: boolean;
   showStrength?: boolean;
+  showCapsLockIndicator?: boolean;
 }
 
 interface StrengthLevel {
@@ -32,8 +33,20 @@ function getPasswordStrength(password: string): StrengthLevel {
 const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace";
 
 const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
-  ({ className, error, showStrength = false, value, style, ...props }, ref) => {
+  ({
+    className,
+    error,
+    showStrength = false,
+    showCapsLockIndicator = true,
+    value,
+    style,
+    onKeyDown,
+    onKeyUp,
+    onBlur,
+    ...props
+  }, ref) => {
     const [visible, setVisible] = useState(false);
+    const [capsLockOn, setCapsLockOn] = useState(false);
     const passwordValue = typeof value === 'string' ? value : '';
 
     const strength = useMemo(
@@ -42,6 +55,10 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
     );
 
     const borderColor = error ? '#c36b5f' : 'rgba(220,220,200,0.12)';
+
+    const updateCapsLockState = (event: React.KeyboardEvent<HTMLInputElement>): void => {
+      setCapsLockOn(event.getModifierState('CapsLock'));
+    };
 
     return (
       <div className={cn('w-full', className)} style={style}>
@@ -57,6 +74,18 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
             type={visible ? 'text' : 'password'}
             ref={ref}
             value={value}
+            onKeyDown={(event) => {
+              updateCapsLockState(event);
+              onKeyDown?.(event);
+            }}
+            onKeyUp={(event) => {
+              updateCapsLockState(event);
+              onKeyUp?.(event);
+            }}
+            onBlur={(event) => {
+              setCapsLockOn(false);
+              onBlur?.(event);
+            }}
             style={{
               minWidth: 0,
               height: 48,
@@ -103,6 +132,25 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
             )}
           </button>
         </div>
+
+        {showCapsLockIndicator && capsLockOn && (
+          <div style={{
+            marginTop: 7,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontFamily: MONO,
+            fontSize: fontSize(9),
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: '#c08a5e',
+          }}>
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M6 1.5 10.5 6H8v4.5H4V6H1.5L6 1.5Z" />
+            </svg>
+            <span>Caps Lock is on</span>
+          </div>
+        )}
 
         {/* Strength bar */}
         {strength && (

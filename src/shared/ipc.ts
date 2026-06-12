@@ -2,6 +2,8 @@ export const IPC_CHANNELS = {
   openSettings: 'app:open-settings',
   closeSettings: 'app:close-settings',
   getVersion: 'app:get-version',
+  resetAllAppData: 'app:reset-all-data',
+  exitApp: 'app:exit',
   openBrowserWindow: 'browser:open-window',
   closeBrowserWindow: 'browser:close-window',
   browserCommand: 'browser:command',
@@ -117,6 +119,15 @@ export type UnlockVaultInput = {
 export type ChangePasswordInput = {
   currentPassword: string;
   newPassword: string;
+};
+
+export type ResetAllAppDataInput = {
+  password: string;
+  confirmation: string;
+};
+
+export type ResetAllAppDataResult = {
+  exitRequired: true;
 };
 
 export type SessionState = {
@@ -728,6 +739,8 @@ export type ElectronAPI = {
   openBrowserWindow: () => Promise<void>;
   closeBrowserWindow: () => Promise<void>;
   appVersion: () => Promise<string>;
+  resetAllAppData: (input: ResetAllAppDataInput) => Promise<OperationResult<ResetAllAppDataResult>>;
+  exitApp: () => Promise<void>;
   createVaultPassword: (input: CreateVaultPasswordInput) => Promise<OperationResult>;
   unlockVault: (input: UnlockVaultInput) => Promise<OperationResult>;
   lockVault: () => Promise<OperationResult>;

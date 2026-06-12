@@ -1,9 +1,11 @@
-import { app, BrowserWindow, Menu, powerMonitor, protocol, session, webContents, type WebContents } from 'electron';
+import fs from 'node:fs/promises';
+import { app, BrowserWindow, ipcMain, Menu, powerMonitor, protocol, session, webContents, type WebContents } from 'electron';
 import type { Input } from 'electron';
 import type {
   BrowserCommand,
   BrowserSettings,
   ExtensionStartupError,
+  ResetAllAppDataInput,
   SecuritySettings,
   SessionChangeReason,
 } from '../shared/ipc';
@@ -312,6 +314,8 @@ export const bootstrapApp = (): void => {
       vaultPaths,
       vaultService,
     );
+    let isResettingAllData = false;
+    let databaseClosed = false;
     void vaultService.clearTemporaryOpenFiles();
     const importService = new ImportService(
       vaultService,
@@ -405,6 +409,58 @@ export const bootstrapApp = (): void => {
       }
     }, 15_000);
 
+    const clearSessionData = async (targetSession: Electron.Session): Promise<void> => {
+      await targetSession.clearStorageData({
+        storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage', 'websql'],
+      });
+      await targetSession.clearCache();
+    };
+
+    ipcMain.handle(IPC_CHANNELS.resetAllAppData, async (_event, input: ResetAllAppDataInput) => {
+      try {
+        if (sessionStore.getState().status !== 'unlocked') {
+          return { ok: false as const, error: 'Unlock the vault before resetting Sanctum.' };
+        }
+        if (input.confirmation.trim().toUpperCase() !== 'RESET SANCTUM') {
+          return { ok: false as const, error: 'Type RESET SANCTUM to confirm.' };
+        }
+        if (!input.password) {
+          return { ok: false as const, error: 'Enter your vault password to reset Sanctum.' };
+        }
+
+        const valid = await authService.verifyCurrentPassword(input.password);
+        if (!valid) {
+          return { ok: false as const, error: 'Incorrect password.' };
+        }
+
+        isResettingAllData = true;
+        clearInterval(idleLockInterval);
+        for (const wc of webContents.getAllWebContents()) {
+          wc.setAudioMuted(true);
+        }
+        browserWindowController.close();
+        await mediaSessionService.clearAllSessions();
+        await mediaSessionService.stop();
+        await vaultService.clearTemporaryOpenFiles();
+        await Promise.all([
+          clearSessionData(session.defaultSession),
+          clearSessionData(browserSession),
+        ]);
+
+        database.close();
+        databaseClosed = true;
+        await fs.rm(vaultPaths.rootDir, { recursive: true, force: true });
+
+        return { ok: true as const, data: { exitRequired: true as const } };
+      } catch (error) {
+        isResettingAllData = false;
+        return {
+          ok: false as const,
+          error: error instanceof Error ? error.message : 'Failed to reset Sanctum.',
+        };
+      }
+    });
+
     void session.defaultSession.protocol.handle('privatevault-media', (request) => {
       const rangeHeader =
         request.headers instanceof Headers
@@ -415,7 +471,9 @@ export const bootstrapApp = (): void => {
 
     const mainWindow = mainWindowController.create();
     app.on('before-quit', () => {
-      void vaultService.clearTemporaryOpenFiles();
+      if (!isResettingAllData) {
+        void vaultService.clearTemporaryOpenFiles();
+      }
     });
     mainWindow.on('minimize', () => {
       if (!securitySettings.lockOnMinimize) {
@@ -579,14 +637,18 @@ export const bootstrapApp = (): void => {
 
     app.once('before-quit', () => {
       clearInterval(idleLockInterval);
-      void mediaSessionService.stop();
-      if (settingsService.getBrowserSettings().clearOnExit) {
+      if (!isResettingAllData) {
+        void mediaSessionService.stop();
+      }
+      if (!isResettingAllData && settingsService.getBrowserSettings().clearOnExit) {
         clearBrowserData();
       }
       session.defaultSession.protocol.unhandle('privatevault-media');
     });
     app.once('will-quit', () => {
-      database.close();
+      if (!databaseClosed) {
+        database.close();
+      }
     });
   });
 
