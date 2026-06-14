@@ -41,6 +41,7 @@ type ItemDetailsPanelProps = {
   onToggleFavorite: (itemId: string, isFavorite: boolean) => void;
   onRenameItem: (itemId: string, newName: string) => void;
   onSetRating: (itemId: string, rating: number | null) => void;
+  onChangeThumbnail?: (item: VaultItemSummary) => void;
   onGoToFolder?: (itemId: string) => void;
   selectedCount: number;
 };
@@ -83,6 +84,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
   onToggleFavorite,
   onRenameItem,
   onSetRating,
+  onChangeThumbnail,
   onGoToFolder,
   selectedCount,
 }) => {
@@ -255,6 +257,14 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
           <button type="button" onClick={() => onExportItem(item.id)} style={{ ...actionBtn('ghost'), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.3"><polyline points="5,1 5,6.5" /><polyline points="2.5,4 5,6.5 7.5,4" /><line x1="1.5" y1="8.5" x2="8.5" y2="8.5" /></svg>
             Export
+          </button>
+        </div>
+      )}
+      {fileKind === 'video' && onChangeThumbnail && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+          <button type="button" onClick={() => onChangeThumbnail(item)} style={{ ...actionBtn('ghost'), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1" y="1" width="8" height="8" /><circle cx="3.5" cy="3.5" r="1" /><polyline points="1,7 3,5 5.5,6.5 7,5 9,7" /></svg>
+            Thumbnail
           </button>
         </div>
       )}

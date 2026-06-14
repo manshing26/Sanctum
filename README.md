@@ -1,4 +1,4 @@
-# Sanctum / privateVault
+# Sanctum
 
 A local-first encrypted vault for files, bookmarks, secure notes, passwords, and private browsing. Vault content is encrypted at rest with AES-256-GCM and stays on the local machine.
 
@@ -15,7 +15,7 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - **Folders** — shared nested folder tree for files, bookmarks, and notes.
 - **Tags** — shared colour-coded tags across vault objects.
 - **Favourites** — favourite files, bookmarks, and notes.
-- **Ratings** — 1-5 star rating for files and bookmarks.
+- **Ratings** — 1-5 star rating for files, bookmarks, and notes.
 - **Search and filters** — search across mixed vault objects, including tags; filter by scope, tags, and favourites.
 - **Grid and list views** — mixed file/bookmark/note layouts with object type badges.
 - **Keyboard navigation** — arrow keys move through Vault list/grid items; `Enter` opens the focused file, bookmark, or note; `Space` remains selection/toggle.
@@ -56,7 +56,7 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - Open bookmarks in the built-in browser.
 - Open bookmarks in an installed external private browser: Chrome, Brave, Edge, or Firefox.
 - Import/export Netscape HTML bookmark files; selected bookmark export is supported.
-- Bookmarks share folders, tags, favourites, ratings, and mixed vault views with files.
+- Bookmarks share folders, tags, favourites, ratings, and mixed vault views with files and notes.
 
 ### Password Manager
 
@@ -84,13 +84,15 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - **Backup** — creates a `.pvbackup` ZIP containing the encrypted DB, encrypted files, and manifest.
 - **Replace restore** — verifies backup password, restores backups created by the current Sanctum backup format, replaces current vault content, and restarts cleanly.
 - **Delete all vault items** — password-confirmed content reset that deletes files, bookmarks, notes, passwords, folders, tags, and metadata while preserving the vault password and app settings.
+- **Reset Sanctum** — password-confirmed full local reset that deletes the vault password, vault data, settings, audit log, browser data, saved tabs, and local preferences, then exits to first-launch state.
+- **Vault health repair** — scans for corrupt vault rows/blobs and can remove unrecoverable data after confirmation.
 
 ### Settings
 
-- **Security** — auto-lock timeout, lock on minimize, lock when computer locks/sleeps, change password, and recent security audit log.
+- **Security** — auto-lock timeout, lock on minimize, lock when computer locks/sleeps, change password, Caps Lock warnings in password fields, and recent security audit log.
 - **Appearance** — text size, thumbnail size, default Vault view.
 - **Browser** — default search engine, third-party cookies, clear-on-exit.
-- **Storage** — backup, replace restore, full vault-content wipe.
+- **Storage** — backup, replace restore, vault health scan/repair, full vault-content wipe, and full app reset.
 - **About** — app version and crypto/KDF information.
 
 ---
@@ -103,7 +105,7 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - Thumbnails are encrypted and stored as database BLOBs.
 - Bookmarks, notes, and passwords are encrypted in SQLite.
 - Failed unlock attempts trigger lockout.
-- Security audit log records recent unlock, password-change, vault-wipe, and restore events, including success/failure status without storing sensitive details. Audit records can be cleared independently in Security settings.
+- Security audit log records recent unlock, password-change, vault-wipe, restore, and repair events, including success/failure status without storing sensitive details. Audit records can be cleared independently in Security settings.
 - Temporary opened files are cleared on lock/quit and opened as read-only copies when possible.
 - In-app document preview fetches decrypted bytes through a temporary session URL; supported previews render in memory.
 - HTML/DOCX preview output is sanitized before rendering; SVG is displayed as source text.
@@ -179,13 +181,14 @@ All app data is stored under Electron `userData`:
 
 ```text
 {userData}/
-├── privatevault.db
-├── privatevault.db-wal
-├── privatevault.db-shm
-└── vault/
-    ├── version.json
-    ├── files/                         # encrypted file blobs
-    └── temp/                          # temporary sessions, opened copies, restore work
+└── privateVault/
+    ├── privatevault.db
+    ├── privatevault.db-wal
+    ├── privatevault.db-shm
+    └── vault/
+        ├── version.json
+        ├── files/                     # encrypted file blobs
+        └── temp/                      # temporary sessions, opened copies, restore work
 ```
 
 ### Database Schema v4
@@ -238,10 +241,14 @@ npm start           # Start in development mode
 npx tsc --noEmit    # Type check
 npm test            # Run tests
 npm run make        # Package for the current platform
+npm run build:mac   # Build macOS installer artifacts
+npm run build:win   # Build Windows NSIS installer
 ```
 
 Notes:
 - `npm run package` / `npm run make` may need network access for Electron packaging metadata or platform assets.
+- The Windows NSIS installer is current-user only (`perMachine: false`, `allowElevation: false`) to avoid the all-users/elevation handoff during install.
+- Linux packaging is not a V1 release target. Debian/RPM maker support exists in the toolchain, but Linux has not been treated as a QA platform.
 - Build artifacts such as `.webpack/`, `out/`, and `dist/` can be large and should not be treated as source size.
 
 ---

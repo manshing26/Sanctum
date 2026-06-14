@@ -58,6 +58,7 @@ export const IPC_CHANNELS = {
   listItems: 'vault:list-items',
   listItemsQuery: 'vault:list-items-query',
   getItemThumbnail: 'vault:get-item-thumbnail',
+  updateItemThumbnail: 'vault:update-item-thumbnail',
   openMediaSession: 'vault:open-media-session',
   closeMediaSession: 'vault:close-media-session',
   openTemporaryFile: 'vault:open-temporary-file',
@@ -487,7 +488,12 @@ export type DeleteBookmarkInput = {
 
 export type UpdateBookmarkThumbnailInput = {
   id: string;
-  thumbnailDataUrl: string;
+  thumbnailDataUrl: string | null;
+};
+
+export type UpdateItemThumbnailInput = {
+  id: string;
+  thumbnailDataUrl: string | null;
 };
 
 export type AssignBookmarkFolderInput = {
@@ -756,6 +762,7 @@ export type ElectronAPI = {
   listItems: () => Promise<VaultItemSummary[]>;
   listItemsQuery: (input: ListItemsQueryInput) => Promise<OperationResult<ListItemsQueryResult>>;
   getItemThumbnail: (itemId: string) => Promise<OperationResult<ItemThumbnail>>;
+  updateItemThumbnail: (input: UpdateItemThumbnailInput) => Promise<OperationResult<VaultItemSummary>>;
   openMediaSession: (
     input: OpenMediaSessionInput,
   ) => Promise<OperationResult<OpenMediaSessionResult>>;

@@ -10,6 +10,7 @@ import type {
   ItemThumbnail,
   ListItemsQueryInput,
   ListItemsQueryResult,
+  UpdateItemThumbnailInput,
   VaultItemSummary,
 } from '../../../shared/ipc';
 import { getMimeTypeForFilename } from '../../../shared/fileTypes';
@@ -341,6 +342,53 @@ export class VaultService {
       key,
     );
     return { mimeType: row.thumbnail_mime_type, base64Data: decrypted.toString('base64') };
+  }
+
+  updateItemThumbnail(input: UpdateItemThumbnailInput): VaultItemSummary {
+    this.ensureUnlocked();
+    const row = this.db
+      .prepare(`${ITEM_SELECT} WHERE vi.vault_object_id = ?`)
+      .get(input.id) as ItemRow | undefined;
+    if (!row) throw new Error('Item not found.');
+    if (!row.mime_type.startsWith('video/')) {
+      throw new Error('Only video thumbnails can be changed.');
+    }
+
+    if (input.thumbnailDataUrl === null) {
+      this.db
+        .prepare(
+          `UPDATE vault_items
+           SET thumbnail_mime_type = NULL, thumbnail_enc = NULL, thumbnail_iv = NULL, thumbnail_auth_tag = NULL
+           WHERE vault_object_id = ?`,
+        )
+        .run(input.id);
+    } else {
+      const match = input.thumbnailDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (!match?.[1] || !match[2]) throw new Error('Invalid thumbnail data URL.');
+      if (!match[1].startsWith('image/')) throw new Error('Thumbnail must be an image.');
+
+      const thumbnailBuffer = Buffer.from(match[2], 'base64');
+      if (thumbnailBuffer.length === 0) throw new Error('Invalid thumbnail data URL.');
+
+      const key = this.sessionStore.getMasterKey();
+      const encryptedThumbnail = this.cryptoService.encryptBuffer(thumbnailBuffer, key);
+      this.db
+        .prepare(
+          `UPDATE vault_items
+           SET thumbnail_mime_type = ?, thumbnail_enc = ?, thumbnail_iv = ?, thumbnail_auth_tag = ?
+           WHERE vault_object_id = ?`,
+        )
+        .run(match[1], encryptedThumbnail.encrypted, encryptedThumbnail.iv, encryptedThumbnail.authTag, input.id);
+    }
+    this.db
+      .prepare(`UPDATE vault_objects SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
+      .run(input.id);
+
+    const updated = this.db
+      .prepare(`${ITEM_SELECT} WHERE vi.vault_object_id = ?`)
+      .get(input.id) as ItemRow | undefined;
+    if (!updated) throw new Error('Item not found.');
+    return this.mapRowsToItems([updated])[0];
   }
 
   setRating(itemId: string, rating: number | null): void {

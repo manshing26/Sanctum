@@ -290,14 +290,20 @@ export class BookmarkService {
 
   async updateThumbnail(input: UpdateBookmarkThumbnailInput): Promise<BookmarkSummary> {
     const masterKey = this.getMasterKey();
-    const match = input.thumbnailDataUrl.match(/^data:[^;]+;base64,(.+)$/);
-    if (!match?.[1]) throw new Error('Invalid thumbnail data URL.');
-    const thumbBuf = Buffer.from(match[1], 'base64');
-    const enc = this.cryptoService.encryptBuffer(thumbBuf, masterKey);
+    if (input.thumbnailDataUrl === null) {
+      this.db
+        .prepare(`UPDATE bookmarks SET thumbnail_enc = NULL, thumbnail_iv = NULL, thumbnail_auth_tag = NULL WHERE vault_object_id = ?`)
+        .run(input.id);
+    } else {
+      const match = input.thumbnailDataUrl.match(/^data:[^;]+;base64,(.+)$/);
+      if (!match?.[1]) throw new Error('Invalid thumbnail data URL.');
+      const thumbBuf = Buffer.from(match[1], 'base64');
+      const enc = this.cryptoService.encryptBuffer(thumbBuf, masterKey);
 
-    this.db
-      .prepare(`UPDATE bookmarks SET thumbnail_enc = ?, thumbnail_iv = ?, thumbnail_auth_tag = ? WHERE vault_object_id = ?`)
-      .run(enc.encrypted, enc.iv, enc.authTag, input.id);
+      this.db
+        .prepare(`UPDATE bookmarks SET thumbnail_enc = ?, thumbnail_iv = ?, thumbnail_auth_tag = ? WHERE vault_object_id = ?`)
+        .run(enc.encrypted, enc.iv, enc.authTag, input.id);
+    }
     this.db
       .prepare(`UPDATE vault_objects SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
       .run(input.id);

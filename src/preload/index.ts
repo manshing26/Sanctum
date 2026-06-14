@@ -32,6 +32,7 @@ import {
   type CreateVaultPasswordInput,
   type CloseMediaSessionInput,
   type ClearAllVaultItemsInput,
+  type UpdateItemThumbnailInput,
   type ExportProgress,
   type ImportRequest,
   type ImportProgress,
@@ -102,6 +103,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listItemsQuery: (input: ListItemsQueryInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.listItemsQuery, input),
   getItemThumbnail: (itemId: string) => ipcRenderer.invoke(IPC_CHANNELS.getItemThumbnail, itemId),
+  updateItemThumbnail: (input: UpdateItemThumbnailInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.updateItemThumbnail, input),
   openMediaSession: (input: OpenMediaSessionInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.openMediaSession, input),
   closeMediaSession: (input: CloseMediaSessionInput) =>

@@ -16,6 +16,7 @@ import {
   type ScanImportConflictsInput,
   type ToggleFavoriteInput,
   type SetRatingInput,
+  type UpdateItemThumbnailInput,
 } from '../../shared/ipc';
 import { MainWindowController } from '../windows/MainWindowController';
 import { ImportService } from '../services/import/ImportService';
@@ -187,6 +188,20 @@ export const registerVaultHandlers = ({
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to load thumbnail.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.updateItemThumbnail, (_event, input: UpdateItemThumbnailInput) => {
+    try {
+      return {
+        ok: true as const,
+        data: vaultService.updateItemThumbnail(input),
+      };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to update thumbnail.',
       };
     }
   });

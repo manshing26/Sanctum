@@ -285,12 +285,30 @@ export const useGalleryState = () => {
     setPrimarySelectedId(null);
   }, []);
 
+  const setThumbnail = useCallback((itemId: string, dataUrl: string | null): void => {
+    setThumbnails((prev) => {
+      const next = { ...prev };
+      if (dataUrl === null) {
+        delete next[itemId];
+      } else {
+        next[itemId] = dataUrl;
+      }
+      return next;
+    });
+  }, []);
+
+  const updateItemSummary = useCallback((item: VaultItemSummary): void => {
+    setAllItems((prev) => prev.map((existing) => existing.id === item.id ? item : existing));
+  }, []);
+
   return {
     allItems,
     filteredItems,
     isLoading,
     thumbnails,
     hydrateThumbnails,
+    setThumbnail,
+    updateItemSummary,
     folders,
     tags,
     securitySettings,

@@ -1753,10 +1753,13 @@ const BookmarkInspector: React.FC<{
 
 // ── Thumbnail picker overlay ──────────────────────────────────────────
 const ThumbnailPicker: React.FC<{
-  bookmark: BookmarkSummary;
-  onPick: (dataUrl: string, bookmarkId: string) => void;
+  title: string;
+  targetId: string;
+  hasThumbnail: boolean;
+  onPick: (dataUrl: string, targetId: string) => void;
+  onRemove: (targetId: string) => void;
   onClose: () => void;
-}> = ({ bookmark, onPick, onClose }) => {
+}> = ({ title, targetId, hasThumbnail, onPick, onRemove, onClose }) => {
   const [candidates, setCandidates] = useState<Array<{ item: VaultItemSummary; dataUrl: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -1801,7 +1804,7 @@ const ThumbnailPicker: React.FC<{
     <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)' }}>
       <div style={{ background: '#14160f', border: `1px solid ${T.line2}`, width: 480, maxHeight: '70vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${T.line}` }}>
-          <span style={{ fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute }}>Choose thumbnail — {bookmark.title}</span>
+          <span style={{ fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.mute }}>Choose thumbnail — {title}</span>
           <button type="button" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 0 }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="1" y1="1" x2="11" y2="11" /><line x1="11" y1="1" x2="1" y2="11" /></svg>
           </button>
@@ -1848,6 +1851,28 @@ const ThumbnailPicker: React.FC<{
             </button>
           )}
         </div>
+        {hasThumbnail && (
+          <div style={{ padding: '10px 16px', borderBottom: `1px solid ${T.line}` }}>
+            <button
+              type="button"
+              onClick={() => onRemove(targetId)}
+              style={{
+                height: 28,
+                padding: '0 10px',
+                background: 'none',
+                border: `1px solid ${T.danger}`,
+                color: T.danger,
+                cursor: 'pointer',
+                fontFamily: MONO,
+                fontSize: fontSize(10),
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Remove thumbnail
+            </button>
+          </div>
+        )}
         <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '32px 0', color: T.mute }}>
@@ -1864,8 +1889,8 @@ const ThumbnailPicker: React.FC<{
                 <div key={item.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => onPick(dataUrl, bookmark.id)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') onPick(dataUrl, bookmark.id); }}
+                  onClick={() => onPick(dataUrl, targetId)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') onPick(dataUrl, targetId); }}
                   title={item.originalName}
                   style={{ minWidth: 0, overflow: 'hidden', cursor: 'pointer', border: `1px solid ${T.line}`, flexShrink: 0 }}
                 >
@@ -2029,7 +2054,7 @@ const compareCreatedOldest = (a: { createdAt: string }, b: { createdAt: string }
 export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Element => {
   const state = useGalleryState();
   const {
-    allItems, filteredItems, isLoading, thumbnails, hydrateThumbnails,
+    allItems, filteredItems, isLoading, thumbnails, hydrateThumbnails, setThumbnail, updateItemSummary,
     folders, tags, securitySettings, searchTerm, sort,
     selectedFolderId, selectedViewScope, selectedTagIds, selectedItem,
     selectedItemIds, secureDelete, importFolderId, showFavoritesOnly,
@@ -2045,6 +2070,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   const [selectedBookmarkId, setSelectedBookmarkId] = useState<string | null>(null);
   const [selectedBookmarkIds, setSelectedBookmarkIds] = useState<string[]>([]);
   const [thumbPickerBookmark, setThumbPickerBookmark] = useState<BookmarkSummary | null>(null);
+  const [thumbPickerVideo, setThumbPickerVideo] = useState<VaultItemSummary | null>(null);
   const [privateOpenTargets, setPrivateOpenTargets] = useState<ExternalPrivateBrowserTarget[]>([]);
   // null = all bookmarks (no folder filter), number = filter by that folder
   const [bookmarkFolderId, setBookmarkFolderId] = useState<number | null>(null);
@@ -3090,6 +3116,32 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     toast.success('Thumbnail updated.');
   };
 
+  const handleRemoveBookmarkThumb = async (bookmarkId: string): Promise<void> => {
+    const result = await window.electronAPI.updateBookmarkThumbnail({ id: bookmarkId, thumbnailDataUrl: null });
+    if (!result.ok) { toast.error('Failed to remove thumbnail.'); return; }
+    setBookmarks((prev) => prev.map((b) => b.id === bookmarkId ? result.data : b));
+    setThumbPickerBookmark(null);
+    toast.success('Thumbnail removed.');
+  };
+
+  const handlePickVideoThumb = async (dataUrl: string, itemId: string): Promise<void> => {
+    const result = await window.electronAPI.updateItemThumbnail({ id: itemId, thumbnailDataUrl: dataUrl });
+    if (!result.ok) { toast.error(result.error || 'Failed to update thumbnail.'); return; }
+    updateItemSummary(result.data);
+    setThumbnail(itemId, dataUrl);
+    setThumbPickerVideo(null);
+    toast.success('Thumbnail updated.');
+  };
+
+  const handleRemoveVideoThumb = async (itemId: string): Promise<void> => {
+    const result = await window.electronAPI.updateItemThumbnail({ id: itemId, thumbnailDataUrl: null });
+    if (!result.ok) { toast.error(result.error || 'Failed to remove thumbnail.'); return; }
+    updateItemSummary(result.data);
+    setThumbnail(itemId, null);
+    setThumbPickerVideo(null);
+    toast.success('Thumbnail removed.');
+  };
+
   // Export bookmarks
   const handleExportBookmarks = async (bookmarkIds = selectedBookmarkIds): Promise<void> => {
     const ids = bookmarkIds.length > 0 ? bookmarkIds : undefined;
@@ -3358,6 +3410,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     onToggleFavorite: (itemId: string, isFavorite: boolean) => void handleToggleFavorite(itemId, isFavorite),
     onRenameItem: (itemId: string, newName: string) => void handleRenameItem(itemId, newName),
     onSetRating: (itemId: string, rating: number | null) => void handleSetRating(itemId, rating),
+    onChangeThumbnail: (item: VaultItemSummary) => setThumbPickerVideo(item),
     onGoToFolder: showGoToFolderActions ? handleGoToItemFolder : undefined,
     selectedCount: selectedItemIds.length,
     onUpdateSecureDeleteDefault: (enabled: boolean) =>
@@ -4256,9 +4309,22 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
       {/* Thumbnail picker */}
       {thumbPickerBookmark && (
         <ThumbnailPicker
-          bookmark={thumbPickerBookmark}
+          title={thumbPickerBookmark.title}
+          targetId={thumbPickerBookmark.id}
+          hasThumbnail={Boolean(thumbPickerBookmark.thumbnailDataUrl)}
           onPick={(dataUrl, bookmarkId) => void handlePickThumb(dataUrl, bookmarkId)}
+          onRemove={(bookmarkId) => void handleRemoveBookmarkThumb(bookmarkId)}
           onClose={() => setThumbPickerBookmark(null)}
+        />
+      )}
+      {thumbPickerVideo && (
+        <ThumbnailPicker
+          title={thumbPickerVideo.originalName}
+          targetId={thumbPickerVideo.id}
+          hasThumbnail={thumbPickerVideo.hasThumbnail || Boolean(thumbnails[thumbPickerVideo.id])}
+          onPick={(dataUrl, itemId) => void handlePickVideoThumb(dataUrl, itemId)}
+          onRemove={(itemId) => void handleRemoveVideoThumb(itemId)}
+          onClose={() => setThumbPickerVideo(null)}
         />
       )}
     </div>
