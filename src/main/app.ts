@@ -168,6 +168,24 @@ export const bootstrapApp = (): void => {
     if (direction === 'left') return 'history-forward';
     return null;
   };
+  const playingMediaContentsIds = new Set<number>();
+  const trackedMediaContentsIds = new Set<number>();
+  const wireMediaPlaybackTracking = (contents: WebContents): void => {
+    if (trackedMediaContentsIds.has(contents.id)) {
+      return;
+    }
+    trackedMediaContentsIds.add(contents.id);
+    contents.on('media-started-playing', () => {
+      playingMediaContentsIds.add(contents.id);
+    });
+    contents.on('media-paused', () => {
+      playingMediaContentsIds.delete(contents.id);
+    });
+    contents.on('destroyed', () => {
+      playingMediaContentsIds.delete(contents.id);
+      trackedMediaContentsIds.delete(contents.id);
+    });
+  };
   const wireBrowserWindowShortcuts = (window: BrowserWindow): void => {
     window.webContents.on('before-input-event', (event, input) => {
       const command = commandFromKeyboardInput(input);
@@ -194,7 +212,11 @@ export const bootstrapApp = (): void => {
       sendBrowserCommandToWindow(window, command);
     });
   };
-  browserWindowController.setOnCreated(wireBrowserWindowShortcuts);
+  const wireBrowserWindow = (window: BrowserWindow): void => {
+    wireBrowserWindowShortcuts(window);
+    wireMediaPlaybackTracking(window.webContents);
+  };
+  browserWindowController.setOnCreated(wireBrowserWindow);
 
   app.on('second-instance', () => {
     const window = mainWindowController.getWindow();
@@ -378,6 +400,7 @@ export const bootstrapApp = (): void => {
         for (const wc of webContents.getAllWebContents()) {
           wc.setAudioMuted(true);
         }
+        playingMediaContentsIds.clear();
 
         authService.lockVault();
         browserWindowController.close();
@@ -404,6 +427,9 @@ export const bootstrapApp = (): void => {
         return;
       }
       const idleSeconds = powerMonitor.getSystemIdleTime();
+      if (playingMediaContentsIds.size > 0) {
+        return;
+      }
       if (idleSeconds >= securitySettings.autoLockMinutes * 60) {
         void performGlobalLock('idle_timeout');
       }
@@ -438,6 +464,7 @@ export const bootstrapApp = (): void => {
         for (const wc of webContents.getAllWebContents()) {
           wc.setAudioMuted(true);
         }
+        playingMediaContentsIds.clear();
         browserWindowController.close();
         await mediaSessionService.clearAllSessions();
         await mediaSessionService.stop();
@@ -470,6 +497,7 @@ export const bootstrapApp = (): void => {
     });
 
     const mainWindow = mainWindowController.create();
+    wireMediaPlaybackTracking(mainWindow.webContents);
     app.on('before-quit', () => {
       if (!isResettingAllData) {
         void vaultService.clearTemporaryOpenFiles();
@@ -588,6 +616,7 @@ export const bootstrapApp = (): void => {
     };
 
     app.on('web-contents-created', (_event, contents) => {
+      wireMediaPlaybackTracking(contents);
       if (contents.getType() !== 'webview') {
         return;
       }
