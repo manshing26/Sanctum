@@ -53,6 +53,7 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - Replace bookmark thumbnails manually by choosing an existing Vault image.
 - Browser area screenshots can be captured into Vault and then reused as bookmark thumbnails.
 - Bookmark thumbnail picker supports filename search/filter.
+- The Browser `Saved Web` drawer is read/open-only, searchable, grouped by domain, and opens/closes with `Cmd/Ctrl+B`.
 - Open bookmarks in the built-in browser.
 - Open bookmarks in an installed external private browser: Chrome, Brave, Edge, or Firefox.
 - Import/export Netscape HTML bookmark files; selected bookmark export is supported.
@@ -67,7 +68,7 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 ### Built-in Private Browser
 
 - Chromium `webview` in a separate Electron session partition.
-- Multi-tab browsing with address bar, stacked tab counts, back/forward/reload, tab close/new-tab shortcuts, and trackpad/mouse back-forward navigation.
+- Multi-tab browsing with address bar, stacked tab counts, Saved Web drawer, back/forward/reload, tab close/new-tab shortcuts, and trackpad/mouse back-forward navigation.
 - Configurable default search engine.
 - Sanctum-owned new tab page.
 - Save images/videos from the browser directly into the vault.
@@ -77,7 +78,7 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - Browser audio is muted on vault lock and can be resumed per tab after unlock.
 - Optional third-party cookie blocking.
 - Clear-on-exit for cookies, cache, localStorage, IndexedDB, service workers, and related web storage.
-- Browser extension support for manual/dev use.
+- Browser extension/plugin UI is hidden in V1.
 
 ### Backup, Restore, and Wipe
 
