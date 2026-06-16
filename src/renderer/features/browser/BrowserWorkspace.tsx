@@ -1008,12 +1008,12 @@ export const BrowserWorkspace = ({
         pageUrl: activeTab.url,
       });
       if (!result.ok) {
-        toast.error('Capture failed.', { id: toastId });
+        toast.error('Capture failed.', { id: toastId, duration: 4000 });
         return;
       }
-      toast.success('Captured to Vault.', { id: toastId });
+      toast.success('Captured to Vault.', { id: toastId, duration: 4000 });
     } catch {
-      toast.error('Capture failed.', { id: toastId });
+      toast.error('Capture failed.', { id: toastId, duration: 4000 });
     } finally {
       setIsCapturingPage(false);
     }
