@@ -31,6 +31,7 @@ declare global {
         src?: string;
         partition?: string;
         allowpopups?: string;
+        allowFullScreen?: boolean;
       };
     }
   }

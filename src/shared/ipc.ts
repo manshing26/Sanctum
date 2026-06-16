@@ -7,6 +7,7 @@ export const IPC_CHANNELS = {
   openBrowserWindow: 'browser:open-window',
   closeBrowserWindow: 'browser:close-window',
   browserCommand: 'browser:command',
+  openUrlInTab: 'browser:open-url-in-tab',
   popupBlocked: 'browser:popup-blocked',
   bookmarksChanged: 'browser:bookmarks-changed',
   allowPopupHost: 'browser:popups:allow-host',
@@ -148,6 +149,10 @@ export type BookmarksChangedReason = 'created' | 'updated' | 'deleted' | 'import
 
 export type BookmarksChangedPayload = {
   reason: BookmarksChangedReason;
+};
+
+export type BrowserOpenUrlInTabPayload = {
+  url: string;
 };
 
 export type SessionChangeReason = 'manual' | 'idle_timeout' | 'window_minimize' | 'system_lock' | 'system_sleep';
@@ -850,6 +855,7 @@ export type ElectronAPI = {
 export type BrowserAPI = {
   closeBrowserWindow: () => Promise<void>;
   onBrowserCommand: (handler: (command: BrowserCommand) => void) => () => void;
+  onOpenUrlInTab: (handler: (payload: BrowserOpenUrlInTabPayload) => void) => () => void;
   onPopupBlocked: (handler: (request: BrowserPopupRequest) => void) => () => void;
   onBookmarksChanged: (handler: (payload: BookmarksChangedPayload) => void) => () => void;
   allowPopupHost: (host: string) => Promise<OperationResult<BrowserSettings>>;

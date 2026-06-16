@@ -409,6 +409,7 @@ const TabWebView = ({ tab, onAttach, onStateChange, onNavigateEvent }: TabWebVie
           }}
           src={tab.url || undefined}
           partition={BROWSER_PARTITION}
+          allowFullScreen
           style={{ display: 'flex', width: '100%', height: '100%', backgroundColor: T.bg }}
         />
       </div>
@@ -894,6 +895,16 @@ export const BrowserWorkspace = ({
     });
     return unsubscribe;
   }, [browserSettings?.allowedPopupHosts, openUrlInNewTab]);
+
+  useEffect(() => {
+    const unsubscribe = window.browserAPI.onOpenUrlInTab((payload) => {
+      if (!isWorkspaceActive) {
+        return;
+      }
+      openUrlInNewTab(payload.url);
+    });
+    return unsubscribe;
+  }, [isWorkspaceActive, openUrlInNewTab]);
 
   const handleAddressSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault();

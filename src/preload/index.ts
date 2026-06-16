@@ -5,6 +5,7 @@ import {
   type AssignItemTagInput,
   type AssignItemsTagInput,
   type BrowserCommand,
+  type BrowserOpenUrlInTabPayload,
   type BrowserPopupRequest,
   type AppearanceSettings,
   type BackupProgress,
@@ -277,6 +278,15 @@ contextBridge.exposeInMainWorld('browserAPI', {
     ipcRenderer.on(IPC_CHANNELS.browserCommand, listener);
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.browserCommand, listener);
+    };
+  },
+  onOpenUrlInTab: (handler: (payload: BrowserOpenUrlInTabPayload) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: BrowserOpenUrlInTabPayload) => {
+      handler(payload);
+    };
+    ipcRenderer.on(IPC_CHANNELS.openUrlInTab, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.openUrlInTab, listener);
     };
   },
   onPopupBlocked: (handler: (request: BrowserPopupRequest) => void) => {

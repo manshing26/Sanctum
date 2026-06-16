@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import {
   type BrowserCommand,
+  type BrowserOpenUrlInTabPayload,
   IPC_CHANNELS,
   type AppearanceSettings,
   type UpdateBrowserSettingsInput,
@@ -19,6 +20,15 @@ contextBridge.exposeInMainWorld('browserAPI', {
     ipcRenderer.on(IPC_CHANNELS.browserCommand, listener);
     return () => {
       ipcRenderer.removeListener(IPC_CHANNELS.browserCommand, listener);
+    };
+  },
+  onOpenUrlInTab: (handler: (payload: BrowserOpenUrlInTabPayload) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: BrowserOpenUrlInTabPayload) => {
+      handler(payload);
+    };
+    ipcRenderer.on(IPC_CHANNELS.openUrlInTab, listener);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNELS.openUrlInTab, listener);
     };
   },
   getAppearanceSettings: () =>

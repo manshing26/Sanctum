@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { app, BrowserWindow, ipcMain, Menu, powerMonitor, protocol, session, webContents, type WebContents } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, powerMonitor, protocol, session, webContents, type MenuItemConstructorOptions, type WebContents } from 'electron';
 import type { Input } from 'electron';
 import type {
   BrowserCommand,
@@ -23,6 +23,7 @@ import { registerTagHandlers } from './ipc/registerTagHandlers';
 import { registerVaultHandlers } from './ipc/registerVaultHandlers';
 import { AuthService } from './services/auth/AuthService';
 import { BookmarkService } from './services/bookmark/BookmarkService';
+import { isHttpUrl, listPrivateOpenTargets, openExternalPrivate } from './services/browser/ExternalPrivateBrowserService';
 import { NoteService } from './services/note/NoteService';
 import { PasswordService } from './services/password/PasswordService';
 import { CryptoService } from './services/crypto/CryptoService';
@@ -118,6 +119,7 @@ export const bootstrapApp = (): void => {
 
   const mainWindowController = new MainWindowController();
   const browserWindowController = new BrowserWindowController();
+  let requestManualLock: (() => void) | null = null;
   const sendBrowserCommandToWindow = (window: BrowserWindow | null, command: BrowserCommand): void => {
     if (!window || window.isDestroyed()) {
       return;
@@ -255,15 +257,45 @@ export const bootstrapApp = (): void => {
     const applySecuritySettings = (settings: SecuritySettings): void => {
       securitySettings = settings;
     };
-    const clearBrowserData = (): void => {
-      void browserSession.clearStorageData({
+    const exitBrowserFullscreen = async (): Promise<void> => {
+      const windows = [mainWindowController.getWindow(), browserWindowController.getWindow()];
+      for (const win of windows) {
+        if (!win || win.isDestroyed()) continue;
+        try {
+          if (win.isFullScreen()) {
+            win.setFullScreen(false);
+          }
+        } catch {
+          // Ignore fullscreen cleanup failures.
+        }
+        try {
+          win.webContents.executeJavaScript('document.fullscreenElement && document.exitFullscreen ? document.exitFullscreen() : undefined', true);
+        } catch {
+          // Ignore renderer fullscreen cleanup failures.
+        }
+      }
+
+      await Promise.allSettled(
+        webContents.getAllWebContents().map(async (wc) => {
+          if (wc.isDestroyed()) return;
+          try {
+            await wc.executeJavaScript('document.fullscreenElement && document.exitFullscreen ? document.exitFullscreen() : undefined', true);
+          } catch {
+            // Some internal or destroyed contents cannot run scripts.
+          }
+        }),
+      );
+    };
+    const clearBrowserData = async (): Promise<void> => {
+      await exitBrowserFullscreen();
+      await browserSession.clearStorageData({
         storages: ['cookies', 'localstorage', 'indexdb', 'serviceworkers', 'cachestorage', 'websql'],
       });
-      void browserSession.clearCache();
+      await browserSession.clearCache();
     };
-    browserSession.setPermissionCheckHandler(() => false);
-    browserSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
-      callback(false);
+    browserSession.setPermissionCheckHandler((_webContents, permission) => permission === 'fullscreen');
+    browserSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+      callback(permission === 'fullscreen');
     });
     browserSession.webRequest.onBeforeSendHeaders((details, callback) => {
       const headers = details.requestHeaders;
@@ -382,7 +414,7 @@ export const bootstrapApp = (): void => {
 
     browserWindowController.setOnClosed(() => {
       if (settingsService.getBrowserSettings().clearOnExit) {
-        clearBrowserData();
+        void clearBrowserData();
       }
     });
 
@@ -394,6 +426,7 @@ export const bootstrapApp = (): void => {
 
       isLocking = true;
       try {
+        await exitBrowserFullscreen();
         // Mute all webContents immediately so audio stops synchronously before
         // any async teardown. This covers webviews in the main window (same-window
         // browser) which are guest processes that keep playing until explicitly stopped.
@@ -418,6 +451,19 @@ export const bootstrapApp = (): void => {
         isLocking = false;
       }
     };
+    requestManualLock = () => {
+      if (sessionStore.getState().status !== 'unlocked') {
+        return;
+      }
+      void performGlobalLock('manual');
+    };
+    try {
+      globalShortcut.register('CommandOrControl+Shift+L', () => {
+        requestManualLock?.();
+      });
+    } catch {
+      // Shortcut registration can fail if the OS owns the accelerator.
+    }
 
     const idleLockInterval = setInterval(() => {
       if (sessionStore.getState().status !== 'unlocked') {
@@ -461,6 +507,7 @@ export const bootstrapApp = (): void => {
 
         isResettingAllData = true;
         clearInterval(idleLockInterval);
+        await exitBrowserFullscreen();
         for (const wc of webContents.getAllWebContents()) {
           wc.setAudioMuted(true);
         }
@@ -541,6 +588,7 @@ export const bootstrapApp = (): void => {
       importService,
       settingsService,
       browserSession,
+      onBeforeClearData: exitBrowserFullscreen,
       getExtensionStartupErrors: () => [...extensionStartupErrors],
     });
     registerAuthHandlers({
@@ -590,6 +638,10 @@ export const bootstrapApp = (): void => {
       }
     };
     const normalizePopupHost = (host: string): string => host.trim().toLowerCase().replace(/^www\./, '');
+    const getWebviewHostWindow = (contents: WebContents): BrowserWindow | null =>
+      contents.hostWebContents
+        ? BrowserWindow.fromWebContents(contents.hostWebContents)
+        : BrowserWindow.fromWebContents(contents);
     const buildPopupRequest = (contents: WebContents, targetUrl: string): import('../shared/ipc').BrowserPopupRequest | null => {
       try {
         const target = new URL(targetUrl);
@@ -620,11 +672,14 @@ export const bootstrapApp = (): void => {
       if (contents.getType() !== 'webview') {
         return;
       }
+      contents.once('destroyed', () => {
+        void exitBrowserFullscreen();
+      });
 
       contents.setWindowOpenHandler(({ url }) => {
         const request = buildPopupRequest(contents, url);
         if (request) {
-          const hostWindow = contents.hostWebContents ? BrowserWindow.fromWebContents(contents.hostWebContents) : BrowserWindow.fromWebContents(contents);
+          const hostWindow = getWebviewHostWindow(contents);
           hostWindow?.webContents.send(IPC_CHANNELS.popupBlocked, request);
         }
         return { action: 'deny' };
@@ -635,42 +690,92 @@ export const bootstrapApp = (): void => {
           return;
         }
         event.preventDefault();
-        sendBrowserCommandToWindow(BrowserWindow.fromWebContents(contents), command);
+        sendBrowserCommandToWindow(getWebviewHostWindow(contents), command);
       });
 
       contents.on('context-menu', (_eventMenu, params) => {
+        const hostWindow = getWebviewHostWindow(contents);
+        const linkUrl = (() => {
+          if (!params.linkURL || !isHttpUrl(params.linkURL)) {
+            return '';
+          }
+          try {
+            return new URL(params.linkURL).toString();
+          } catch {
+            return '';
+          }
+        })();
         const targetUrl = params.srcURL || params.linkURL || '';
         const isMedia =
           params.mediaType === 'video' ||
           params.mediaType === 'image' ||
           (targetUrl && isMediaUrl(targetUrl));
+        const template: MenuItemConstructorOptions[] = [];
 
-        if (!isMedia || !targetUrl) {
-          return;
-        }
-        if (!isAllowedDownloadProtocol(targetUrl)) {
-          return;
+        if (linkUrl) {
+          template.push({
+            label: 'Open Link in New Tab',
+            click: () => {
+              hostWindow?.webContents.send(IPC_CHANNELS.openUrlInTab, { url: linkUrl });
+            },
+          });
+
+          const privateTargets = listPrivateOpenTargets().filter((target) => target.available);
+          if (privateTargets.length > 0) {
+            template.push({
+              label: 'Open Private In...',
+              submenu: privateTargets.map((target) => ({
+                label: target.label,
+                click: () => {
+                  void openExternalPrivate({ url: linkUrl, browser: target.id }).catch(() => {
+                    if (hostWindow && !hostWindow.isDestroyed()) {
+                      void dialog.showMessageBox(hostWindow, {
+                        type: 'error',
+                        message: 'Could not open private browser.',
+                        buttons: ['OK'],
+                      });
+                    }
+                  });
+                },
+              })),
+            });
+          } else {
+            template.push({
+              label: 'No supported private browser found',
+              enabled: false,
+            });
+          }
         }
 
-        const menu = Menu.buildFromTemplate([
-          {
+        if (isMedia && targetUrl && isAllowedDownloadProtocol(targetUrl)) {
+          if (template.length > 0) {
+            template.push({ type: 'separator' });
+          }
+          template.push({
             label: 'Save to Vault',
             click: () => {
               contents.downloadURL(targetUrl);
             },
-          },
-        ]);
-        menu.popup({ window: BrowserWindow.fromWebContents(contents) ?? undefined });
+          });
+        }
+
+        if (template.length === 0) {
+          return;
+        }
+
+        const menu = Menu.buildFromTemplate(template);
+        menu.popup({ window: hostWindow ?? undefined });
       });
     });
 
     app.once('before-quit', () => {
+      globalShortcut.unregister('CommandOrControl+Shift+L');
       clearInterval(idleLockInterval);
       if (!isResettingAllData) {
         void mediaSessionService.stop();
       }
       if (!isResettingAllData && settingsService.getBrowserSettings().clearOnExit) {
-        clearBrowserData();
+        void clearBrowserData();
       }
       session.defaultSession.protocol.unhandle('privatevault-media');
     });
