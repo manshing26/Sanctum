@@ -883,7 +883,8 @@ export type BrowserCommand =
   | 'new-tab'
   | 'close-active-tab'
   | 'reload-or-stop'
-  | 'focus-address';
+  | 'focus-address'
+  | 'toggle-saved-web';
 
 export type AuthScreenMode = 'login' | 'create-account' | 'loading';
 

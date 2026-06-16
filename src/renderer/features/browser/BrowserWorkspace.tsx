@@ -6,8 +6,6 @@ import type {
   BrowserPopupRequest,
   BrowserSettings,
   DownloadProgress,
-  ExtensionStartupError,
-  ExtensionSummary,
   ExternalPrivateBrowserTarget,
   FolderNode,
   PasswordDetail,
@@ -93,6 +91,12 @@ type NavigationSample = { url: string; at: number };
 const isMacPlatform = (): boolean =>
   /Mac|iPhone|iPad|iPod/.test(window.navigator.platform);
 
+const isEditableShortcutTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable;
+};
+
 const browserCommandFromKeyboardEvent = (event: KeyboardEvent): BrowserCommand | null => {
   const key = event.key.toLowerCase();
   const code = event.code.toLowerCase();
@@ -107,6 +111,7 @@ const browserCommandFromKeyboardEvent = (event: KeyboardEvent): BrowserCommand |
     if (key === 'w') return 'close-active-tab';
     if (key === 'r') return 'reload-or-stop';
     if (key === 'l') return 'focus-address';
+    if (key === 'b' && !isEditableShortcutTarget(event.target)) return 'toggle-saved-web';
   }
 
   if (!isMac && event.altKey && !event.ctrlKey && !event.metaKey) {
@@ -119,6 +124,7 @@ const browserCommandFromKeyboardEvent = (event: KeyboardEvent): BrowserCommand |
     if (key === 'w') return 'close-active-tab';
     if (key === 'r') return 'reload-or-stop';
     if (key === 'l') return 'focus-address';
+    if (key === 'b' && !isEditableShortcutTarget(event.target)) return 'toggle-saved-web';
   }
 
   return null;
@@ -127,6 +133,13 @@ const browserCommandFromKeyboardEvent = (event: KeyboardEvent): BrowserCommand |
 // ── Helpers ──────────────────────────────────────────────────────────
 const getDomainLabel = (rawUrl: string): string => {
   try { return new URL(rawUrl).hostname || 'Unknown'; } catch { return 'Unknown'; }
+};
+
+const getDomainAccent = (domain: string): string => {
+  let hash = 0;
+  for (let i = 0; i < domain.length; i += 1) hash = domain.charCodeAt(i) + ((hash << 5) - hash);
+  const hue = Math.abs(hash) % 360;
+  return `linear-gradient(135deg, hsl(${hue}, 26%, 20%), hsl(${(hue + 42) % 360}, 24%, 11%))`;
 };
 
 const isHttps = (url: string): boolean => {
@@ -144,6 +157,8 @@ const MIN_VISIBLE_TABS = 3;
 const COMPACT_TAB_WIDTH = 112;
 const STACK_CHIP_WIDTH = 54;
 const STACKED_TAB_THRESHOLD = 10;
+const SAVED_WEB_DRAWER_WIDTH = 320;
+const SAVED_WEB_OVERLAY_BREAKPOINT = 980;
 type PersistedTabState = { urls: string[]; activeIndex: number };
 
 type VisibleTabWindow = {
@@ -275,13 +290,6 @@ const IcoCamera = () => (
 const IcoBookmark = () => (
   <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
     <path d="M2.5 1.5h8v10l-4-2.5-4 2.5z"/>
-  </svg>
-);
-const IcoPuzzle = () => (
-  <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M6 2H3.5a1 1 0 0 0-1 1v2.5M6 2c0 1-1 1.5-1 2.5H8C8 3.5 7 3 7 2H6z"/>
-    <path d="M2.5 5.5v5a1 1 0 0 0 1 1H9M2.5 9c1 0 1.5-1 2.5-1s1.5 1 2.5 1v-3c-1 0-1.5-1-2.5-1s-1.5 1-2.5 1V9z"/>
-    <path d="M9 11.5h1.5a1 1 0 0 0 1-1V8M9 11.5c0-1 1-1.5 1-2.5V6c-1 0-1.5 1-2.5 1h0V9.5"/>
   </svg>
 );
 const IcoDownload = () => (
@@ -584,14 +592,12 @@ const NewTabPage: React.FC<{
 // ── BrowserWorkspace ─────────────────────────────────────────────────
 export const BrowserWorkspace = ({
   mode,
-  showLeftPanel,
   showCloseButton,
   isActive,
   pendingUrl,
   onPendingUrlConsumed,
   imperativeRef,
 }: BrowserWorkspaceProps): React.JSX.Element => {
-  const showPersistentLeftPanel = showLeftPanel ?? mode === 'same-window';
   const canShowCloseButton = showCloseButton ?? mode === 'legacy-window';
   const isWorkspaceActive = isActive ?? true;
   const isSuspended = !isWorkspaceActive;
@@ -600,18 +606,13 @@ export const BrowserWorkspace = ({
   const [tabs, setTabs] = useState<BrowserTab[]>(initialTabs);
   const [activeTabId, setActiveTabId] = useState<string>(initialActiveTabId || initialTabs[0].id);
   const [addressInput, setAddressInput] = useState(HOME_URL);
-  const [legacyShowBookmarks, setLegacyShowBookmarks] = useState(false);
-  const [legacyShowExtensions] = useState(false);
-  const [libraryTab, setLibraryTab] = useState<'bookmarks' | 'extensions'>('bookmarks');
   const [leftPanelOpen, setLeftPanelOpen] = useState(false);
+  const [bookmarkSearch, setBookmarkSearch] = useState('');
   const [bookmarks, setBookmarks] = useState<BookmarkSummary[]>([]);
   const [privateOpenTargets, setPrivateOpenTargets] = useState<ExternalPrivateBrowserTarget[]>([]);
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [collapsedDomains, setCollapsedDomains] = useState<Record<string, boolean>>({});
   const [downloads, setDownloads] = useState<Record<string, DownloadEntry>>({});
-  const [extensions, setExtensions] = useState<ExtensionSummary[]>([]);
-  const [extensionError, setExtensionError] = useState('');
-  const [extensionStartupErrors, setExtensionStartupErrors] = useState<ExtensionStartupError[]>([]);
   const [browserSettings, setBrowserSettings] = useState<BrowserSettings | null>(null);
   const [isCleaningWeb, setIsCleaningWeb] = useState(false);
   const [cleanWebConfirmOpen, setCleanWebConfirmOpen] = useState(false);
@@ -626,7 +627,9 @@ export const BrowserWorkspace = ({
   const [pwSaveForm, setPwSaveForm] = useState<{ username: string; password: string; label: string } | null>(null);
   const [pwSaving, setPwSaving] = useState(false);
   const [tabBarWidth, setTabBarWidth] = useState(0);
+  const [workspaceWidth, setWorkspaceWidth] = useState(0);
   const [audioFrozenTabIds, setAudioFrozenTabIds] = useState<Set<string>>(() => new Set());
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
   const webviewRefs = useRef<Record<string, WebviewTag | null>>({});
   const tabBarRef = useRef<HTMLDivElement | null>(null);
   const addressInputRef = useRef<HTMLInputElement | null>(null);
@@ -648,8 +651,19 @@ export const BrowserWorkspace = ({
     return Math.max(MIN_VISIBLE_TABS, Math.min(MAX_VISIBLE_TABS, Math.floor((tabBarWidth - reservedWidth) / COMPACT_TAB_WIDTH)));
   }, [tabBarWidth]);
   const visibleTabWindow = useMemo(() => getVisibleTabWindow(tabs, activeTabId, maxVisibleTabs), [tabs, activeTabId, maxVisibleTabs]);
+  const savedWebOverlayMode = workspaceWidth > 0 && workspaceWidth < SAVED_WEB_OVERLAY_BREAKPOINT;
 
   useImperativeHandle(imperativeRef, () => ({}), []);
+
+  useEffect(() => {
+    const node = workspaceRef.current;
+    if (!node) return undefined;
+    const updateWidth = (): void => setWorkspaceWidth(node.clientWidth);
+    updateWidth();
+    const resizeObserver = new ResizeObserver(updateWidth);
+    resizeObserver.observe(node);
+    return () => resizeObserver.disconnect();
+  }, []);
 
   useEffect(() => {
     const node = tabBarRef.current;
@@ -736,6 +750,17 @@ export const BrowserWorkspace = ({
   }, [pwPanelOpen]);
 
   useEffect(() => {
+    if (!leftPanelOpen) return undefined;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setLeftPanelOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [leftPanelOpen]);
+
+  useEffect(() => {
     if (!areaCaptureActive) return undefined;
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return;
@@ -811,17 +836,6 @@ export const BrowserWorkspace = ({
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [refreshBrowserSettings]);
-
-  const refreshExtensionStartupErrors = async (): Promise<void> => {
-    const r = await window.browserAPI.listExtensionStartupErrors();
-    if (r.ok) setExtensionStartupErrors(r.data);
-  };
-  useEffect(() => { void refreshExtensionStartupErrors(); }, []);
-
-  const refreshExtensions = async (): Promise<void> => {
-    const r = await window.browserAPI.listExtensions();
-    if (r.ok) setExtensions(r.data); else setExtensionError(r.error);
-  };
 
   useEffect(() => {
     const unsub = window.browserAPI.onDownloadUpdate((payload) => {
@@ -1126,6 +1140,13 @@ export const BrowserWorkspace = ({
     if (command === 'focus-address') {
       addressInputRef.current?.focus();
       addressInputRef.current?.select();
+      return;
+    }
+    if (command === 'toggle-saved-web') {
+      setCaptureMenuOpen(false);
+      setPwPanelOpen(false);
+      setPwSaveForm(null);
+      setLeftPanelOpen((open) => !open);
     }
   }, [activeTab, activeTabId, applyTabPatch]);
 
@@ -1352,21 +1373,24 @@ export const BrowserWorkspace = ({
 
   const handleOpenBookmark = (url: string): void => {
     loadInActiveTab(url);
-    if (mode === 'legacy-window') setLegacyShowBookmarks(false);
-  };
-
-  const handleLoadExtension = async (): Promise<void> => {
-    const r = await window.browserAPI.loadExtension();
-    if (!r.ok) setExtensionError(r.error);
-    else { setExtensionError(''); await refreshExtensions(); await refreshExtensionStartupErrors(); }
+    if (savedWebOverlayMode) setLeftPanelOpen(false);
   };
 
   const downloadList = useMemo(() => Object.values(downloads), [downloads]);
+  const filteredBookmarks = useMemo(() => {
+    const query = bookmarkSearch.trim().toLowerCase();
+    if (!query) return bookmarks;
+    return bookmarks.filter((bm) => {
+      const domain = getDomainLabel(bm.url).toLowerCase();
+      return bm.title.toLowerCase().includes(query) || bm.url.toLowerCase().includes(query) || domain.includes(query);
+    });
+  }, [bookmarks, bookmarkSearch]);
   const groupedBookmarks = useMemo(() => {
     const groups = new Map<string, BookmarkSummary[]>();
-    for (const bm of bookmarks) { const d = getDomainLabel(bm.url); groups.set(d, [...(groups.get(d) ?? []), bm]); }
+    for (const bm of filteredBookmarks) { const d = getDomainLabel(bm.url); groups.set(d, [...(groups.get(d) ?? []), bm]); }
     return Array.from(groups.entries());
-  }, [bookmarks]);
+  }, [filteredBookmarks]);
+  const domainCount = useMemo(() => new Set(bookmarks.map((bm) => getDomainLabel(bm.url))).size, [bookmarks]);
 
   const activeIsHttps = activeTab ? isHttps(activeTab.url) : false;
   const activeBookmark = useMemo(() => {
@@ -1378,49 +1402,123 @@ export const BrowserWorkspace = ({
 
   // ── Bookmarks panel content ──────────────────────────────────────
   const bookmarksContent = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, paddingBottom: 12, borderBottom: `1px solid ${T.line}` }}>
+        <div style={{ minWidth: 0 }}>
+          <h2 style={{ margin: 0, fontFamily: SERIF, fontSize: fontSize(22), fontWeight: 400, color: T.text, letterSpacing: '0.01em' }}>
+            Saved Web
+          </h2>
+          <p style={{ margin: '4px 0 0', fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            {bookmarks.length} bookmark{bookmarks.length === 1 ? '' : 's'} · {domainCount} domain{domainCount === 1 ? '' : 's'}
+          </p>
+        </div>
+        <button type="button" onClick={() => setLeftPanelOpen(false)} aria-label="Close Saved Web" style={{ background: 'none', border: 'none', color: T.mute, cursor: 'pointer', display: 'flex', padding: 2, flexShrink: 0 }}>
+          <IcoStop />
+        </button>
+      </div>
+
+      <div style={{ position: 'relative', margin: '12px 0' }}>
+        <input
+          value={bookmarkSearch}
+          onChange={(event) => setBookmarkSearch(event.target.value)}
+          placeholder="Search saved pages..."
+          style={{
+            width: '100%',
+            height: 32,
+            padding: bookmarkSearch ? '0 30px 0 10px' : '0 10px',
+            background: T.bg,
+            border: `1px solid ${T.line2}`,
+            color: T.text,
+            fontFamily: MONO,
+            fontSize: fontSize(10),
+            outline: 'none',
+            boxSizing: 'border-box',
+          }}
+        />
+        {bookmarkSearch && (
+          <button
+            type="button"
+            onClick={() => setBookmarkSearch('')}
+            aria-label="Clear bookmark search"
+            style={{ position: 'absolute', right: 8, top: 8, background: 'none', border: 'none', color: T.mute, cursor: 'pointer', display: 'flex', padding: 0 }}
+          >
+            <IcoStop />
+          </button>
+        )}
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', paddingRight: 2 }}>
         {bookmarks.length === 0 ? (
-          <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, margin: '8px 0' }}>No bookmarks saved.</p>
+          <div style={{ minHeight: 180, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, border: `1px solid ${T.line}`, background: 'rgba(124,154,146,0.04)', padding: 18, textAlign: 'center' }}>
+            <div style={{ width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${T.line2}`, color: T.mute, background: T.bg }}>
+              <IcoBookmark />
+            </div>
+            <div>
+              <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text, margin: '0 0 4px' }}>No saved web pages yet.</p>
+              <p style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2, margin: 0 }}>Use the star button to save the current page.</p>
+            </div>
+          </div>
+        ) : filteredBookmarks.length === 0 ? (
+          <div style={{ minHeight: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${T.line}`, background: T.bg, padding: 18, textAlign: 'center' }}>
+            <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, margin: 0 }}>No saved pages match this search.</p>
+          </div>
         ) : (
-          <div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {groupedBookmarks.map(([domain, domainBookmarks]) => {
               const collapsed = collapsedDomains[domain] ?? false;
               return (
-                <div key={domain}>
+                <div key={domain} style={{ border: `1px solid ${T.line}`, background: 'rgba(255,255,255,0.01)' }}>
                   <button
                     type="button"
                     onClick={() => setCollapsedDomains((p) => ({ ...p, [domain]: !collapsed }))}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6, width: '100%',
-                      padding: '5px 4px',
-                      background: 'none', border: 'none', cursor: 'pointer',
+                      padding: '7px 8px',
+                      background: T.bg, border: 'none', borderBottom: collapsed ? 'none' : `1px solid ${T.line}`, cursor: 'pointer',
                       color: T.mute, fontFamily: MONO, fontSize: fontSize(10),
                     }}
                   >
                     {collapsed ? <IcoChevRight /> : <IcoChevDown />}
-                    <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{domain}</span>
+                    <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: T.accent }}>{domain}</span>
                     <span style={{ fontSize: fontSize(9), color: T.mute2 }}>{domainBookmarks.length}</span>
                   </button>
                   {!collapsed && domainBookmarks.map((bm) => (
                     <ContextMenu key={bm.id}>
                       <ContextMenuTrigger asChild>
-                        <div style={{ marginLeft: 20 }}>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenBookmark(bm.url)}
-                            title={bm.url}
-                            style={{
-                              display: 'block', width: '100%', padding: '4px 8px',
-                              background: 'none', border: 'none',
-                              color: T.text, fontFamily: MONO, fontSize: fontSize(10),
-                              textAlign: 'left', cursor: 'pointer',
-                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {bm.title}
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenBookmark(bm.url)}
+                          title={bm.url}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            width: '100%',
+                            padding: '8px',
+                            background: activeBookmark?.id === bm.id ? T.accentGlow : 'none',
+                            border: 'none',
+                            borderBottom: `1px solid ${T.line}`,
+                            color: T.text,
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <span style={{ width: 46, height: 46, flexShrink: 0, overflow: 'hidden', border: `1px solid ${activeBookmark?.id === bm.id ? T.accent : T.line2}`, background: getDomainAccent(domain), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {bm.thumbnailDataUrl ? (
+                              <img src={bm.thumbnailDataUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                            ) : (
+                              <span style={{ fontFamily: MONO, fontSize: fontSize(16), color: T.text, opacity: 0.72, textTransform: 'uppercase' }}>{domain.charAt(0)}</span>
+                            )}
+                          </span>
+                          <span style={{ minWidth: 0, flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {bm.title || domain}
+                            </span>
+                            <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: activeBookmark?.id === bm.id ? T.accent : T.mute2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {activeBookmark?.id === bm.id ? 'Current page · ' : ''}{domain}
+                            </span>
+                          </span>
+                        </button>
                       </ContextMenuTrigger>
                       <ContextMenuContent>
                         {privateOpenTargets.length > 0 && (
@@ -1447,43 +1545,9 @@ export const BrowserWorkspace = ({
     </div>
   );
 
-  // ── Extensions panel content ─────────────────────────────────────
-  const extensionsContent = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minHeight: 0 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <button type="button" onClick={() => void handleLoadExtension()} style={{ height: 28, padding: '0 12px', background: T.accentGlow, border: `1px solid ${T.accent}`, color: T.accent, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.06em', textTransform: 'uppercase', cursor: 'pointer' }}>
-          Load Extension
-        </button>
-        <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2 }}>Unpacked only</span>
-      </div>
-      {extensionError && <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.danger, margin: 0 }}>{extensionError}</p>}
-      {extensionStartupErrors.length > 0 && (
-        <div style={{ border: `1px solid ${T.warn}`, background: 'rgba(192,138,94,0.08)', padding: '8px 10px' }}>
-          <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.warn, margin: '0 0 6px' }}>Startup load errors</p>
-          {extensionStartupErrors.map((item) => (
-            <div key={`${item.path}:${item.error}`} style={{ fontFamily: MONO, fontSize: fontSize(9), marginBottom: 4 }}>
-              <div style={{ color: T.mute, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.path}</div>
-              <div style={{ color: T.danger, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.error}</div>
-            </div>
-          ))}
-        </div>
-      )}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        {extensions.length === 0 ? (
-          <p style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2, margin: '8px 0' }}>No extensions loaded.</p>
-        ) : extensions.map((ext) => (
-          <div key={ext.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', border: `1px solid ${T.line}`, marginBottom: 4 }}>
-            <IcoPuzzle />
-            <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ext.name}</span>
-            <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute2 }}>{ext.version}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
   return (
     <div
+      ref={workspaceRef}
       onWheelCapture={handleBrowserWheel}
       onMouseUpCapture={handleBrowserMouseUp}
       style={{ display: 'flex', minHeight: 0, minWidth: 0, flex: 1, flexDirection: 'column', background: T.bg, color: T.text, ...(mode === 'legacy-window' ? { height: '100vh' } : {}) }}
@@ -1603,6 +1667,27 @@ export const BrowserWorkspace = ({
               </div>
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setCaptureMenuOpen(false);
+              setPwPanelOpen(false);
+              setPwSaveForm(null);
+              setLeftPanelOpen((open) => !open);
+            }}
+            title="Saved Web (Cmd/Ctrl+B)"
+            style={{
+              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: leftPanelOpen ? T.accentGlow : 'none',
+              border: `1px solid ${leftPanelOpen ? T.accent : 'transparent'}`,
+              color: leftPanelOpen ? T.accent : T.mute,
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            <IcoBookmark />
+          </button>
 
           <div ref={captureMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
             <button
@@ -1910,74 +1995,9 @@ export const BrowserWorkspace = ({
         </div>
       </header>
 
-      {/* Legacy bookmarks/extensions panels */}
-      {!showPersistentLeftPanel && legacyShowBookmarks && (
-        <aside style={{ borderBottom: `1px solid ${T.line}`, background: T.bg2, padding: '10px 12px', height: 240, display: 'flex', flexDirection: 'column' }}>
-          {bookmarksContent}
-        </aside>
-      )}
-      {!showPersistentLeftPanel && legacyShowExtensions && (
-        <aside style={{ borderBottom: `1px solid ${T.line}`, background: T.bg2, padding: '10px 12px', height: 240, display: 'flex', flexDirection: 'column' }}>
-          {extensionsContent}
-        </aside>
-      )}
-
       <main style={{ display: 'flex', minHeight: 0, minWidth: 0, flex: 1, overflow: 'hidden' }}>
-        {/* Icon sidebar */}
-        {showPersistentLeftPanel && (
-          <aside style={{ width: 44, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, borderRight: `1px solid ${T.line}`, background: T.bg2, padding: '10px 0' }}>
-            {([
-              { id: 'bookmarks' as const, icon: <IcoBookmark />, label: 'Bookmarks' },
-              { id: 'extensions' as const, icon: <IcoPuzzle />, label: 'Extensions' },
-            ]).map(({ id, icon, label }) => {
-              const isActive = libraryTab === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  aria-label={`Open ${label} panel`}
-                  title={label}
-                  onClick={() => {
-                    if (libraryTab === id) { setLeftPanelOpen((p) => !p); }
-                    else {
-                      setLibraryTab(id); setLeftPanelOpen(true);
-                      if (id === 'extensions') void refreshExtensions();
-                    }
-                  }}
-                  style={{
-                    width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: isActive && leftPanelOpen ? T.accentGlow : 'none',
-                    border: `1px solid ${isActive && leftPanelOpen ? T.accent : 'transparent'}`,
-                    color: isActive && leftPanelOpen ? T.accent : T.mute,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {icon}
-                </button>
-              );
-            })}
-          </aside>
-        )}
-
-        {/* Library panel */}
-        {showPersistentLeftPanel && leftPanelOpen && (
-          <aside style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: `1px solid ${T.line}`, background: T.bg2, padding: '10px 12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <span style={{ fontFamily: MONO, fontSize: fontSize(9), letterSpacing: '0.12em', textTransform: 'uppercase', color: T.mute2 }}>
-                · {libraryTab === 'bookmarks' ? 'Bookmarks' : 'Extensions'} ·
-              </span>
-              <button type="button" onClick={() => setLeftPanelOpen(false)} aria-label="Close panel" style={{ background: 'none', border: 'none', color: T.mute, cursor: 'pointer', display: 'flex', padding: 2 }}>
-                <IcoStop />
-              </button>
-            </div>
-            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-              {libraryTab === 'bookmarks' ? bookmarksContent : extensionsContent}
-            </div>
-          </aside>
-        )}
-
         {/* Webview area */}
-        <div style={{ minHeight: 0, minWidth: 0, flex: 1, overflow: 'hidden' }}>
+        <div style={{ position: 'relative', minHeight: 0, minWidth: 0, flex: 1, overflow: 'hidden' }}>
           {tabs.map((tab) => (
             <div key={tab.id} style={{ display: tab.id === activeTabId ? 'flex' : 'none', position: 'relative', minHeight: 0, minWidth: 0, height: '100%', flex: 1 }}>
               {(() => {
@@ -2084,7 +2104,46 @@ export const BrowserWorkspace = ({
               )}
             </div>
           ))}
+          {leftPanelOpen && savedWebOverlayMode && (
+            <div
+              onMouseDown={() => setLeftPanelOpen(false)}
+              style={{ position: 'absolute', inset: 0, zIndex: 12, display: 'flex', justifyContent: 'flex-end', background: 'rgba(0,0,0,0.22)' }}
+            >
+              <aside
+                onMouseDown={(event) => event.stopPropagation()}
+                style={{
+                  width: 'min(340px, calc(100% - 32px))',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  borderLeft: `1px solid ${T.line2}`,
+                  background: T.bg2,
+                  boxShadow: '-18px 0 34px rgba(0,0,0,0.38)',
+                  padding: '14px 12px',
+                  boxSizing: 'border-box',
+                }}
+              >
+                {bookmarksContent}
+              </aside>
+            </div>
+          )}
         </div>
+        {leftPanelOpen && !savedWebOverlayMode && (
+          <aside
+            style={{
+              width: SAVED_WEB_DRAWER_WIDTH,
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              borderLeft: `1px solid ${T.line2}`,
+              background: T.bg2,
+              padding: '14px 12px',
+              boxSizing: 'border-box',
+            }}
+          >
+            {bookmarksContent}
+          </aside>
+        )}
       </main>
 
       {/* Downloads tray */}

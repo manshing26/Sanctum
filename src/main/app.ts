@@ -126,6 +126,20 @@ export const bootstrapApp = (): void => {
     }
     window.webContents.send(IPC_CHANNELS.browserCommand, command);
   };
+  const pageFocusIsEditable = async (contents: WebContents): Promise<boolean> => {
+    try {
+      return await contents.executeJavaScript(`
+        (() => {
+          const el = document.activeElement;
+          if (!el) return false;
+          const tag = el.tagName ? el.tagName.toLowerCase() : '';
+          return tag === 'input' || tag === 'textarea' || tag === 'select' || Boolean(el.isContentEditable);
+        })()
+      `, true) === true;
+    } catch {
+      return false;
+    }
+  };
   const commandFromKeyboardInput = (input: Input): BrowserCommand | null => {
     if (input.type !== 'keyDown') {
       return null;
@@ -144,6 +158,7 @@ export const bootstrapApp = (): void => {
       if (key === 'w') return 'close-active-tab';
       if (key === 'r') return 'reload-or-stop';
       if (key === 'l') return 'focus-address';
+      if (key === 'b') return 'toggle-saved-web';
     }
 
     if (!isMac && input.alt && !input.control && !input.meta) {
@@ -156,6 +171,7 @@ export const bootstrapApp = (): void => {
       if (key === 'w') return 'close-active-tab';
       if (key === 'r') return 'reload-or-stop';
       if (key === 'l') return 'focus-address';
+      if (key === 'b') return 'toggle-saved-web';
     }
 
     return null;
@@ -192,6 +208,9 @@ export const bootstrapApp = (): void => {
     window.webContents.on('before-input-event', (event, input) => {
       const command = commandFromKeyboardInput(input);
       if (!command) {
+        return;
+      }
+      if (command === 'toggle-saved-web') {
         return;
       }
       event.preventDefault();
@@ -687,6 +706,13 @@ export const bootstrapApp = (): void => {
       contents.on('before-input-event', (event, input) => {
         const command = commandFromKeyboardInput(input);
         if (!command) {
+          return;
+        }
+        if (command === 'toggle-saved-web') {
+          void pageFocusIsEditable(contents).then((isEditable) => {
+            if (isEditable) return;
+            sendBrowserCommandToWindow(getWebviewHostWindow(contents), command);
+          });
           return;
         }
         event.preventDefault();
