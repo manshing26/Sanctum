@@ -76,7 +76,8 @@ export class BackupService {
         itemCount,
         tables: [
           'auth_audit_log',
-          'vault_objects', 'vault_items', 'bookmarks', 'notes', 'object_tags',
+          'vault_objects', 'vault_items', 'bookmarks', 'notes',
+          'video_playback_positions', 'video_timestamps', 'object_tags',
           'folders', 'tags', 'passwords', 'schema_meta',
         ],
       }, null, 2);

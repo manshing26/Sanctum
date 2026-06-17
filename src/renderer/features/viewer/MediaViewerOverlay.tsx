@@ -16,8 +16,9 @@ import {
   Keyboard,
   Loader2,
   AlertCircle,
+  Plus,
 } from 'lucide-react';
-import type { OpenMediaSessionResult } from '../../../shared/ipc';
+import type { OpenMediaSessionResult, VideoTimestamp } from '../../../shared/ipc';
 import { Button } from '../../components/ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../../components/ui/Tooltip';
 import { ImageViewer } from './components/ImageViewer';
@@ -25,7 +26,7 @@ import { VideoViewer } from './components/VideoViewer';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useViewerControls } from './hooks/useViewerControls';
 import type { MediaViewerOverlayProps } from './types';
-import { cn } from '../../lib/utils';
+import { cn, formatDuration } from '../../lib/utils';
 import { isDocxMimeType, isReadableDocumentMimeType } from '../../../shared/fileTypes';
 
 type ViewerLoadState = {
@@ -461,6 +462,22 @@ const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMe
 };
 
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const VIDEO_PROGRESS_SAVE_INTERVAL_MS = 15000;
+const VIDEO_PROGRESS_MIN_SECONDS = 15;
+const VIDEO_PROGRESS_MIN_DURATION_SECONDS = 45;
+const VIDEO_PROGRESS_NEAR_END_SECONDS = 10;
+const VIDEO_PROGRESS_NEAR_END_RATIO = 0.05;
+
+const isMeaningfulVideoProgress = (positionSeconds: number, durationSeconds?: number): boolean => {
+  if (!Number.isFinite(positionSeconds) || positionSeconds < VIDEO_PROGRESS_MIN_SECONDS) return false;
+  if (durationSeconds !== undefined && Number.isFinite(durationSeconds) && durationSeconds > 0) {
+    if (durationSeconds < VIDEO_PROGRESS_MIN_DURATION_SECONDS) return false;
+    const remainingSeconds = durationSeconds - positionSeconds;
+    if (remainingSeconds <= VIDEO_PROGRESS_NEAR_END_SECONDS) return false;
+    if (remainingSeconds <= durationSeconds * VIDEO_PROGRESS_NEAR_END_RATIO) return false;
+  }
+  return true;
+};
 
 const ShortcutHelp = ({ onClose }: { onClose: () => void }): React.JSX.Element => {
   const groups = [
@@ -525,7 +542,12 @@ export const MediaViewerOverlay = ({
   const [pdfScale, setPdfScale] = useState(1.15);
   const [showControls, setShowControls] = useState(true);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+  const [resumePosition, setResumePosition] = useState<number | null | undefined>(undefined);
+  const [showResumePrompt, setShowResumePrompt] = useState(false);
+  const [videoTimestamps, setVideoTimestamps] = useState<VideoTimestamp[]>([]);
   const hideTimerRef = useRef<number | null>(null);
+  const lastSavedVideoPositionRef = useRef<{ itemId: string; positionSeconds: number; savedAt: number } | null>(null);
+  const lastKnownVideoPositionRef = useRef<{ itemId: string; positionSeconds: number; durationSeconds?: number } | null>(null);
 
   const currentIndex = useMemo(
     () => items.findIndex((item) => item.id === currentItemId),
@@ -602,6 +624,11 @@ export const MediaViewerOverlay = ({
     setPlaybackRate(1);
     setPdfScale(1.15);
     setReopenAttempted(false);
+    setResumePosition(undefined);
+    setShowResumePrompt(false);
+    setVideoTimestamps([]);
+    lastSavedVideoPositionRef.current = null;
+    lastKnownVideoPositionRef.current = null;
     resetControlsTimer();
     if (currentItem) {
       void openSession(currentItem.id);
@@ -609,6 +636,108 @@ export const MediaViewerOverlay = ({
       setState({ isLoading: false, error: 'Selected item is not available.', session: null });
     }
   }, [currentItemId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentItem || !currentItem.mimeType.startsWith('video/')) return;
+
+    const loadVideoState = async (): Promise<void> => {
+      const [positionResult, timestampsResult] = await Promise.all([
+        window.electronAPI.getVideoPlaybackPosition(currentItem.id),
+        window.electronAPI.listVideoTimestamps(currentItem.id),
+      ]);
+      if (cancelled) return;
+      const loadedResumePosition = positionResult.ok ? positionResult.data?.positionSeconds ?? null : null;
+      const durationSeconds = currentItem.durationSeconds;
+      setResumePosition(loadedResumePosition);
+      setShowResumePrompt(
+        loadedResumePosition !== null && isMeaningfulVideoProgress(loadedResumePosition, durationSeconds),
+      );
+      setVideoTimestamps(timestampsResult.ok ? timestampsResult.data : []);
+    };
+
+    void loadVideoState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentItem?.id, currentItem?.mimeType]);
+
+  const saveVideoProgress = useCallback(async (force = false, positionOverride?: number): Promise<void> => {
+    if (!currentItem || !currentItem.mimeType.startsWith('video/')) return;
+    const video = videoRef.current;
+    const known = lastKnownVideoPositionRef.current;
+    const positionSeconds = positionOverride
+      ?? (known?.itemId === currentItem.id ? known.positionSeconds : undefined)
+      ?? video?.currentTime;
+    if (positionSeconds === undefined) return;
+    if (!Number.isFinite(positionSeconds)) return;
+    const durationSeconds = video && Number.isFinite(video.duration) && video.duration > 0
+      ? video.duration
+      : known?.itemId === currentItem.id
+        ? known.durationSeconds ?? currentItem.durationSeconds
+        : currentItem.durationSeconds;
+    const previous = lastSavedVideoPositionRef.current;
+    const now = Date.now();
+    if (
+      !force
+      && previous?.itemId === currentItem.id
+      && now - previous.savedAt < VIDEO_PROGRESS_SAVE_INTERVAL_MS
+    ) {
+      return;
+    }
+    if (positionSeconds !== 0 && !isMeaningfulVideoProgress(positionSeconds, durationSeconds)) {
+      return;
+    }
+    lastSavedVideoPositionRef.current = { itemId: currentItem.id, positionSeconds, savedAt: now };
+    await window.electronAPI.saveVideoPlaybackPosition({
+      itemId: currentItem.id,
+      positionSeconds,
+      durationSeconds,
+    });
+  }, [currentItem]);
+
+  const setVideoPlaybackActive = useCallback((active: boolean): void => {
+    void window.electronAPI.setVideoPlaybackActive({ active }).catch(() => {
+      // Best-effort runtime hint for auto-lock / OS sleep prevention.
+    });
+  }, []);
+
+  const updateLastKnownVideoPosition = useCallback((): void => {
+    if (!currentItem || !currentItem.mimeType.startsWith('video/')) return;
+    const video = videoRef.current;
+    if (!video || !Number.isFinite(video.currentTime)) return;
+    const durationSeconds = Number.isFinite(video.duration) && video.duration > 0
+      ? video.duration
+      : currentItem.durationSeconds;
+    lastKnownVideoPositionRef.current = {
+      itemId: currentItem.id,
+      positionSeconds: Math.max(0, video.currentTime),
+      durationSeconds,
+    };
+    if (
+      showResumePrompt
+      && resumePosition !== null
+      && resumePosition !== undefined
+      && video.currentTime >= resumePosition
+    ) {
+      setShowResumePrompt(false);
+    }
+  }, [currentItem, resumePosition, showResumePrompt]);
+
+  const resumeVideoFromSavedPosition = useCallback((): void => {
+    if (!videoRef.current || resumePosition === null || resumePosition === undefined) return;
+    videoRef.current.currentTime = Math.max(0, resumePosition);
+    setShowResumePrompt(false);
+    updateLastKnownVideoPosition();
+    videoRef.current.focus();
+  }, [resumePosition, updateLastKnownVideoPosition]);
+
+  useEffect(() => {
+    return () => {
+      setVideoPlaybackActive(false);
+    };
+  }, [setVideoPlaybackActive]);
 
   const closeViewer = (): void => {
     if (showShortcutHelp) {
@@ -619,15 +748,28 @@ export const MediaViewerOverlay = ({
       void document.exitFullscreen();
       return;
     }
+    setVideoPlaybackActive(false);
+    updateLastKnownVideoPosition();
+    void saveVideoProgress(true);
     onClose();
   };
 
   const navigatePrev = (): void => {
-    if (canPrev) onNavigate(items[currentIndex - 1].id);
+    if (canPrev) {
+      setVideoPlaybackActive(false);
+      updateLastKnownVideoPosition();
+      void saveVideoProgress(true);
+      onNavigate(items[currentIndex - 1].id);
+    }
   };
 
   const navigateNext = (): void => {
-    if (canNext) onNavigate(items[currentIndex + 1].id);
+    if (canNext) {
+      setVideoPlaybackActive(false);
+      updateLastKnownVideoPosition();
+      void saveVideoProgress(true);
+      onNavigate(items[currentIndex + 1].id);
+    }
   };
 
   const togglePlayPause = (): void => {
@@ -682,6 +824,7 @@ export const MediaViewerOverlay = ({
   };
 
   const handleVideoError = (): void => {
+    setVideoPlaybackActive(false);
     setState((prev) => ({
       ...prev,
       error: prev.error ?? 'Unable to decode this video. Codec may be unsupported.',
@@ -698,6 +841,63 @@ export const MediaViewerOverlay = ({
   const handleDocumentError = useCallback((message: string): void => {
     onMessage(message);
   }, [onMessage]);
+
+  const handleVideoTimeUpdate = (): void => {
+    updateLastKnownVideoPosition();
+    void saveVideoProgress(false);
+  };
+
+  const handleVideoPlay = (): void => {
+    updateLastKnownVideoPosition();
+    setVideoPlaybackActive(true);
+  };
+
+  const handleVideoPause = (): void => {
+    setVideoPlaybackActive(false);
+    updateLastKnownVideoPosition();
+    void saveVideoProgress(true);
+  };
+
+  const handleVideoEnded = (): void => {
+    setVideoPlaybackActive(false);
+    void saveVideoProgress(true, 0);
+  };
+
+  const handleVideoLoadedMetadata = (): void => {
+    updateLastKnownVideoPosition();
+  };
+
+  const seekToTimestamp = (positionSeconds: number): void => {
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = Math.max(0, positionSeconds);
+    setShowResumePrompt(false);
+    updateLastKnownVideoPosition();
+    videoRef.current.focus();
+  };
+
+  const saveCurrentTimestamp = async (): Promise<void> => {
+    if (!currentItem || !videoRef.current) return;
+    const positionSeconds = videoRef.current.currentTime;
+    const result = await window.electronAPI.createVideoTimestamp({
+      itemId: currentItem.id,
+      positionSeconds,
+    });
+    if (!result.ok) {
+      onMessage(result.error);
+      return;
+    }
+    setVideoTimestamps((timestamps) => [...timestamps, result.data].sort((a, b) => a.positionSeconds - b.positionSeconds));
+    onMessage('Timestamp saved.');
+  };
+
+  const deleteTimestamp = async (timestampId: string): Promise<void> => {
+    const result = await window.electronAPI.deleteVideoTimestamp({ id: timestampId });
+    if (!result.ok) {
+      onMessage(result.error);
+      return;
+    }
+    setVideoTimestamps((timestamps) => timestamps.filter((timestamp) => timestamp.id !== timestampId));
+  };
 
   useKeyboardShortcuts({
     onClose: closeViewer,
@@ -854,6 +1054,11 @@ export const MediaViewerOverlay = ({
               src={state.session.mediaUrl}
               videoRef={videoRef}
               playbackRate={playbackRate}
+              onLoadedMetadata={handleVideoLoadedMetadata}
+              onTimeUpdate={handleVideoTimeUpdate}
+              onPlay={handleVideoPlay}
+              onPause={handleVideoPause}
+              onEnded={handleVideoEnded}
               onError={handleVideoError}
             />
           )}
@@ -891,7 +1096,7 @@ export const MediaViewerOverlay = ({
             showControls ? 'opacity-100' : 'opacity-0',
           )}
         >
-          <div className="flex items-center gap-1 rounded-lg bg-black/50 px-2 py-1 backdrop-blur-sm">
+          <div className="flex max-w-[calc(100vw-2rem)] items-center gap-1 overflow-hidden rounded-lg bg-black/50 px-2 py-1 backdrop-blur-sm">
             {isImage && (
               <>
                 <Tooltip>
@@ -944,6 +1149,20 @@ export const MediaViewerOverlay = ({
 
             {isVideo && (
               <>
+                {showResumePrompt && resumePosition !== null && resumePosition !== undefined && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={resumeVideoFromSavedPosition}
+                      className="h-7 shrink-0 border border-accent/40 bg-accent/15 px-2 text-xs text-accent hover:bg-accent/25"
+                    >
+                      Resume from {formatDuration(resumePosition)}
+                    </Button>
+                    <div className="mx-1 h-4 w-px shrink-0 bg-white/20" />
+                  </>
+                )}
+
                 <span className="text-xs text-white/60 mr-1">Speed</span>
                 {SPEED_OPTIONS.map((speed) => (
                   <button
@@ -960,6 +1179,52 @@ export const MediaViewerOverlay = ({
                     {speed}x
                   </button>
                 ))}
+
+                <div className="mx-1 h-4 w-px shrink-0 bg-white/20" />
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void saveCurrentTimestamp()}
+                      className="h-7 shrink-0 gap-1 px-2 text-xs text-white hover:bg-white/10"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Timestamp
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Save current scene</TooltipContent>
+                </Tooltip>
+
+                {videoTimestamps.length > 0 && (
+                  <div className="ml-1 flex max-w-[42vw] items-center gap-1 overflow-x-auto">
+                    {videoTimestamps.map((timestamp) => (
+                      <div
+                        key={timestamp.id}
+                        className="flex shrink-0 items-center border border-white/15 bg-white/[0.06] text-xs text-white/80"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => seekToTimestamp(timestamp.positionSeconds)}
+                          className="px-2 py-1 font-mono hover:bg-white/10 hover:text-white"
+                          title={`Jump to ${timestamp.label}`}
+                        >
+                          {timestamp.label || formatDuration(timestamp.positionSeconds)}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteTimestamp(timestamp.id)}
+                          className="border-l border-white/10 px-1.5 py-1 text-white/45 hover:bg-danger/20 hover:text-danger"
+                          aria-label={`Delete timestamp ${timestamp.label}`}
+                          title="Delete timestamp"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </>
             )}
 

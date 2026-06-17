@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, powerMonitor, protocol, session, webContents, type MenuItemConstructorOptions, type WebContents } from 'electron';
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, powerMonitor, powerSaveBlocker, protocol, session, webContents, type MenuItemConstructorOptions, type WebContents } from 'electron';
 import type { Input } from 'electron';
 import type {
   BrowserCommand,
@@ -188,6 +188,30 @@ export const bootstrapApp = (): void => {
   };
   const playingMediaContentsIds = new Set<number>();
   const trackedMediaContentsIds = new Set<number>();
+  let vaultVideoPlaybackActive = false;
+  let allowPlaybackPowerBlocker = false;
+  let powerSaveBlockerId: number | null = null;
+  const hasActivePlayback = (): boolean => playingMediaContentsIds.size > 0 || vaultVideoPlaybackActive;
+  const updatePowerSaveBlocker = (): void => {
+    if (hasActivePlayback() && allowPlaybackPowerBlocker) {
+      if (powerSaveBlockerId === null || !powerSaveBlocker.isStarted(powerSaveBlockerId)) {
+        powerSaveBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+      }
+      return;
+    }
+
+    if (powerSaveBlockerId !== null) {
+      if (powerSaveBlocker.isStarted(powerSaveBlockerId)) {
+        powerSaveBlocker.stop(powerSaveBlockerId);
+      }
+      powerSaveBlockerId = null;
+    }
+  };
+  const clearPlaybackState = (): void => {
+    playingMediaContentsIds.clear();
+    vaultVideoPlaybackActive = false;
+    updatePowerSaveBlocker();
+  };
   const wireMediaPlaybackTracking = (contents: WebContents): void => {
     if (trackedMediaContentsIds.has(contents.id)) {
       return;
@@ -195,13 +219,16 @@ export const bootstrapApp = (): void => {
     trackedMediaContentsIds.add(contents.id);
     contents.on('media-started-playing', () => {
       playingMediaContentsIds.add(contents.id);
+      updatePowerSaveBlocker();
     });
     contents.on('media-paused', () => {
       playingMediaContentsIds.delete(contents.id);
+      updatePowerSaveBlocker();
     });
     contents.on('destroyed', () => {
       playingMediaContentsIds.delete(contents.id);
       trackedMediaContentsIds.delete(contents.id);
+      updatePowerSaveBlocker();
     });
   };
   const wireBrowserWindowShortcuts = (window: BrowserWindow): void => {
@@ -445,6 +472,7 @@ export const bootstrapApp = (): void => {
 
       isLocking = true;
       try {
+        allowPlaybackPowerBlocker = false;
         await exitBrowserFullscreen();
         // Mute all webContents immediately so audio stops synchronously before
         // any async teardown. This covers webviews in the main window (same-window
@@ -452,7 +480,7 @@ export const bootstrapApp = (): void => {
         for (const wc of webContents.getAllWebContents()) {
           wc.setAudioMuted(true);
         }
-        playingMediaContentsIds.clear();
+        clearPlaybackState();
 
         authService.lockVault();
         browserWindowController.close();
@@ -476,6 +504,11 @@ export const bootstrapApp = (): void => {
       }
       void performGlobalLock('manual');
     };
+    ipcMain.handle(IPC_CHANNELS.setVideoPlaybackActive, (_event, input: { active?: boolean }) => {
+      vaultVideoPlaybackActive = input.active === true;
+      updatePowerSaveBlocker();
+      return { ok: true as const };
+    });
     try {
       globalShortcut.register('CommandOrControl+Shift+L', () => {
         requestManualLock?.();
@@ -492,7 +525,7 @@ export const bootstrapApp = (): void => {
         return;
       }
       const idleSeconds = powerMonitor.getSystemIdleTime();
-      if (playingMediaContentsIds.size > 0) {
+      if (hasActivePlayback()) {
         return;
       }
       if (idleSeconds >= securitySettings.autoLockMinutes * 60) {
@@ -525,12 +558,13 @@ export const bootstrapApp = (): void => {
         }
 
         isResettingAllData = true;
+        allowPlaybackPowerBlocker = false;
         clearInterval(idleLockInterval);
         await exitBrowserFullscreen();
         for (const wc of webContents.getAllWebContents()) {
           wc.setAudioMuted(true);
         }
-        playingMediaContentsIds.clear();
+        clearPlaybackState();
         browserWindowController.close();
         await mediaSessionService.clearAllSessions();
         await mediaSessionService.stop();
@@ -565,6 +599,7 @@ export const bootstrapApp = (): void => {
     const mainWindow = mainWindowController.create();
     wireMediaPlaybackTracking(mainWindow.webContents);
     app.on('before-quit', () => {
+      clearPlaybackState();
       if (!isResettingAllData) {
         void vaultService.clearTemporaryOpenFiles();
       }
@@ -613,6 +648,10 @@ export const bootstrapApp = (): void => {
     registerAuthHandlers({
       authService,
       mainWindowController,
+      onUnlock: () => {
+        allowPlaybackPowerBlocker = true;
+        updatePowerSaveBlocker();
+      },
       onLock: performGlobalLock,
     });
     registerSettingsHandlers({

@@ -34,6 +34,7 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
   - LOG, YAML/YML, TOML, INI, CONF, CFG, ENV, SQL
   - SVG as source text, not executable rendered SVG
 - **Media viewer** — full-screen image, video, PDF, and document viewer with keyboard shortcut help.
+- **Video media vault controls** — videos resume from the last meaningful stop point and support saved scene timestamps.
 - **Image viewer controls** — zoom, wheel zoom, rotate, reset, fullscreen, and drag-to-pan for zoomed images.
 - **Thumbnail generation** — automatic thumbnails via `sharp` for images and `ffmpeg` for video first frames.
 - **Fast media metadata** — image dimensions are read with `sharp`; video dimensions/duration are extracted with `ffmpeg`.
@@ -205,6 +206,8 @@ Files, bookmarks, and notes share `vault_objects` so they can be mixed in galler
 | `vault_items` | File metadata, encrypted filename, encrypted blob metadata, thumbnails, hashes |
 | `bookmarks` | Encrypted title, URL, and thumbnail data |
 | `notes` | Encrypted note title/body and note format |
+| `video_playback_positions` | Last watched position for imported videos |
+| `video_timestamps` | Saved scene timestamps for imported videos |
 | `folders` | Shared nested folder tree |
 | `tags` | Shared tag names and colours |
 | `object_tags` | Many-to-many object/tag assignments |

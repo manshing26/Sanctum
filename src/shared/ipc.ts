@@ -60,6 +60,12 @@ export const IPC_CHANNELS = {
   listItemsQuery: 'vault:list-items-query',
   getItemThumbnail: 'vault:get-item-thumbnail',
   updateItemThumbnail: 'vault:update-item-thumbnail',
+  setVideoPlaybackActive: 'viewer:set-video-playback-active',
+  getVideoPlaybackPosition: 'vault:video-playback:get',
+  saveVideoPlaybackPosition: 'vault:video-playback:save',
+  listVideoTimestamps: 'vault:video-timestamps:list',
+  createVideoTimestamp: 'vault:video-timestamps:create',
+  deleteVideoTimestamp: 'vault:video-timestamps:delete',
   openMediaSession: 'vault:open-media-session',
   closeMediaSession: 'vault:close-media-session',
   openTemporaryFile: 'vault:open-temporary-file',
@@ -313,6 +319,41 @@ export type ListItemsQueryResult = {
 export type ItemThumbnail = {
   mimeType: string;
   base64Data: string;
+};
+
+export type SetVideoPlaybackActiveInput = {
+  active: boolean;
+};
+
+export type VideoPlaybackPosition = {
+  itemId: string;
+  positionSeconds: number;
+  durationSeconds?: number;
+  updatedAt: string;
+};
+
+export type SaveVideoPlaybackPositionInput = {
+  itemId: string;
+  positionSeconds: number;
+  durationSeconds?: number;
+};
+
+export type VideoTimestamp = {
+  id: string;
+  itemId: string;
+  label: string;
+  positionSeconds: number;
+  createdAt: string;
+};
+
+export type CreateVideoTimestampInput = {
+  itemId: string;
+  positionSeconds: number;
+  label?: string;
+};
+
+export type DeleteVideoTimestampInput = {
+  id: string;
 };
 
 export type OpenMediaSessionInput = {
@@ -768,6 +809,12 @@ export type ElectronAPI = {
   listItemsQuery: (input: ListItemsQueryInput) => Promise<OperationResult<ListItemsQueryResult>>;
   getItemThumbnail: (itemId: string) => Promise<OperationResult<ItemThumbnail>>;
   updateItemThumbnail: (input: UpdateItemThumbnailInput) => Promise<OperationResult<VaultItemSummary>>;
+  setVideoPlaybackActive: (input: SetVideoPlaybackActiveInput) => Promise<OperationResult>;
+  getVideoPlaybackPosition: (itemId: string) => Promise<OperationResult<VideoPlaybackPosition | null>>;
+  saveVideoPlaybackPosition: (input: SaveVideoPlaybackPositionInput) => Promise<OperationResult<VideoPlaybackPosition | null>>;
+  listVideoTimestamps: (itemId: string) => Promise<OperationResult<VideoTimestamp[]>>;
+  createVideoTimestamp: (input: CreateVideoTimestampInput) => Promise<OperationResult<VideoTimestamp>>;
+  deleteVideoTimestamp: (input: DeleteVideoTimestampInput) => Promise<OperationResult>;
   openMediaSession: (
     input: OpenMediaSessionInput,
   ) => Promise<OperationResult<OpenMediaSessionResult>>;

@@ -5,6 +5,11 @@ type VideoViewerProps = {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   playbackRate?: number;
   onError?: () => void;
+  onLoadedMetadata?: () => void;
+  onTimeUpdate?: () => void;
+  onPlay?: () => void;
+  onPause?: () => void;
+  onEnded?: () => void;
 };
 
 export const VideoViewer = ({
@@ -12,6 +17,11 @@ export const VideoViewer = ({
   videoRef,
   playbackRate = 1,
   onError,
+  onLoadedMetadata,
+  onTimeUpdate,
+  onPlay,
+  onPause,
+  onEnded,
 }: VideoViewerProps): React.JSX.Element => {
   useEffect(() => {
     const video = videoRef.current;
@@ -28,6 +38,11 @@ export const VideoViewer = ({
         preload="metadata"
         className="max-h-full max-w-full rounded-lg object-contain"
         onError={onError}
+        onLoadedMetadata={onLoadedMetadata}
+        onTimeUpdate={onTimeUpdate}
+        onPlay={onPlay}
+        onPause={onPause}
+        onEnded={onEnded}
       />
     </div>
   );

@@ -12,13 +12,15 @@ import { MainWindowController } from '../windows/MainWindowController';
 type RegisterAuthHandlersParams = {
   authService: AuthService;
   mainWindowController: MainWindowController;
+  onUnlock?: () => void;
   onLock?: (reason: SessionChangeReason) => Promise<void> | void;
 };
 
-export const registerAuthHandlers = ({ authService, mainWindowController, onLock }: RegisterAuthHandlersParams): void => {
+export const registerAuthHandlers = ({ authService, mainWindowController, onUnlock, onLock }: RegisterAuthHandlersParams): void => {
   ipcMain.handle(IPC_CHANNELS.createVaultPassword, async (_event, input: CreateVaultPasswordInput) => {
     try {
       await authService.createVaultPassword(input.password);
+      onUnlock?.();
       return { ok: true as const };
     } catch (error) {
       return {
@@ -31,6 +33,7 @@ export const registerAuthHandlers = ({ authService, mainWindowController, onLock
   ipcMain.handle(IPC_CHANNELS.unlockVault, async (_event, input: UnlockVaultInput) => {
     try {
       await authService.unlockVault(input.password);
+      onUnlock?.();
       mainWindowController.getWindow()?.webContents.setAudioMuted(false);
       return { ok: true as const };
     } catch (error) {

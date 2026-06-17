@@ -27,12 +27,16 @@ import {
   type RenameFolderInput,
   type ResetAllAppDataInput,
   type ScanImportConflictsInput,
+  type SaveVideoPlaybackPositionInput,
+  type SetVideoPlaybackActiveInput,
   type ToggleFavoriteInput,
   type UnassignItemTagInput,
   type UnassignItemsTagInput,
   type CreateVaultPasswordInput,
   type CloseMediaSessionInput,
   type ClearAllVaultItemsInput,
+  type CreateVideoTimestampInput,
+  type DeleteVideoTimestampInput,
   type UpdateItemThumbnailInput,
   type ExportProgress,
   type ImportRequest,
@@ -106,6 +110,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getItemThumbnail: (itemId: string) => ipcRenderer.invoke(IPC_CHANNELS.getItemThumbnail, itemId),
   updateItemThumbnail: (input: UpdateItemThumbnailInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.updateItemThumbnail, input),
+  setVideoPlaybackActive: (input: SetVideoPlaybackActiveInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.setVideoPlaybackActive, input),
+  getVideoPlaybackPosition: (itemId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.getVideoPlaybackPosition, itemId),
+  saveVideoPlaybackPosition: (input: SaveVideoPlaybackPositionInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.saveVideoPlaybackPosition, input),
+  listVideoTimestamps: (itemId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.listVideoTimestamps, itemId),
+  createVideoTimestamp: (input: CreateVideoTimestampInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.createVideoTimestamp, input),
+  deleteVideoTimestamp: (input: DeleteVideoTimestampInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.deleteVideoTimestamp, input),
   openMediaSession: (input: OpenMediaSessionInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.openMediaSession, input),
   closeMediaSession: (input: CloseMediaSessionInput) =>

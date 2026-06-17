@@ -6,6 +6,8 @@ import {
   type BackupProgress,
   type BackupVaultInput,
   type ClearAllVaultItemsInput,
+  type CreateVideoTimestampInput,
+  type DeleteVideoTimestampInput,
   type DeleteVaultItemInput,
   type ExportItemsInput,
   type ImportRequest,
@@ -13,6 +15,7 @@ import {
   type OpenTemporaryFileInput,
   type RenameItemInput,
   type RestoreVaultInput,
+  type SaveVideoPlaybackPositionInput,
   type ScanImportConflictsInput,
   type ToggleFavoriteInput,
   type SetRatingInput,
@@ -202,6 +205,74 @@ export const registerVaultHandlers = ({
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to update thumbnail.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.getVideoPlaybackPosition, (_event, itemId: string) => {
+    try {
+      return {
+        ok: true as const,
+        data: vaultService.getVideoPlaybackPosition(itemId),
+      };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to load video position.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.saveVideoPlaybackPosition, (_event, input: SaveVideoPlaybackPositionInput) => {
+    try {
+      return {
+        ok: true as const,
+        data: vaultService.saveVideoPlaybackPosition(input),
+      };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to save video position.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.listVideoTimestamps, (_event, itemId: string) => {
+    try {
+      return {
+        ok: true as const,
+        data: vaultService.listVideoTimestamps(itemId),
+      };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to load video timestamps.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.createVideoTimestamp, (_event, input: CreateVideoTimestampInput) => {
+    try {
+      return {
+        ok: true as const,
+        data: vaultService.createVideoTimestamp(input),
+      };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to save timestamp.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.deleteVideoTimestamp, (_event, input: DeleteVideoTimestampInput) => {
+    try {
+      vaultService.deleteVideoTimestamp(input);
+      return { ok: true as const };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to delete timestamp.',
       };
     }
   });

@@ -76,6 +76,8 @@ export class RestoreService {
       'vault_items',
       'bookmarks',
       'notes',
+      'video_playback_positions',
+      'video_timestamps',
       'object_tags',
       'passwords',
       'settings',

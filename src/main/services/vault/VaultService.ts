@@ -10,8 +10,13 @@ import type {
   ItemThumbnail,
   ListItemsQueryInput,
   ListItemsQueryResult,
+  CreateVideoTimestampInput,
+  DeleteVideoTimestampInput,
+  SaveVideoPlaybackPositionInput,
   UpdateItemThumbnailInput,
   VaultItemSummary,
+  VideoPlaybackPosition,
+  VideoTimestamp,
 } from '../../../shared/ipc';
 import { getMimeTypeForFilename } from '../../../shared/fileTypes';
 
@@ -55,6 +60,12 @@ type ExportItemRow = {
   auth_tag: Buffer;
 };
 
+type VideoIdentityRow = {
+  vault_object_id: string;
+  mime_type: string;
+  media_duration_seconds: number | null;
+};
+
 const ITEM_SELECT = `
   SELECT vi.vault_object_id, vi.original_filename_enc, vi.file_size, vi.mime_type,
          vi.media_width, vi.media_height, vi.media_duration_seconds, vi.thumbnail_enc,
@@ -75,6 +86,33 @@ const SORT_TO_ORDER_BY: Record<ListItemsQueryInput['sort'], string> = {
 };
 
 const logger = getLogger('vault');
+
+const VIDEO_PROGRESS_MIN_SECONDS = 15;
+const VIDEO_PROGRESS_MIN_DURATION_SECONDS = 45;
+const VIDEO_PROGRESS_NEAR_END_SECONDS = 10;
+const VIDEO_PROGRESS_NEAR_END_RATIO = 0.05;
+
+const isMeaningfulVideoProgress = (positionSeconds: number, durationSeconds?: number): boolean => {
+  if (!Number.isFinite(positionSeconds) || positionSeconds < VIDEO_PROGRESS_MIN_SECONDS) return false;
+  if (durationSeconds !== undefined && Number.isFinite(durationSeconds) && durationSeconds > 0) {
+    if (durationSeconds < VIDEO_PROGRESS_MIN_DURATION_SECONDS) return false;
+    const remainingSeconds = durationSeconds - positionSeconds;
+    if (remainingSeconds <= VIDEO_PROGRESS_NEAR_END_SECONDS) return false;
+    if (remainingSeconds <= durationSeconds * VIDEO_PROGRESS_NEAR_END_RATIO) return false;
+  }
+  return true;
+};
+
+const formatVideoTimestampLabel = (seconds: number): string => {
+  const totalSeconds = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const remainingSeconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
 
 export class VaultService {
   constructor(
@@ -391,6 +429,147 @@ export class VaultService {
     return this.mapRowsToItems([updated])[0];
   }
 
+  private getVideoIdentity(itemId: string): VideoIdentityRow {
+    this.ensureUnlocked();
+    const row = this.db
+      .prepare(
+        `SELECT vi.vault_object_id, vi.mime_type, vi.media_duration_seconds
+         FROM vault_items vi
+         INNER JOIN vault_objects vo ON vo.id = vi.vault_object_id
+         WHERE vi.vault_object_id = ? AND vo.type = 'file'`,
+      )
+      .get(itemId) as VideoIdentityRow | undefined;
+    if (!row) throw new Error('Item not found.');
+    if (!row.mime_type.startsWith('video/')) {
+      throw new Error('This item is not a video.');
+    }
+    return row;
+  }
+
+  getVideoPlaybackPosition(itemId: string): VideoPlaybackPosition | null {
+    this.getVideoIdentity(itemId);
+    const row = this.db
+      .prepare(
+        `SELECT vault_object_id, position_seconds, duration_seconds, updated_at
+         FROM video_playback_positions
+         WHERE vault_object_id = ?`,
+      )
+      .get(itemId) as {
+        vault_object_id: string;
+        position_seconds: number;
+        duration_seconds: number | null;
+        updated_at: string;
+      } | undefined;
+    if (!row) return null;
+    return {
+      itemId: row.vault_object_id,
+      positionSeconds: row.position_seconds,
+      durationSeconds: row.duration_seconds ?? undefined,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  saveVideoPlaybackPosition(input: SaveVideoPlaybackPositionInput): VideoPlaybackPosition | null {
+    const item = this.getVideoIdentity(input.itemId);
+    const durationSeconds = Number.isFinite(input.durationSeconds ?? NaN)
+      ? input.durationSeconds
+      : item.media_duration_seconds ?? undefined;
+    const rawPosition = Number.isFinite(input.positionSeconds) ? input.positionSeconds : 0;
+    const positionSeconds = Math.max(0, rawPosition);
+
+    if (!isMeaningfulVideoProgress(positionSeconds, durationSeconds)) {
+      this.db
+        .prepare('DELETE FROM video_playback_positions WHERE vault_object_id = ?')
+        .run(input.itemId);
+      return null;
+    }
+
+    this.db
+      .prepare(
+        `INSERT INTO video_playback_positions (vault_object_id, position_seconds, duration_seconds, updated_at)
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+         ON CONFLICT(vault_object_id) DO UPDATE SET
+           position_seconds = excluded.position_seconds,
+           duration_seconds = excluded.duration_seconds,
+           updated_at = CURRENT_TIMESTAMP`,
+      )
+      .run(input.itemId, positionSeconds, durationSeconds ?? null);
+
+    return this.getVideoPlaybackPosition(input.itemId);
+  }
+
+  listVideoTimestamps(itemId: string): VideoTimestamp[] {
+    this.getVideoIdentity(itemId);
+    const rows = this.db
+      .prepare(
+        `SELECT id, vault_object_id, label, position_seconds, created_at
+         FROM video_timestamps
+         WHERE vault_object_id = ?
+         ORDER BY position_seconds ASC, datetime(created_at) ASC`,
+      )
+      .all(itemId) as Array<{
+        id: string;
+        vault_object_id: string;
+        label: string;
+        position_seconds: number;
+        created_at: string;
+      }>;
+    return rows.map((row) => ({
+      id: row.id,
+      itemId: row.vault_object_id,
+      label: row.label,
+      positionSeconds: row.position_seconds,
+      createdAt: row.created_at,
+    }));
+  }
+
+  createVideoTimestamp(input: CreateVideoTimestampInput): VideoTimestamp {
+    const item = this.getVideoIdentity(input.itemId);
+    const durationSeconds = item.media_duration_seconds ?? undefined;
+    const rawPosition = Number.isFinite(input.positionSeconds) ? input.positionSeconds : 0;
+    const positionSeconds = Math.max(
+      0,
+      durationSeconds !== undefined && durationSeconds > 0
+        ? Math.min(rawPosition, durationSeconds)
+        : rawPosition,
+    );
+    const label = input.label?.trim() || formatVideoTimestampLabel(positionSeconds);
+    const id = randomUUID();
+    this.db
+      .prepare(
+        `INSERT INTO video_timestamps (id, vault_object_id, label, position_seconds, created_at)
+         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      )
+      .run(id, input.itemId, label, positionSeconds);
+    const created = this.db
+      .prepare(
+        `SELECT id, vault_object_id, label, position_seconds, created_at
+         FROM video_timestamps
+         WHERE id = ?`,
+      )
+      .get(id) as {
+        id: string;
+        vault_object_id: string;
+        label: string;
+        position_seconds: number;
+        created_at: string;
+      };
+    return {
+      id: created.id,
+      itemId: created.vault_object_id,
+      label: created.label,
+      positionSeconds: created.position_seconds,
+      createdAt: created.created_at,
+    };
+  }
+
+  deleteVideoTimestamp(input: DeleteVideoTimestampInput): void {
+    this.ensureUnlocked();
+    this.db
+      .prepare('DELETE FROM video_timestamps WHERE id = ?')
+      .run(input.id);
+  }
+
   setRating(itemId: string, rating: number | null): void {
     if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) {
       throw new Error('Rating must be between 1 and 5.');
@@ -532,6 +711,8 @@ export class VaultService {
       this.db.transaction(() => {
         this.db.exec(`
           DROP TABLE IF EXISTS object_tags;
+          DROP TABLE IF EXISTS video_timestamps;
+          DROP TABLE IF EXISTS video_playback_positions;
           DROP TABLE IF EXISTS vault_items;
           DROP TABLE IF EXISTS bookmarks;
           DROP TABLE IF EXISTS notes;
@@ -602,6 +783,21 @@ export class VaultService {
             format          TEXT NOT NULL DEFAULT 'plain' CHECK (format IN ('plain', 'markdown'))
           );
 
+          CREATE TABLE video_playback_positions (
+            vault_object_id  TEXT PRIMARY KEY REFERENCES vault_objects(id) ON DELETE CASCADE,
+            position_seconds REAL NOT NULL DEFAULT 0,
+            duration_seconds REAL,
+            updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE video_timestamps (
+            id               TEXT PRIMARY KEY,
+            vault_object_id  TEXT NOT NULL REFERENCES vault_objects(id) ON DELETE CASCADE,
+            label            TEXT NOT NULL,
+            position_seconds REAL NOT NULL,
+            created_at       DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+
           CREATE TABLE object_tags (
             object_id TEXT    NOT NULL REFERENCES vault_objects(id) ON DELETE CASCADE,
             tag_id    INTEGER NOT NULL REFERENCES tags(id)          ON DELETE CASCADE,
@@ -625,6 +821,7 @@ export class VaultService {
           CREATE INDEX IF NOT EXISTS idx_vault_objects_created_at  ON vault_objects(created_at);
           CREATE INDEX IF NOT EXISTS idx_object_tags_object_id     ON object_tags(object_id);
           CREATE INDEX IF NOT EXISTS idx_object_tags_tag_id        ON object_tags(tag_id);
+          CREATE INDEX IF NOT EXISTS idx_video_timestamps_object   ON video_timestamps(vault_object_id, position_seconds);
           CREATE INDEX IF NOT EXISTS idx_folders_parent_id         ON folders(parent_id);
           CREATE INDEX IF NOT EXISTS idx_passwords_updated         ON passwords(updated_at);
         `);
