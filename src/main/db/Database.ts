@@ -170,6 +170,9 @@ export class DatabaseService {
     this.db
       .prepare(`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO NOTHING`)
       .run('security.lock_on_minimize', 'true');
+    this.db
+      .prepare(`INSERT INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO NOTHING`)
+      .run('security.minimize_on_lock', 'false');
 
     // Legacy column guards (for DBs that existed before v3)
     this.ensureTableColumn('auth_state', 'failed_attempts', 'INTEGER DEFAULT 0');

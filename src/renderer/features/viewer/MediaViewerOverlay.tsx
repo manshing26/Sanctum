@@ -16,7 +16,6 @@ import {
   Keyboard,
   Loader2,
   AlertCircle,
-  Plus,
 } from 'lucide-react';
 import type { OpenMediaSessionResult, VideoTimestamp } from '../../../shared/ipc';
 import { Button } from '../../components/ui/Button';
@@ -26,7 +25,7 @@ import { VideoViewer } from './components/VideoViewer';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useViewerControls } from './hooks/useViewerControls';
 import type { MediaViewerOverlayProps } from './types';
-import { cn, formatDuration } from '../../lib/utils';
+import { cn } from '../../lib/utils';
 import { isDocxMimeType, isReadableDocumentMimeType } from '../../../shared/fileTypes';
 
 type ViewerLoadState = {
@@ -461,7 +460,6 @@ const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMe
   });
 };
 
-const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const VIDEO_PROGRESS_SAVE_INTERVAL_MS = 15000;
 const VIDEO_PROGRESS_MIN_SECONDS = 15;
 const VIDEO_PROGRESS_MIN_DURATION_SECONDS = 45;
@@ -534,6 +532,7 @@ export const MediaViewerOverlay = ({
   });
   const [reopenAttempted, setReopenAttempted] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoFullscreenRef = useRef<(() => void) | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const previousTokenRef = useRef<string | null>(null);
   const openedAtRef = useRef<number>(Date.now());
@@ -806,6 +805,10 @@ export const MediaViewerOverlay = ({
   };
 
   const toggleFullscreen = (): void => {
+    if (isVideo && videoFullscreenRef.current) {
+      videoFullscreenRef.current();
+      return;
+    }
     if (document.fullscreenElement) {
       void document.exitFullscreen();
       return;
@@ -867,14 +870,6 @@ export const MediaViewerOverlay = ({
     updateLastKnownVideoPosition();
   };
 
-  const seekToTimestamp = (positionSeconds: number): void => {
-    if (!videoRef.current) return;
-    videoRef.current.currentTime = Math.max(0, positionSeconds);
-    setShowResumePrompt(false);
-    updateLastKnownVideoPosition();
-    videoRef.current.focus();
-  };
-
   const saveCurrentTimestamp = async (): Promise<void> => {
     if (!currentItem || !videoRef.current) return;
     const positionSeconds = videoRef.current.currentTime;
@@ -897,6 +892,18 @@ export const MediaViewerOverlay = ({
       return;
     }
     setVideoTimestamps((timestamps) => timestamps.filter((timestamp) => timestamp.id !== timestampId));
+  };
+
+  const renameTimestamp = async (timestampId: string, label: string): Promise<boolean> => {
+    const result = await window.electronAPI.renameVideoTimestamp({ id: timestampId, label });
+    if (!result.ok) {
+      onMessage(result.error);
+      return false;
+    }
+    setVideoTimestamps((timestamps) => timestamps.map((timestamp) => (
+      timestamp.id === timestampId ? result.data : timestamp
+    )));
+    return true;
   };
 
   useKeyboardShortcuts({
@@ -1053,7 +1060,21 @@ export const MediaViewerOverlay = ({
             <VideoViewer
               src={state.session.mediaUrl}
               videoRef={videoRef}
+              fullscreenRef={videoFullscreenRef}
               playbackRate={playbackRate}
+              onPlaybackRateChange={setPlaybackRate}
+              timestamps={videoTimestamps}
+              showResumePrompt={showResumePrompt}
+              resumePosition={resumePosition}
+              onResume={resumeVideoFromSavedPosition}
+              onDismissResume={() => setShowResumePrompt(false)}
+              onSaveTimestamp={saveCurrentTimestamp}
+              onDeleteTimestamp={deleteTimestamp}
+              onRenameTimestamp={renameTimestamp}
+              onManualSeek={() => {
+                setShowResumePrompt(false);
+                window.setTimeout(updateLastKnownVideoPosition, 0);
+              }}
               onLoadedMetadata={handleVideoLoadedMetadata}
               onTimeUpdate={handleVideoTimeUpdate}
               onPlay={handleVideoPlay}
@@ -1090,6 +1111,7 @@ export const MediaViewerOverlay = ({
         </div>
 
         {/* Bottom control bar */}
+        {!isVideo && (
         <div
           className={cn(
             'absolute inset-x-0 bottom-0 z-20 flex items-center justify-center bg-gradient-to-t from-black/60 to-transparent px-4 py-3 transition-opacity duration-300',
@@ -1147,87 +1169,6 @@ export const MediaViewerOverlay = ({
               </>
             )}
 
-            {isVideo && (
-              <>
-                {showResumePrompt && resumePosition !== null && resumePosition !== undefined && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={resumeVideoFromSavedPosition}
-                      className="h-7 shrink-0 border border-accent/40 bg-accent/15 px-2 text-xs text-accent hover:bg-accent/25"
-                    >
-                      Resume from {formatDuration(resumePosition)}
-                    </Button>
-                    <div className="mx-1 h-4 w-px shrink-0 bg-white/20" />
-                  </>
-                )}
-
-                <span className="text-xs text-white/60 mr-1">Speed</span>
-                {SPEED_OPTIONS.map((speed) => (
-                  <button
-                    key={speed}
-                    type="button"
-                    onClick={() => setPlaybackRate(speed)}
-                    className={cn(
-                      'rounded px-1.5 py-0.5 text-xs transition-colors',
-                      playbackRate === speed
-                        ? 'bg-accent text-accent-foreground'
-                        : 'text-white/70 hover:bg-white/10 hover:text-white',
-                    )}
-                  >
-                    {speed}x
-                  </button>
-                ))}
-
-                <div className="mx-1 h-4 w-px shrink-0 bg-white/20" />
-
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void saveCurrentTimestamp()}
-                      className="h-7 shrink-0 gap-1 px-2 text-xs text-white hover:bg-white/10"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Timestamp
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Save current scene</TooltipContent>
-                </Tooltip>
-
-                {videoTimestamps.length > 0 && (
-                  <div className="ml-1 flex max-w-[42vw] items-center gap-1 overflow-x-auto">
-                    {videoTimestamps.map((timestamp) => (
-                      <div
-                        key={timestamp.id}
-                        className="flex shrink-0 items-center border border-white/15 bg-white/[0.06] text-xs text-white/80"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => seekToTimestamp(timestamp.positionSeconds)}
-                          className="px-2 py-1 font-mono hover:bg-white/10 hover:text-white"
-                          title={`Jump to ${timestamp.label}`}
-                        >
-                          {timestamp.label || formatDuration(timestamp.positionSeconds)}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void deleteTimestamp(timestamp.id)}
-                          className="border-l border-white/10 px-1.5 py-1 text-white/45 hover:bg-danger/20 hover:text-danger"
-                          aria-label={`Delete timestamp ${timestamp.label}`}
-                          title="Delete timestamp"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-
             {isPdf && (
               <>
                 <Tooltip>
@@ -1276,6 +1217,7 @@ export const MediaViewerOverlay = ({
             </Tooltip>
           </div>
         </div>
+        )}
       </div>
     </div>,
     document.body,

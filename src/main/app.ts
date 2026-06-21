@@ -294,6 +294,7 @@ export const bootstrapApp = (): void => {
       autoLockMinutes: 10,
       lockOnMinimize: true,
       lockOnSystemSleepOrLock: true,
+      minimizeOnLock: false,
     };
     const applyBrowserSettingsToPolicy = (settings: BrowserSettings): void => {
       browserNetworkPolicy.strictCrossSiteCookieBlocking = Boolean(settings.blockThirdPartyCookies);
@@ -493,6 +494,9 @@ export const bootstrapApp = (): void => {
             state: authService.getSessionState(),
             reason,
           });
+          if (securitySettings.minimizeOnLock && reason !== 'window_minimize' && !win.isMinimized()) {
+            win.minimize();
+          }
         }
       } finally {
         isLocking = false;

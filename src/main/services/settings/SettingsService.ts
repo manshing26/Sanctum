@@ -17,6 +17,7 @@ const SECURE_DELETE_KEY = 'security.secure_delete_on_import';
 const AUTO_LOCK_MINUTES_KEY = 'security.auto_lock_minutes';
 const LOCK_ON_MINIMIZE_KEY = 'security.lock_on_minimize';
 const LOCK_ON_SYSTEM_SLEEP_OR_LOCK_KEY = 'security.lock_on_system_sleep_or_lock';
+const MINIMIZE_ON_LOCK_KEY = 'security.minimize_on_lock';
 const EXTENSIONS_KEY = 'browser.extensions.paths';
 
 const APPEARANCE_KEYS = {
@@ -111,6 +112,7 @@ export class SettingsService {
       autoLockMinutes: parseNumber(this.getSetting(AUTO_LOCK_MINUTES_KEY), 10),
       lockOnMinimize: parseBoolean(this.getSetting(LOCK_ON_MINIMIZE_KEY) ?? 'true'),
       lockOnSystemSleepOrLock: parseBoolean(this.getSetting(LOCK_ON_SYSTEM_SLEEP_OR_LOCK_KEY) ?? 'true'),
+      minimizeOnLock: parseBoolean(this.getSetting(MINIMIZE_ON_LOCK_KEY) ?? 'false'),
     };
   }
 
@@ -126,6 +128,9 @@ export class SettingsService {
     }
     if (typeof input.lockOnSystemSleepOrLock === 'boolean') {
       this.setSetting(LOCK_ON_SYSTEM_SLEEP_OR_LOCK_KEY, String(input.lockOnSystemSleepOrLock));
+    }
+    if (typeof input.minimizeOnLock === 'boolean') {
+      this.setSetting(MINIMIZE_ON_LOCK_KEY, String(input.minimizeOnLock));
     }
     return this.getSecuritySettings();
   }

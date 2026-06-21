@@ -65,6 +65,7 @@ export const IPC_CHANNELS = {
   saveVideoPlaybackPosition: 'vault:video-playback:save',
   listVideoTimestamps: 'vault:video-timestamps:list',
   createVideoTimestamp: 'vault:video-timestamps:create',
+  renameVideoTimestamp: 'vault:video-timestamps:rename',
   deleteVideoTimestamp: 'vault:video-timestamps:delete',
   openMediaSession: 'vault:open-media-session',
   closeMediaSession: 'vault:close-media-session',
@@ -352,6 +353,11 @@ export type CreateVideoTimestampInput = {
   label?: string;
 };
 
+export type RenameVideoTimestampInput = {
+  id: string;
+  label: string;
+};
+
 export type DeleteVideoTimestampInput = {
   id: string;
 };
@@ -385,6 +391,7 @@ export type SecuritySettings = {
   autoLockMinutes: number;
   lockOnMinimize: boolean;
   lockOnSystemSleepOrLock: boolean;
+  minimizeOnLock: boolean;
 };
 
 export type UpdateSecuritySettingsInput = Partial<SecuritySettings>;
@@ -814,6 +821,7 @@ export type ElectronAPI = {
   saveVideoPlaybackPosition: (input: SaveVideoPlaybackPositionInput) => Promise<OperationResult<VideoPlaybackPosition | null>>;
   listVideoTimestamps: (itemId: string) => Promise<OperationResult<VideoTimestamp[]>>;
   createVideoTimestamp: (input: CreateVideoTimestampInput) => Promise<OperationResult<VideoTimestamp>>;
+  renameVideoTimestamp: (input: RenameVideoTimestampInput) => Promise<OperationResult<VideoTimestamp>>;
   deleteVideoTimestamp: (input: DeleteVideoTimestampInput) => Promise<OperationResult>;
   openMediaSession: (
     input: OpenMediaSessionInput,

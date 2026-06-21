@@ -12,6 +12,7 @@ import type {
   ListItemsQueryResult,
   CreateVideoTimestampInput,
   DeleteVideoTimestampInput,
+  RenameVideoTimestampInput,
   SaveVideoPlaybackPositionInput,
   UpdateItemThumbnailInput,
   VaultItemSummary,
@@ -560,6 +561,38 @@ export class VaultService {
       label: created.label,
       positionSeconds: created.position_seconds,
       createdAt: created.created_at,
+    };
+  }
+
+  renameVideoTimestamp(input: RenameVideoTimestampInput): VideoTimestamp {
+    this.ensureUnlocked();
+    const existing = this.db
+      .prepare(
+        `SELECT id, vault_object_id, label, position_seconds, created_at
+         FROM video_timestamps
+         WHERE id = ?`,
+      )
+      .get(input.id) as {
+        id: string;
+        vault_object_id: string;
+        label: string;
+        position_seconds: number;
+        created_at: string;
+      } | undefined;
+    if (!existing) throw new Error('Timestamp not found.');
+    this.getVideoIdentity(existing.vault_object_id);
+
+    const label = input.label.trim() || formatVideoTimestampLabel(existing.position_seconds);
+    this.db
+      .prepare('UPDATE video_timestamps SET label = ? WHERE id = ?')
+      .run(label, input.id);
+
+    return {
+      id: existing.id,
+      itemId: existing.vault_object_id,
+      label,
+      positionSeconds: existing.position_seconds,
+      createdAt: existing.created_at,
     };
   }
 

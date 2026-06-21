@@ -489,6 +489,9 @@ const SecuritySection: React.FC = () => {
         <SettingRow label="Lock when computer locks or sleeps" description="Automatically lock the vault when the OS session locks or the computer enters sleep.">
           <SanctumSwitch checked={settings.lockOnSystemSleepOrLock} onCheckedChange={(v) => void update('lockOnSystemSleepOrLock', v)} />
         </SettingRow>
+        <SettingRow label="Minimize after lock" description="Automatically minimize Sanctum after the vault locks.">
+          <SanctumSwitch checked={settings.minimizeOnLock} onCheckedChange={(v) => void update('minimizeOnLock', v)} />
+        </SettingRow>
         <SettingRow label="Lock shortcut" description="Cmd/Ctrl + Shift + L locks Sanctum." last>
           <span style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute }}>Enabled</span>
         </SettingRow>

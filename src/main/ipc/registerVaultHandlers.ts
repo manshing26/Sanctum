@@ -13,6 +13,7 @@ import {
   type ImportRequest,
   type ListItemsQueryInput,
   type OpenTemporaryFileInput,
+  type RenameVideoTimestampInput,
   type RenameItemInput,
   type RestoreVaultInput,
   type SaveVideoPlaybackPositionInput,
@@ -261,6 +262,20 @@ export const registerVaultHandlers = ({
       return {
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to save timestamp.',
+      };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.renameVideoTimestamp, (_event, input: RenameVideoTimestampInput) => {
+    try {
+      return {
+        ok: true as const,
+        data: vaultService.renameVideoTimestamp(input),
+      };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to rename timestamp.',
       };
     }
   });

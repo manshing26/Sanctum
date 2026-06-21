@@ -23,6 +23,7 @@ import {
   IPC_CHANNELS,
   type MoveFolderInput,
   type RenameItemInput,
+  type RenameVideoTimestampInput,
   type RenameTagInput,
   type RenameFolderInput,
   type ResetAllAppDataInput,
@@ -120,6 +121,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.listVideoTimestamps, itemId),
   createVideoTimestamp: (input: CreateVideoTimestampInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.createVideoTimestamp, input),
+  renameVideoTimestamp: (input: RenameVideoTimestampInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.renameVideoTimestamp, input),
   deleteVideoTimestamp: (input: DeleteVideoTimestampInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.deleteVideoTimestamp, input),
   openMediaSession: (input: OpenMediaSessionInput) =>

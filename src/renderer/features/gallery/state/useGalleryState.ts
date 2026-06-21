@@ -54,6 +54,7 @@ export const useGalleryState = () => {
     autoLockMinutes: 10,
     lockOnMinimize: true,
     lockOnSystemSleepOrLock: true,
+    minimizeOnLock: false,
   });
 
   const [searchTerm, setSearchTerm] = useState('');
