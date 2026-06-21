@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { isImageMimeType, isVideoMimeType } from '../../../shared/fileTypes';
+import { parseFile } from 'music-metadata';
+import { isAudioMimeType, isImageMimeType, isVideoMimeType } from '../../../shared/fileTypes';
 import { ensureFfmpegExecutable, resolveFfmpegPath } from './FfmpegBinary';
 import { loadSharp } from './loadSharp';
 
@@ -10,6 +11,13 @@ export type ExtractedMetadata = {
   width?: number;
   height?: number;
   durationSeconds?: number;
+  audioTitle?: string;
+  audioArtist?: string;
+  audioAlbum?: string;
+  embeddedArtwork?: {
+    mimeType: string;
+    data: Buffer;
+  };
 };
 
 export class MetadataService {
@@ -107,6 +115,49 @@ export class MetadataService {
     }
   }
 
+  private async extractAudioMetadata(
+    filePath: string,
+  ): Promise<{ metadata: ExtractedMetadata; warning?: string }> {
+    try {
+      const parsed = await parseFile(filePath, { duration: true });
+      const picture = parsed.common.picture?.find((entry) => entry.data.byteLength > 0);
+      return {
+        metadata: {
+          durationSeconds: Number.isFinite(parsed.format.duration)
+            ? parsed.format.duration
+            : undefined,
+          audioTitle: parsed.common.title?.trim() || undefined,
+          audioArtist: parsed.common.artist?.trim() || undefined,
+          audioAlbum: parsed.common.album?.trim() || undefined,
+          embeddedArtwork: picture
+            ? {
+                mimeType: picture.format || 'image/jpeg',
+                data: Buffer.from(picture.data),
+              }
+            : undefined,
+        },
+      };
+    } catch (error) {
+      try {
+        const ffmpegPath = await resolveFfmpegPath();
+        await ensureFfmpegExecutable(ffmpegPath);
+        const output = await this.probeWithFfmpeg(ffmpegPath, filePath);
+        const metadata = this.parseFfmpegMetadata(output);
+        return {
+          metadata: { durationSeconds: metadata.durationSeconds },
+          warning: 'Audio tags could not be read; duration was recovered with ffmpeg.',
+        };
+      } catch {
+        const message =
+          error instanceof Error ? error.message : 'Unknown audio metadata extraction failure';
+        return {
+          metadata: {},
+          warning: `Metadata extraction skipped: ${message}`,
+        };
+      }
+    }
+  }
+
   async extract(
     filePath: string,
     mimeType: string,
@@ -117,6 +168,10 @@ export class MetadataService {
 
     if (isVideoMimeType(mimeType)) {
       return this.extractVideoMetadata(filePath);
+    }
+
+    if (isAudioMimeType(mimeType)) {
+      return this.extractAudioMetadata(filePath);
     }
 
     return { metadata: {} };

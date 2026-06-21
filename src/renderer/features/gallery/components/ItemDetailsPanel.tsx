@@ -132,6 +132,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
 
   const fileKind = getVaultFileKind(item.mimeType);
   const isVid = fileKind === 'video';
+  const isAudio = fileKind === 'audio';
   const canPreview = isPreviewableMimeType(item.mimeType);
 
   return (
@@ -145,6 +146,12 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
             {isVid ? (
               <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke={T.mute2} strokeWidth="1.2">
                 <rect x="2" y="3" width="16" height="22" /><polyline points="18,7 26,4 26,24 18,21" />
+              </svg>
+            ) : isAudio ? (
+              <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke={T.mute2} strokeWidth="1.2">
+                <path d="M10 21V8l12-2v12" />
+                <circle cx="7" cy="21" r="3" />
+                <circle cx="19" cy="18" r="3" />
               </svg>
             ) : fileKind === 'document' ? (
               <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke={T.mute2} strokeWidth="1.2">
@@ -260,7 +267,7 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
           </button>
         </div>
       )}
-      {fileKind === 'video' && onChangeThumbnail && (
+      {(fileKind === 'video' || fileKind === 'audio') && onChangeThumbnail && (
         <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
           <button type="button" onClick={() => onChangeThumbnail(item)} style={{ ...actionBtn('ghost'), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="1" y="1" width="8" height="8" /><circle cx="3.5" cy="3.5" r="1" /><polyline points="1,7 3,5 5.5,6.5 7,5 9,7" /></svg>
@@ -286,6 +293,9 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
         {fieldRow('Size', formatFileSize(item.size), true)}
         {item.width && item.height && fieldRow('Dimensions', `${item.width} × ${item.height}`, true)}
         {item.durationSeconds !== undefined && item.durationSeconds > 0 && fieldRow('Duration', formatDuration(item.durationSeconds), true)}
+        {isAudio && item.audioTitle && fieldRow('Title', item.audioTitle, true)}
+        {isAudio && item.audioArtist && fieldRow('Artist', item.audioArtist, true)}
+        {isAudio && item.audioAlbum && fieldRow('Album', item.audioAlbum, true)}
         {fieldRow('Cipher', <span style={{ color: T.accent, fontFamily: MONO, fontSize: fontSize(10) }}>aes-256-gcm</span>)}
       </div>
 

@@ -1,4 +1,4 @@
-export type VaultFileKind = 'image' | 'video' | 'document' | 'file';
+export type VaultFileKind = 'image' | 'video' | 'audio' | 'document' | 'file';
 
 const EXTENSION_MIME_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -12,6 +12,13 @@ const EXTENSION_MIME_TYPES: Record<string, string> = {
   '.webm': 'video/webm',
   '.mkv': 'video/x-matroska',
   '.mov': 'video/quicktime',
+  '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.wav': 'audio/wav',
+  '.flac': 'audio/flac',
+  '.ogg': 'audio/ogg',
+  '.opus': 'audio/opus',
   '.pdf': 'application/pdf',
   '.txt': 'text/plain',
   '.log': 'text/plain',
@@ -62,8 +69,10 @@ export const isImageMimeType = (mimeType: string): boolean => mimeType.startsWit
 
 export const isVideoMimeType = (mimeType: string): boolean => mimeType.startsWith('video/');
 
+export const isAudioMimeType = (mimeType: string): boolean => mimeType.startsWith('audio/');
+
 export const isMediaMimeType = (mimeType: string): boolean =>
-  isImageMimeType(mimeType) || isVideoMimeType(mimeType);
+  isImageMimeType(mimeType) || isVideoMimeType(mimeType) || isAudioMimeType(mimeType);
 
 export const isPdfMimeType = (mimeType: string): boolean => mimeType === 'application/pdf';
 
@@ -95,5 +104,6 @@ export const isDocumentMimeType = (mimeType: string): boolean =>
 export const getVaultFileKind = (mimeType: string): VaultFileKind => {
   if (isImageMimeType(mimeType)) return 'image';
   if (isVideoMimeType(mimeType)) return 'video';
+  if (isAudioMimeType(mimeType)) return 'audio';
   return 'document';
 };

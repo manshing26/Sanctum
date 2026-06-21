@@ -73,11 +73,13 @@ export class BackupService {
       const manifest = JSON.stringify({
         createdAt: new Date().toISOString(),
         schemaVersion: 4,
+        recoveryContract: 1,
         itemCount,
         tables: [
           'auth_audit_log',
           'vault_objects', 'vault_items', 'bookmarks', 'notes',
           'video_playback_positions', 'video_timestamps', 'object_tags',
+          'audio_metadata', 'audio_playback_positions', 'audio_bookmarks',
           'folders', 'tags', 'passwords', 'schema_meta',
         ],
       }, null, 2);

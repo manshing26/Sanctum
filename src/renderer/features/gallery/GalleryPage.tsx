@@ -245,6 +245,7 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
 
   const handleSelectAllItemsScope = (): void => { setSelectedViewScope('all'); setSelectedFolderId(null); };
   const handleSelectVideoScope = (): void => { setSelectedViewScope('video'); setSelectedFolderId(null); };
+  const handleSelectAudioScope = (): void => { setSelectedViewScope('audio'); setSelectedFolderId(null); };
   const handleSelectImageScope = (): void => { setSelectedViewScope('image'); setSelectedFolderId(null); };
   const handleSelectDocumentScope = (): void => { setSelectedViewScope('document'); setSelectedFolderId(null); };
   const handleSelectRootScope = (): void => { setSelectedViewScope('root'); setSelectedFolderId(null); };
@@ -715,6 +716,7 @@ export const GalleryPage = (_props: GalleryPageProps): React.JSX.Element => {
             selectedFolderId={selectedFolderId}
             onSelectAllItems={handleSelectAllItemsScope}
             onSelectVideo={handleSelectVideoScope}
+            onSelectAudio={handleSelectAudioScope}
             onSelectImage={handleSelectImageScope}
             onSelectDocuments={handleSelectDocumentScope}
             onSelectRoot={handleSelectRootScope}

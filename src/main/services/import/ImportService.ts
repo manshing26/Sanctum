@@ -88,6 +88,7 @@ export class ImportService {
         const { thumbnail, warning: thumbnailWarning } = await this.thumbnailService.generate(
           stagedPath,
           mimeType,
+          metadata.embeddedArtwork?.data,
         );
         if (thumbnailWarning) {
           result.warnings?.push(`${filePath}: ${thumbnailWarning}`);

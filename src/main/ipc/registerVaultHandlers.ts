@@ -6,7 +6,9 @@ import {
   type BackupProgress,
   type BackupVaultInput,
   type ClearAllVaultItemsInput,
+  type CreateAudioBookmarkInput,
   type CreateVideoTimestampInput,
+  type DeleteAudioBookmarkInput,
   type DeleteVideoTimestampInput,
   type DeleteVaultItemInput,
   type ExportItemsInput,
@@ -14,9 +16,11 @@ import {
   type ListItemsQueryInput,
   type OpenTemporaryFileInput,
   type RenameVideoTimestampInput,
+  type RenameAudioBookmarkInput,
   type RenameItemInput,
   type RestoreVaultInput,
   type SaveVideoPlaybackPositionInput,
+  type SaveAudioPlaybackPositionInput,
   type ScanImportConflictsInput,
   type ToggleFavoriteInput,
   type SetRatingInput,
@@ -289,6 +293,55 @@ export const registerVaultHandlers = ({
         ok: false as const,
         error: error instanceof Error ? error.message : 'Failed to delete timestamp.',
       };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.getAudioPlaybackPosition, (_event, itemId: string) => {
+    try {
+      return { ok: true as const, data: vaultService.getAudioPlaybackPosition(itemId) };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to load audio position.' };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.saveAudioPlaybackPosition, (_event, input: SaveAudioPlaybackPositionInput) => {
+    try {
+      return { ok: true as const, data: vaultService.saveAudioPlaybackPosition(input) };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to save audio position.' };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.listAudioBookmarks, (_event, itemId: string) => {
+    try {
+      return { ok: true as const, data: vaultService.listAudioBookmarks(itemId) };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to load audio bookmarks.' };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.createAudioBookmark, (_event, input: CreateAudioBookmarkInput) => {
+    try {
+      return { ok: true as const, data: vaultService.createAudioBookmark(input) };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to save audio bookmark.' };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.renameAudioBookmark, (_event, input: RenameAudioBookmarkInput) => {
+    try {
+      return { ok: true as const, data: vaultService.renameAudioBookmark(input) };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to rename audio bookmark.' };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.deleteAudioBookmark, (_event, input: DeleteAudioBookmarkInput) => {
+    try {
+      vaultService.deleteAudioBookmark(input);
+      return { ok: true as const };
+    } catch (error) {
+      return { ok: false as const, error: error instanceof Error ? error.message : 'Failed to delete audio bookmark.' };
     }
   });
 

@@ -17,11 +17,12 @@ import {
   Loader2,
   AlertCircle,
 } from 'lucide-react';
-import type { OpenMediaSessionResult, VideoTimestamp } from '../../../shared/ipc';
+import type { AudioBookmark, AudioSleepTimerState, OpenMediaSessionResult, VideoTimestamp } from '../../../shared/ipc';
 import { Button } from '../../components/ui/Button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '../../components/ui/Tooltip';
 import { ImageViewer } from './components/ImageViewer';
 import { VideoViewer } from './components/VideoViewer';
+import { AudioViewer } from './components/AudioViewer';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useViewerControls } from './hooks/useViewerControls';
 import type { MediaViewerOverlayProps } from './types';
@@ -465,6 +466,7 @@ const VIDEO_PROGRESS_MIN_SECONDS = 15;
 const VIDEO_PROGRESS_MIN_DURATION_SECONDS = 45;
 const VIDEO_PROGRESS_NEAR_END_SECONDS = 10;
 const VIDEO_PROGRESS_NEAR_END_RATIO = 0.05;
+const AUDIO_PROGRESS_MIN_DURATION_SECONDS = 10 * 60;
 
 const isMeaningfulVideoProgress = (positionSeconds: number, durationSeconds?: number): boolean => {
   if (!Number.isFinite(positionSeconds) || positionSeconds < VIDEO_PROGRESS_MIN_SECONDS) return false;
@@ -477,11 +479,35 @@ const isMeaningfulVideoProgress = (positionSeconds: number, durationSeconds?: nu
   return true;
 };
 
-const ShortcutHelp = ({ onClose }: { onClose: () => void }): React.JSX.Element => {
+const isMeaningfulAudioProgress = (positionSeconds: number, durationSeconds?: number): boolean => {
+  if (!Number.isFinite(positionSeconds) || positionSeconds < VIDEO_PROGRESS_MIN_SECONDS) return false;
+  if (!durationSeconds || durationSeconds < AUDIO_PROGRESS_MIN_DURATION_SECONDS) return false;
+  const remaining = durationSeconds - positionSeconds;
+  return remaining > VIDEO_PROGRESS_NEAR_END_SECONDS
+    && remaining > durationSeconds * VIDEO_PROGRESS_NEAR_END_RATIO;
+};
+
+const ShortcutHelp = ({
+  onClose,
+  audioMode = false,
+}: {
+  onClose: () => void;
+  audioMode?: boolean;
+}): React.JSX.Element => {
   const groups = [
-    { title: 'General', rows: [['Close', 'Esc'], ['Previous item', 'Up'], ['Next item', 'Down'], ['Fullscreen', 'F'], ['Shortcuts', '?']] },
+    {
+      title: 'General',
+      rows: [
+        ['Close', 'Esc'],
+        ['Previous item', 'Up'],
+        ['Next item', 'Down'],
+        ...(!audioMode ? [['Fullscreen', 'F']] : []),
+        ['Shortcuts', '?'],
+      ],
+    },
     { title: 'Image', rows: [['Zoom in', '+ / = / Wheel up'], ['Zoom out', '- / Wheel down'], ['Pan zoomed image', 'Drag'], ['Rotate', 'R'], ['Reset', '0']] },
     { title: 'Video', rows: [['Play / pause', 'Space'], ['Seek back 5s', 'Left'], ['Seek forward 5s', 'Right'], ['Mute', 'M'], ['Reset speed', '0']] },
+    { title: 'Audio', rows: [['Play / pause', 'Space'], ['Seek back 5s', 'Left'], ['Seek forward 5s', 'Right'], ['Mute', 'M'], ['Reset speed', '0']] },
     { title: 'PDF / Documents', rows: [['PDF zoom in', '+ / ='], ['PDF zoom out', '-'], ['PDF reset zoom', '0'], ['Scroll document', 'Mouse / trackpad']] },
   ];
 
@@ -544,9 +570,15 @@ export const MediaViewerOverlay = ({
   const [resumePosition, setResumePosition] = useState<number | null | undefined>(undefined);
   const [showResumePrompt, setShowResumePrompt] = useState(false);
   const [videoTimestamps, setVideoTimestamps] = useState<VideoTimestamp[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [audioBookmarks, setAudioBookmarks] = useState<AudioBookmark[]>([]);
+  const [audioSleepTimer, setAudioSleepTimer] = useState<AudioSleepTimerState | null>(null);
+  const [audioArtworkUrl, setAudioArtworkUrl] = useState<string | undefined>(undefined);
   const hideTimerRef = useRef<number | null>(null);
   const lastSavedVideoPositionRef = useRef<{ itemId: string; positionSeconds: number; savedAt: number } | null>(null);
   const lastKnownVideoPositionRef = useRef<{ itemId: string; positionSeconds: number; durationSeconds?: number } | null>(null);
+  const lastSavedAudioPositionRef = useRef<{ itemId: string; positionSeconds: number; savedAt: number } | null>(null);
+  const lastKnownAudioPositionRef = useRef<{ itemId: string; positionSeconds: number; durationSeconds?: number } | null>(null);
 
   const currentIndex = useMemo(
     () => items.findIndex((item) => item.id === currentItemId),
@@ -558,6 +590,7 @@ export const MediaViewerOverlay = ({
   const mimeType = state.session?.mimeType ?? currentItem?.mimeType ?? 'application/octet-stream';
   const isImage = mimeType.startsWith('image/');
   const isVideo = mimeType.startsWith('video/');
+  const isAudio = mimeType.startsWith('audio/');
   const isPdf = mimeType === 'application/pdf';
   const isReadableDocument = isReadableDocumentMimeType(mimeType);
 
@@ -565,7 +598,7 @@ export const MediaViewerOverlay = ({
   const resetControlsTimer = (): void => {
     setShowControls(true);
     if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
-    if (isPdf || isReadableDocument) return;
+    if (isAudio || isPdf || isReadableDocument) return;
     hideTimerRef.current = window.setTimeout(() => setShowControls(false), 3000);
   };
 
@@ -626,8 +659,12 @@ export const MediaViewerOverlay = ({
     setResumePosition(undefined);
     setShowResumePrompt(false);
     setVideoTimestamps([]);
+    setAudioBookmarks([]);
+    setAudioArtworkUrl(undefined);
     lastSavedVideoPositionRef.current = null;
     lastKnownVideoPositionRef.current = null;
+    lastSavedAudioPositionRef.current = null;
+    lastKnownAudioPositionRef.current = null;
     resetControlsTimer();
     if (currentItem) {
       void openSession(currentItem.id);
@@ -656,6 +693,46 @@ export const MediaViewerOverlay = ({
     };
 
     void loadVideoState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentItem?.id, currentItem?.mimeType]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentItem || !currentItem.mimeType.startsWith('audio/')) return;
+
+    const loadAudioState = async (): Promise<void> => {
+      const [positionResult, bookmarksResult, timerResult, thumbnailResult] = await Promise.all([
+        window.electronAPI.getAudioPlaybackPosition(currentItem.id),
+        window.electronAPI.listAudioBookmarks(currentItem.id),
+        window.electronAPI.getAudioSleepTimer(),
+        currentItem.hasThumbnail
+          ? window.electronAPI.getItemThumbnail(currentItem.id)
+          : Promise.resolve(null),
+      ]);
+      if (cancelled) return;
+
+      const loadedResumePosition = positionResult.ok ? positionResult.data?.positionSeconds ?? null : null;
+      const loadedDuration = positionResult.ok
+        ? positionResult.data?.durationSeconds ?? currentItem.durationSeconds
+        : currentItem.durationSeconds;
+      setResumePosition(loadedResumePosition);
+      setShowResumePrompt(
+        loadedResumePosition !== null
+        && isMeaningfulAudioProgress(loadedResumePosition, loadedDuration),
+      );
+      setAudioBookmarks(bookmarksResult.ok ? bookmarksResult.data : []);
+      setAudioSleepTimer(timerResult.ok ? timerResult.data : null);
+      if (thumbnailResult?.ok) {
+        setAudioArtworkUrl(
+          `data:${thumbnailResult.data.mimeType};base64,${thumbnailResult.data.base64Data}`,
+        );
+      }
+    };
+
+    void loadAudioState();
 
     return () => {
       cancelled = true;
@@ -696,8 +773,45 @@ export const MediaViewerOverlay = ({
     });
   }, [currentItem]);
 
+  const saveAudioProgress = useCallback(async (force = false, positionOverride?: number): Promise<void> => {
+    if (!currentItem || !currentItem.mimeType.startsWith('audio/')) return;
+    const audio = audioRef.current;
+    const known = lastKnownAudioPositionRef.current;
+    const positionSeconds = positionOverride
+      ?? (known?.itemId === currentItem.id ? known.positionSeconds : undefined)
+      ?? audio?.currentTime;
+    if (positionSeconds === undefined || !Number.isFinite(positionSeconds)) return;
+    const durationSeconds = audio && Number.isFinite(audio.duration) && audio.duration > 0
+      ? audio.duration
+      : known?.itemId === currentItem.id
+        ? known.durationSeconds ?? currentItem.durationSeconds
+        : currentItem.durationSeconds;
+    const previous = lastSavedAudioPositionRef.current;
+    const now = Date.now();
+    if (
+      !force
+      && previous?.itemId === currentItem.id
+      && now - previous.savedAt < VIDEO_PROGRESS_SAVE_INTERVAL_MS
+    ) {
+      return;
+    }
+    if (positionSeconds !== 0 && !isMeaningfulAudioProgress(positionSeconds, durationSeconds)) return;
+    lastSavedAudioPositionRef.current = { itemId: currentItem.id, positionSeconds, savedAt: now };
+    await window.electronAPI.saveAudioPlaybackPosition({
+      itemId: currentItem.id,
+      positionSeconds,
+      durationSeconds,
+    });
+  }, [currentItem]);
+
   const setVideoPlaybackActive = useCallback((active: boolean): void => {
     void window.electronAPI.setVideoPlaybackActive({ active }).catch(() => {
+      // Best-effort runtime hint for auto-lock / OS sleep prevention.
+    });
+  }, []);
+
+  const setAudioPlaybackActive = useCallback((active: boolean): void => {
+    void window.electronAPI.setAudioPlaybackActive({ active }).catch(() => {
       // Best-effort runtime hint for auto-lock / OS sleep prevention.
     });
   }, []);
@@ -724,6 +838,23 @@ export const MediaViewerOverlay = ({
     }
   }, [currentItem, resumePosition, showResumePrompt]);
 
+  const updateLastKnownAudioPosition = useCallback((): void => {
+    if (!currentItem || !currentItem.mimeType.startsWith('audio/')) return;
+    const audio = audioRef.current;
+    if (!audio || !Number.isFinite(audio.currentTime)) return;
+    const durationSeconds = Number.isFinite(audio.duration) && audio.duration > 0
+      ? audio.duration
+      : currentItem.durationSeconds;
+    lastKnownAudioPositionRef.current = {
+      itemId: currentItem.id,
+      positionSeconds: Math.max(0, audio.currentTime),
+      durationSeconds,
+    };
+    if (showResumePrompt && audio.currentTime >= VIDEO_PROGRESS_MIN_SECONDS) {
+      setShowResumePrompt(false);
+    }
+  }, [currentItem, showResumePrompt]);
+
   const resumeVideoFromSavedPosition = useCallback((): void => {
     if (!videoRef.current || resumePosition === null || resumePosition === undefined) return;
     videoRef.current.currentTime = Math.max(0, resumePosition);
@@ -732,11 +863,31 @@ export const MediaViewerOverlay = ({
     videoRef.current.focus();
   }, [resumePosition, updateLastKnownVideoPosition]);
 
+  const resumeAudioFromSavedPosition = useCallback((): void => {
+    if (!audioRef.current || resumePosition === null || resumePosition === undefined) return;
+    audioRef.current.currentTime = Math.max(0, resumePosition);
+    setShowResumePrompt(false);
+    updateLastKnownAudioPosition();
+    audioRef.current.focus();
+  }, [resumePosition, updateLastKnownAudioPosition]);
+
   useEffect(() => {
     return () => {
       setVideoPlaybackActive(false);
+      setAudioPlaybackActive(false);
     };
-  }, [setVideoPlaybackActive]);
+  }, [setAudioPlaybackActive, setVideoPlaybackActive]);
+
+  useEffect(() => {
+    if (!isAudio) return;
+    const refreshTimer = async (): Promise<void> => {
+      const result = await window.electronAPI.getAudioSleepTimer();
+      if (result.ok) setAudioSleepTimer(result.data);
+    };
+    void refreshTimer();
+    const timer = window.setInterval(() => void refreshTimer(), 1000);
+    return () => window.clearInterval(timer);
+  }, [isAudio]);
 
   const closeViewer = (): void => {
     if (showShortcutHelp) {
@@ -748,16 +899,26 @@ export const MediaViewerOverlay = ({
       return;
     }
     setVideoPlaybackActive(false);
+    setAudioPlaybackActive(false);
     updateLastKnownVideoPosition();
+    updateLastKnownAudioPosition();
     void saveVideoProgress(true);
+    void saveAudioProgress(true);
+    void window.electronAPI.cancelAudioSleepTimer();
     onClose();
   };
 
   const navigatePrev = (): void => {
     if (canPrev) {
       setVideoPlaybackActive(false);
+      setAudioPlaybackActive(false);
       updateLastKnownVideoPosition();
+      updateLastKnownAudioPosition();
       void saveVideoProgress(true);
+      void saveAudioProgress(true);
+      if (!items[currentIndex - 1].mimeType.startsWith('audio/')) {
+        void window.electronAPI.cancelAudioSleepTimer();
+      }
       onNavigate(items[currentIndex - 1].id);
     }
   };
@@ -765,26 +926,34 @@ export const MediaViewerOverlay = ({
   const navigateNext = (): void => {
     if (canNext) {
       setVideoPlaybackActive(false);
+      setAudioPlaybackActive(false);
       updateLastKnownVideoPosition();
+      updateLastKnownAudioPosition();
       void saveVideoProgress(true);
+      void saveAudioProgress(true);
+      if (!items[currentIndex + 1].mimeType.startsWith('audio/')) {
+        void window.electronAPI.cancelAudioSleepTimer();
+      }
       onNavigate(items[currentIndex + 1].id);
     }
   };
 
   const togglePlayPause = (): void => {
-    if (!videoRef.current) return;
-    if (videoRef.current.paused) {
-      void videoRef.current.play().catch((error: unknown) => {
-        onMessage(error instanceof Error ? error.message : 'Video playback failed.');
+    const media = isAudio ? audioRef.current : videoRef.current;
+    if (!media) return;
+    if (media.paused) {
+      void media.play().catch((error: unknown) => {
+        onMessage(error instanceof Error ? error.message : 'Media playback failed.');
       });
     } else {
-      videoRef.current.pause();
+      media.pause();
     }
   };
 
   const seekBy = (seconds: number): void => {
-    if (!videoRef.current) return;
-    videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime + seconds);
+    const media = isAudio ? audioRef.current : videoRef.current;
+    if (!media) return;
+    media.currentTime = Math.max(0, media.currentTime + seconds);
   };
 
   const zoomPdfIn = (): void => {
@@ -800,8 +969,9 @@ export const MediaViewerOverlay = ({
   };
 
   const toggleMute = (): void => {
-    if (!videoRef.current) return;
-    videoRef.current.muted = !videoRef.current.muted;
+    const media = isAudio ? audioRef.current : videoRef.current;
+    if (!media) return;
+    media.muted = !media.muted;
   };
 
   const toggleFullscreen = (): void => {
@@ -906,22 +1076,120 @@ export const MediaViewerOverlay = ({
     return true;
   };
 
+  const handleAudioTimeUpdate = (): void => {
+    updateLastKnownAudioPosition();
+    void saveAudioProgress(false);
+  };
+
+  const handleAudioPlay = (): void => {
+    updateLastKnownAudioPosition();
+    setAudioPlaybackActive(true);
+  };
+
+  const handleAudioPause = (): void => {
+    setAudioPlaybackActive(false);
+    updateLastKnownAudioPosition();
+    void saveAudioProgress(true);
+  };
+
+  const handleAudioEnded = (): void => {
+    setAudioPlaybackActive(false);
+    void saveAudioProgress(true, 0);
+    void window.electronAPI.completeAudioSleepTimerTrack();
+  };
+
+  const handleAudioError = (): void => {
+    setAudioPlaybackActive(false);
+    setState((prev) => ({
+      ...prev,
+      error: prev.error ?? 'Unable to decode this audio file. Codec may be unsupported.',
+    }));
+  };
+
+  const saveCurrentAudioBookmark = async (): Promise<void> => {
+    if (!currentItem || !audioRef.current) return;
+    const result = await window.electronAPI.createAudioBookmark({
+      itemId: currentItem.id,
+      positionSeconds: audioRef.current.currentTime,
+    });
+    if (!result.ok) {
+      onMessage(result.error);
+      return;
+    }
+    setAudioBookmarks((bookmarks) => (
+      [...bookmarks, result.data].sort((a, b) => a.positionSeconds - b.positionSeconds)
+    ));
+    onMessage('Audio bookmark saved.');
+  };
+
+  const deleteAudioBookmark = async (bookmarkId: string): Promise<void> => {
+    const result = await window.electronAPI.deleteAudioBookmark({ id: bookmarkId });
+    if (!result.ok) {
+      onMessage(result.error);
+      return;
+    }
+    setAudioBookmarks((bookmarks) => bookmarks.filter((bookmark) => bookmark.id !== bookmarkId));
+  };
+
+  const renameAudioBookmark = async (bookmarkId: string, label: string): Promise<boolean> => {
+    const result = await window.electronAPI.renameAudioBookmark({ id: bookmarkId, label });
+    if (!result.ok) {
+      onMessage(result.error);
+      return false;
+    }
+    setAudioBookmarks((bookmarks) => bookmarks.map((bookmark) => (
+      bookmark.id === bookmarkId ? result.data : bookmark
+    )));
+    return true;
+  };
+
+  const setAudioSleepTimerValue = async (value: number | 'end_of_track'): Promise<void> => {
+    const result = await window.electronAPI.setAudioSleepTimer(
+      value === 'end_of_track'
+        ? { mode: 'end_of_track' }
+        : { mode: 'duration', minutes: value },
+    );
+    if (!result.ok) {
+      onMessage(result.error);
+      return;
+    }
+    setAudioSleepTimer(result.data);
+  };
+
+  const extendAudioSleepTimer = async (): Promise<void> => {
+    const result = await window.electronAPI.extendAudioSleepTimer({ minutes: 15 });
+    if (!result.ok) {
+      onMessage(result.error);
+      return;
+    }
+    setAudioSleepTimer(result.data);
+  };
+
+  const cancelAudioSleepTimer = async (): Promise<void> => {
+    const result = await window.electronAPI.cancelAudioSleepTimer();
+    if (!result.ok) {
+      onMessage(result.error);
+      return;
+    }
+    setAudioSleepTimer(null);
+  };
+
   useKeyboardShortcuts({
     onClose: closeViewer,
     onPrev: navigatePrev,
     onNext: navigateNext,
-    onPlayPause: isVideo ? togglePlayPause : undefined,
-    onVideoSeekBackward: isVideo ? () => seekBy(-5) : undefined,
-    onVideoSeekForward: isVideo ? () => seekBy(5) : undefined,
-    onToggleMute: isVideo ? toggleMute : undefined,
-    onToggleFullscreen: toggleFullscreen,
+    onPlayPause: isVideo || isAudio ? togglePlayPause : undefined,
+    onVideoSeekBackward: isVideo || isAudio ? () => seekBy(-5) : undefined,
+    onVideoSeekForward: isVideo || isAudio ? () => seekBy(5) : undefined,
+    onToggleMute: isVideo || isAudio ? toggleMute : undefined,
+    onToggleFullscreen: isAudio ? undefined : toggleFullscreen,
     onZoomIn: isImage ? viewerControls.zoomIn : undefined,
     onZoomOut: isImage ? viewerControls.zoomOut : undefined,
     onPdfZoomIn: isPdf ? zoomPdfIn : undefined,
     onPdfZoomOut: isPdf ? zoomPdfOut : undefined,
     onPdfReset: isPdf ? resetPdf : undefined,
     onRotate: isImage ? viewerControls.rotateClockwise : undefined,
-    onReset: isImage ? viewerControls.reset : isVideo ? () => setPlaybackRate(1) : undefined,
+    onReset: isImage ? viewerControls.reset : isVideo || isAudio ? () => setPlaybackRate(1) : undefined,
     onToggleHelp: () => setShowShortcutHelp((open) => !open),
   });
 
@@ -1014,7 +1282,12 @@ export const MediaViewerOverlay = ({
           </button>
         )}
 
-        {showShortcutHelp && <ShortcutHelp onClose={() => setShowShortcutHelp(false)} />}
+        {showShortcutHelp && (
+          <ShortcutHelp
+            audioMode={isAudio}
+            onClose={() => setShowShortcutHelp(false)}
+          />
+        )}
 
         {/* Content area */}
         <div className="flex flex-1 items-center justify-center overflow-hidden">
@@ -1084,6 +1357,42 @@ export const MediaViewerOverlay = ({
             />
           )}
 
+          {!state.isLoading && !state.error && state.session && isAudio && currentItem && (
+            <AudioViewer
+              src={state.session.mediaUrl}
+              audioRef={audioRef}
+              artworkUrl={audioArtworkUrl}
+              filename={currentItem.originalName}
+              title={currentItem.audioTitle}
+              artist={currentItem.audioArtist}
+              album={currentItem.audioAlbum}
+              playbackRate={playbackRate}
+              onPlaybackRateChange={setPlaybackRate}
+              bookmarks={audioBookmarks}
+              showResumePrompt={showResumePrompt}
+              resumePosition={resumePosition}
+              sleepTimer={audioSleepTimer}
+              onResume={resumeAudioFromSavedPosition}
+              onDismissResume={() => setShowResumePrompt(false)}
+              onSaveBookmark={saveCurrentAudioBookmark}
+              onDeleteBookmark={deleteAudioBookmark}
+              onRenameBookmark={renameAudioBookmark}
+              onSetSleepTimer={setAudioSleepTimerValue}
+              onExtendSleepTimer={extendAudioSleepTimer}
+              onCancelSleepTimer={cancelAudioSleepTimer}
+              onManualSeek={() => {
+                setShowResumePrompt(false);
+                window.setTimeout(updateLastKnownAudioPosition, 0);
+              }}
+              onLoadedMetadata={updateLastKnownAudioPosition}
+              onTimeUpdate={handleAudioTimeUpdate}
+              onPlay={handleAudioPlay}
+              onPause={handleAudioPause}
+              onEnded={handleAudioEnded}
+              onError={handleAudioError}
+            />
+          )}
+
           {!state.isLoading && !state.error && state.session && isPdf && (
             <PdfViewer
               src={state.session.mediaUrl}
@@ -1103,7 +1412,7 @@ export const MediaViewerOverlay = ({
             />
           )}
 
-          {!state.isLoading && !state.error && state.session && !isImage && !isVideo && !isPdf && !isReadableDocument && (
+          {!state.isLoading && !state.error && state.session && !isImage && !isVideo && !isAudio && !isPdf && !isReadableDocument && (
             <div className="text-sm text-white/60">
               Unsupported media type: {state.session.mimeType}
             </div>
@@ -1111,7 +1420,7 @@ export const MediaViewerOverlay = ({
         </div>
 
         {/* Bottom control bar */}
-        {!isVideo && (
+        {!isVideo && !isAudio && (
         <div
           className={cn(
             'absolute inset-x-0 bottom-0 z-20 flex items-center justify-center bg-gradient-to-t from-black/60 to-transparent px-4 py-3 transition-opacity duration-300',

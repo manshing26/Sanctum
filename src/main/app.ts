@@ -189,9 +189,11 @@ export const bootstrapApp = (): void => {
   const playingMediaContentsIds = new Set<number>();
   const trackedMediaContentsIds = new Set<number>();
   let vaultVideoPlaybackActive = false;
+  let vaultAudioPlaybackActive = false;
   let allowPlaybackPowerBlocker = false;
   let powerSaveBlockerId: number | null = null;
-  const hasActivePlayback = (): boolean => playingMediaContentsIds.size > 0 || vaultVideoPlaybackActive;
+  const hasActivePlayback = (): boolean =>
+    playingMediaContentsIds.size > 0 || vaultVideoPlaybackActive || vaultAudioPlaybackActive;
   const updatePowerSaveBlocker = (): void => {
     if (hasActivePlayback() && allowPlaybackPowerBlocker) {
       if (powerSaveBlockerId === null || !powerSaveBlocker.isStarted(powerSaveBlockerId)) {
@@ -210,6 +212,7 @@ export const bootstrapApp = (): void => {
   const clearPlaybackState = (): void => {
     playingMediaContentsIds.clear();
     vaultVideoPlaybackActive = false;
+    vaultAudioPlaybackActive = false;
     updatePowerSaveBlocker();
   };
   const wireMediaPlaybackTracking = (contents: WebContents): void => {
@@ -466,6 +469,13 @@ export const bootstrapApp = (): void => {
     });
 
     let isLocking = false;
+    let audioSleepTimer: { mode: 'duration' | 'end_of_track'; expiresAt?: number } | null = null;
+    let audioSleepTimeout: NodeJS.Timeout | null = null;
+    const clearAudioSleepTimer = (): void => {
+      if (audioSleepTimeout) clearTimeout(audioSleepTimeout);
+      audioSleepTimeout = null;
+      audioSleepTimer = null;
+    };
     const performGlobalLock = async (reason: SessionChangeReason): Promise<void> => {
       if (isLocking || sessionStore.getState().status !== 'unlocked') {
         return;
@@ -473,6 +483,7 @@ export const bootstrapApp = (): void => {
 
       isLocking = true;
       try {
+        clearAudioSleepTimer();
         allowPlaybackPowerBlocker = false;
         await exitBrowserFullscreen();
         // Mute all webContents immediately so audio stops synchronously before
@@ -511,6 +522,67 @@ export const bootstrapApp = (): void => {
     ipcMain.handle(IPC_CHANNELS.setVideoPlaybackActive, (_event, input: { active?: boolean }) => {
       vaultVideoPlaybackActive = input.active === true;
       updatePowerSaveBlocker();
+      return { ok: true as const };
+    });
+    ipcMain.handle(IPC_CHANNELS.setAudioPlaybackActive, (_event, input: { active?: boolean }) => {
+      vaultAudioPlaybackActive = input.active === true;
+      updatePowerSaveBlocker();
+      return { ok: true as const };
+    });
+    const audioSleepState = () => {
+      if (!audioSleepTimer) return null;
+      const remainingSeconds = audioSleepTimer.expiresAt
+        ? Math.max(0, Math.ceil((audioSleepTimer.expiresAt - Date.now()) / 1000))
+        : undefined;
+      return {
+        mode: audioSleepTimer.mode,
+        expiresAt: audioSleepTimer.expiresAt
+          ? new Date(audioSleepTimer.expiresAt).toISOString()
+          : undefined,
+        remainingSeconds,
+      };
+    };
+    const scheduleAudioSleepLock = (expiresAt: number): void => {
+      if (audioSleepTimeout) clearTimeout(audioSleepTimeout);
+      audioSleepTimeout = setTimeout(() => {
+        audioSleepTimeout = null;
+        void performGlobalLock('audio_sleep_timer');
+      }, Math.max(0, expiresAt - Date.now()));
+    };
+    ipcMain.handle(IPC_CHANNELS.setAudioSleepTimer, (_event, input: { mode?: string; minutes?: number }) => {
+      clearAudioSleepTimer();
+      if (input.mode === 'end_of_track') {
+        audioSleepTimer = { mode: 'end_of_track' };
+        return { ok: true as const, data: audioSleepState()! };
+      }
+      const minutes = Math.max(1, Math.min(480, Math.floor(input.minutes ?? 0)));
+      const expiresAt = Date.now() + minutes * 60_000;
+      audioSleepTimer = { mode: 'duration', expiresAt };
+      scheduleAudioSleepLock(expiresAt);
+      return { ok: true as const, data: audioSleepState()! };
+    });
+    ipcMain.handle(IPC_CHANNELS.extendAudioSleepTimer, (_event, input: { minutes?: number }) => {
+      if (!audioSleepTimer || audioSleepTimer.mode !== 'duration') {
+        return { ok: false as const, error: 'No duration sleep timer is active.' };
+      }
+      const minutes = Math.max(1, Math.min(480, Math.floor(input.minutes ?? 0)));
+      const expiresAt = Math.max(Date.now(), audioSleepTimer.expiresAt ?? Date.now()) + minutes * 60_000;
+      audioSleepTimer = { mode: 'duration', expiresAt };
+      scheduleAudioSleepLock(expiresAt);
+      return { ok: true as const, data: audioSleepState()! };
+    });
+    ipcMain.handle(IPC_CHANNELS.cancelAudioSleepTimer, () => {
+      clearAudioSleepTimer();
+      return { ok: true as const };
+    });
+    ipcMain.handle(IPC_CHANNELS.getAudioSleepTimer, () => ({
+      ok: true as const,
+      data: audioSleepState(),
+    }));
+    ipcMain.handle(IPC_CHANNELS.completeAudioSleepTimerTrack, () => {
+      if (audioSleepTimer?.mode === 'end_of_track') {
+        void performGlobalLock('audio_sleep_timer');
+      }
       return { ok: true as const };
     });
     try {
@@ -562,6 +634,7 @@ export const bootstrapApp = (): void => {
         }
 
         isResettingAllData = true;
+        clearAudioSleepTimer();
         allowPlaybackPowerBlocker = false;
         clearInterval(idleLockInterval);
         await exitBrowserFullscreen();
@@ -603,6 +676,7 @@ export const bootstrapApp = (): void => {
     const mainWindow = mainWindowController.create();
     wireMediaPlaybackTracking(mainWindow.webContents);
     app.on('before-quit', () => {
+      clearAudioSleepTimer();
       clearPlaybackState();
       if (!isResettingAllData) {
         void vaultService.clearTemporaryOpenFiles();

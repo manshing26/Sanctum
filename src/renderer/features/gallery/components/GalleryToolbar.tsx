@@ -76,7 +76,7 @@ type GalleryToolbarProps = {
   selectedFolderName: string | null;
   subtitle?: string;
   breadcrumb?: string | null;
-  selectedViewScope: 'all' | 'video' | 'image' | 'document' | 'root' | 'folder' | 'bookmark' | 'note';
+  selectedViewScope: 'all' | 'video' | 'audio' | 'image' | 'document' | 'root' | 'folder' | 'bookmark' | 'note';
   isBookmarkScope?: boolean;
   // Tag filter bar props (inlined)
   tags: TagSummary[];
@@ -158,6 +158,7 @@ export const GalleryToolbar = ({
     selectedFolderName ??
     (selectedViewScope === 'all' ? 'All Objects' :
      selectedViewScope === 'video' ? 'Video' :
+     selectedViewScope === 'audio' ? 'Audio' :
      selectedViewScope === 'image' ? 'Images' :
      selectedViewScope === 'document' ? 'Documents' :
      selectedViewScope === 'root' ? 'Root' :

@@ -71,20 +71,24 @@ const fileInfoLabel = (item: VaultItemSummary): string => {
   if (kind === 'video') {
     return item.durationSeconds && item.durationSeconds > 0 ? formatDuration(item.durationSeconds) : '—';
   }
+  if (kind === 'audio') {
+    return item.durationSeconds && item.durationSeconds > 0 ? formatDuration(item.durationSeconds) : '—';
+  }
   if (kind === 'image') {
     return item.width && item.height ? `${item.width}×${item.height}` : '—';
   }
   return formatFileSize(item.size);
 };
-const typeBadgeLabel = (item: VaultItemSummary): 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'FILE' => {
+const typeBadgeLabel = (item: VaultItemSummary): 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT' | 'FILE' => {
   const kind = getVaultFileKind(item.mimeType);
   if (kind === 'video') return 'VIDEO';
   if (kind === 'image') return 'IMAGE';
+  if (kind === 'audio') return 'AUDIO';
   if (kind === 'document') return 'DOCUMENT';
   return 'FILE';
 };
 
-const TypeBadge: React.FC<{ label: 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'FILE' }> = ({ label }) => (
+const TypeBadge: React.FC<{ label: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT' | 'FILE' }> = ({ label }) => (
   <span
     title={label.toLowerCase()}
     style={{
@@ -283,6 +287,12 @@ const ListRow: React.FC<{
             {typeLabel === 'VIDEO' ? (
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={T.mute2} strokeWidth="1.3">
                 <rect x="1" y="2" width="8" height="10" /><polyline points="9,4.5 13,3 13,11 9,9.5" />
+              </svg>
+            ) : typeLabel === 'AUDIO' ? (
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={T.mute2} strokeWidth="1.3">
+                <path d="M5 11V4l6-1v6" />
+                <circle cx="3.5" cy="11" r="1.8" />
+                <circle cx="9.5" cy="9" r="1.8" />
               </svg>
             ) : typeLabel === 'DOCUMENT' ? (
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={T.mute2} strokeWidth="1.3">

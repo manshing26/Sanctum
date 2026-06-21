@@ -24,10 +24,11 @@ const SERIF = "'Fraunces', Georgia, serif";
 
 type FolderSidebarProps = {
   folders: FolderNode[];
-  selectedViewScope: 'all' | 'video' | 'image' | 'document' | 'root' | 'folder' | 'bookmark' | 'note';
+  selectedViewScope: 'all' | 'video' | 'audio' | 'image' | 'document' | 'root' | 'folder' | 'bookmark' | 'note';
   selectedFolderId: number | null;
   onSelectAllItems: () => void;
   onSelectVideo: () => void;
+  onSelectAudio: () => void;
   onSelectImage: () => void;
   onSelectDocuments?: () => void;
   onSelectRoot: () => void;
@@ -88,7 +89,7 @@ const scopeRow = (
 
 const FolderTreeNode: React.FC<{
   folder: FolderNode;
-  selectedViewScope: 'all' | 'video' | 'image' | 'document' | 'root' | 'folder' | 'bookmark' | 'note';
+  selectedViewScope: 'all' | 'video' | 'audio' | 'image' | 'document' | 'root' | 'folder' | 'bookmark' | 'note';
   selectedFolderId: number | null;
   onSelectFolder: (folderId: number) => void;
   onDeleteFolder: (folderId: number) => void;
@@ -192,6 +193,7 @@ export const FolderSidebar = ({
   selectedFolderId,
   onSelectAllItems,
   onSelectVideo,
+  onSelectAudio,
   onSelectImage,
   onSelectDocuments,
   onSelectRoot,
@@ -277,6 +279,13 @@ export const FolderSidebar = ({
       <rect x="1" y="2" width="7" height="8" /><polyline points="8,4.5 11,3 11,9 8,7.5" />
     </svg>
   );
+  const iconAudio = (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <path d="M4 9V3l6-1v6" />
+      <circle cx="2.5" cy="9" r="1.5" />
+      <circle cx="8.5" cy="8" r="1.5" />
+    </svg>
+  );
   const iconImage = (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3">
       <rect x="1" y="1" width="10" height="10" /><circle cx="4" cy="4" r="1" />
@@ -330,6 +339,7 @@ export const FolderSidebar = ({
       <div style={{ paddingTop: 6, flexShrink: 0 }}>
         {scopeRow('All Objects', selectedViewScope === 'all', onSelectAllItems, iconAllItems)}
         {scopeRow('Video', selectedViewScope === 'video', onSelectVideo, iconVideo)}
+        {scopeRow('Audio', selectedViewScope === 'audio', onSelectAudio, iconAudio)}
         {scopeRow('Images', selectedViewScope === 'image', onSelectImage, iconImage)}
         {onSelectDocuments && scopeRow('Documents', selectedViewScope === 'document', onSelectDocuments, iconDocument)}
         {onSelectBookmarks && scopeRow('Bookmarks', selectedViewScope === 'bookmark', onSelectBookmarks, iconBookmarks)}

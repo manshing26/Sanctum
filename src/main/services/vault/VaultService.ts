@@ -10,6 +10,12 @@ import type {
   ItemThumbnail,
   ListItemsQueryInput,
   ListItemsQueryResult,
+  AudioBookmark,
+  AudioPlaybackPosition,
+  CreateAudioBookmarkInput,
+  DeleteAudioBookmarkInput,
+  RenameAudioBookmarkInput,
+  SaveAudioPlaybackPositionInput,
   CreateVideoTimestampInput,
   DeleteVideoTimestampInput,
   RenameVideoTimestampInput,
@@ -22,7 +28,15 @@ import type {
 import { getMimeTypeForFilename } from '../../../shared/fileTypes';
 
 type EncryptedPayload = { iv: string; authTag: string; data: string };
-type MediaMetadata = { width?: number; height?: number; durationSeconds?: number };
+type MediaMetadata = {
+  width?: number;
+  height?: number;
+  durationSeconds?: number;
+  audioTitle?: string;
+  audioArtist?: string;
+  audioAlbum?: string;
+  embeddedArtwork?: { mimeType: string; data: Buffer };
+};
 type ThumbnailInput = { mimeType: string; data: Buffer };
 
 type FolderRow = { id: number; name: string; parent_id: number | null };
@@ -41,6 +55,10 @@ type ItemRow = {
   media_height: number | null;
   media_duration_seconds: number | null;
   thumbnail_enc: Buffer | null;
+  audio_title_enc: Buffer | null;
+  audio_artist_enc: Buffer | null;
+  audio_album_enc: Buffer | null;
+  artwork_source: 'embedded' | 'custom' | 'none' | null;
 };
 
 type MediaItemRow = {
@@ -57,9 +75,16 @@ type ExportItemRow = {
   vault_object_id: string;
   encrypted_filename: string;
   original_filename_enc: Buffer;
+  mime_type: string;
   iv: Buffer;
   auth_tag: Buffer;
+  thumbnail_enc: Buffer | null;
+  thumbnail_iv: Buffer | null;
+  thumbnail_auth_tag: Buffer | null;
+  artwork_source: 'embedded' | 'custom' | 'none' | null;
 };
+
+type OpenItemRow = Pick<ExportItemRow, 'vault_object_id' | 'encrypted_filename' | 'original_filename_enc' | 'iv' | 'auth_tag'>;
 
 type VideoIdentityRow = {
   vault_object_id: string;
@@ -67,12 +92,17 @@ type VideoIdentityRow = {
   media_duration_seconds: number | null;
 };
 
+type AudioIdentityRow = VideoIdentityRow;
+
 const ITEM_SELECT = `
   SELECT vi.vault_object_id, vi.original_filename_enc, vi.file_size, vi.mime_type,
          vi.media_width, vi.media_height, vi.media_duration_seconds, vi.thumbnail_enc,
+         am.title_enc AS audio_title_enc, am.artist_enc AS audio_artist_enc,
+         am.album_enc AS audio_album_enc, am.artwork_source,
          vo.created_at, vo.is_favorite, vo.rating, vo.folder_id
   FROM vault_items vi
   INNER JOIN vault_objects vo ON vo.id = vi.vault_object_id
+  LEFT JOIN audio_metadata am ON am.vault_object_id = vi.vault_object_id
 `;
 
 const SORT_TO_ORDER_BY: Record<ListItemsQueryInput['sort'], string> = {
@@ -92,6 +122,7 @@ const VIDEO_PROGRESS_MIN_SECONDS = 15;
 const VIDEO_PROGRESS_MIN_DURATION_SECONDS = 45;
 const VIDEO_PROGRESS_NEAR_END_SECONDS = 10;
 const VIDEO_PROGRESS_NEAR_END_RATIO = 0.05;
+const AUDIO_PROGRESS_MIN_DURATION_SECONDS = 10 * 60;
 
 const isMeaningfulVideoProgress = (positionSeconds: number, durationSeconds?: number): boolean => {
   if (!Number.isFinite(positionSeconds) || positionSeconds < VIDEO_PROGRESS_MIN_SECONDS) return false;
@@ -102,6 +133,15 @@ const isMeaningfulVideoProgress = (positionSeconds: number, durationSeconds?: nu
     if (remainingSeconds <= durationSeconds * VIDEO_PROGRESS_NEAR_END_RATIO) return false;
   }
   return true;
+};
+
+const isMeaningfulAudioProgress = (positionSeconds: number, durationSeconds?: number): boolean => {
+  if (!Number.isFinite(positionSeconds) || positionSeconds < VIDEO_PROGRESS_MIN_SECONDS) return false;
+  if (durationSeconds === undefined || !Number.isFinite(durationSeconds) || durationSeconds <= 0) return false;
+  if (durationSeconds < AUDIO_PROGRESS_MIN_DURATION_SECONDS) return false;
+  const remainingSeconds = durationSeconds - positionSeconds;
+  return remainingSeconds > VIDEO_PROGRESS_NEAR_END_SECONDS
+    && remainingSeconds > durationSeconds * VIDEO_PROGRESS_NEAR_END_RATIO;
 };
 
 const formatVideoTimestampLabel = (seconds: number): string => {
@@ -160,6 +200,32 @@ export class VaultService {
     );
   }
 
+  private encryptText(value: string | undefined): Buffer | null {
+    const trimmed = value?.trim();
+    if (!trimmed) return null;
+    const key = this.sessionStore.getMasterKey();
+    const payload = this.cryptoService.encryptBuffer(Buffer.from(trimmed, 'utf8'), key);
+    return Buffer.from(JSON.stringify({
+      iv: payload.iv.toString('base64'),
+      authTag: payload.authTag.toString('base64'),
+      data: payload.encrypted.toString('base64'),
+    }), 'utf8');
+  }
+
+  private decryptText(value: Buffer | null): string | undefined {
+    if (!value) return undefined;
+    try {
+      const payload = JSON.parse(value.toString('utf8')) as EncryptedPayload;
+      return this.cryptoService.decryptBuffer({
+        iv: Buffer.from(payload.iv, 'base64'),
+        authTag: Buffer.from(payload.authTag, 'base64'),
+        encrypted: Buffer.from(payload.data, 'base64'),
+      }, this.sessionStore.getMasterKey()).toString('utf8');
+    } catch {
+      return undefined;
+    }
+  }
+
   private async resolveUniqueExportPath(targetDir: string, filename: string): Promise<string> {
     const ext = path.extname(filename);
     const base = ext ? filename.slice(0, -ext.length) : filename;
@@ -213,6 +279,7 @@ export class VaultService {
     return rows.map((row) => {
       const itemTags = tagsByItemId.get(row.vault_object_id) ?? [];
       const isVideo = row.mime_type.startsWith('video/');
+      const isAudio = row.mime_type.startsWith('audio/');
       return {
         id: row.vault_object_id,
         originalName: this.decryptOriginalName(row.original_filename_enc),
@@ -227,8 +294,12 @@ export class VaultService {
         tags: itemTags.map((tag) => tag.name),
         width: row.media_width ?? undefined,
         height: row.media_height ?? undefined,
-        durationSeconds: isVideo ? row.media_duration_seconds ?? undefined : undefined,
+        durationSeconds: isVideo || isAudio ? row.media_duration_seconds ?? undefined : undefined,
         rating: row.rating ?? undefined,
+        audioTitle: isAudio ? this.decryptText(row.audio_title_enc) : undefined,
+        audioArtist: isAudio ? this.decryptText(row.audio_artist_enc) : undefined,
+        audioAlbum: isAudio ? this.decryptText(row.audio_album_enc) : undefined,
+        artworkSource: isAudio ? row.artwork_source ?? 'none' : undefined,
       };
     });
   }
@@ -270,7 +341,10 @@ export class VaultService {
     );
 
     const mimeType = getMimeTypeForFilename(sourcePath);
-    const sanitizedDurationSeconds = mimeType.startsWith('video/') ? metadata.durationSeconds : undefined;
+    const isAudio = mimeType.startsWith('audio/');
+    const sanitizedDurationSeconds = mimeType.startsWith('video/') || isAudio
+      ? metadata.durationSeconds
+      : undefined;
     const encryptedThumbnail = thumbnail ? this.cryptoService.encryptBuffer(thumbnail.data, key) : undefined;
 
     const tx = this.db.transaction(() => {
@@ -296,6 +370,20 @@ export class VaultService {
         contentHash,
         encryptedFile.iv, encryptedFile.authTag,
       );
+
+      if (isAudio) {
+        this.db.prepare(
+          `INSERT INTO audio_metadata (
+             vault_object_id, title_enc, artist_enc, album_enc, artwork_source
+           ) VALUES (?, ?, ?, ?, ?)`,
+        ).run(
+          itemId,
+          this.encryptText(metadata.audioTitle),
+          this.encryptText(metadata.audioArtist),
+          this.encryptText(metadata.audioAlbum),
+          thumbnail && metadata.embeddedArtwork ? 'embedded' : 'none',
+        );
+      }
     });
     tx();
 
@@ -315,6 +403,10 @@ export class VaultService {
       width: metadata.width,
       height: metadata.height,
       durationSeconds: sanitizedDurationSeconds,
+      audioTitle: isAudio ? metadata.audioTitle : undefined,
+      audioArtist: isAudio ? metadata.audioArtist : undefined,
+      audioAlbum: isAudio ? metadata.audioAlbum : undefined,
+      artworkSource: isAudio ? (thumbnail && metadata.embeddedArtwork ? 'embedded' : 'none') : undefined,
     };
   }
 
@@ -389,8 +481,9 @@ export class VaultService {
       .prepare(`${ITEM_SELECT} WHERE vi.vault_object_id = ?`)
       .get(input.id) as ItemRow | undefined;
     if (!row) throw new Error('Item not found.');
-    if (!row.mime_type.startsWith('video/')) {
-      throw new Error('Only video thumbnails can be changed.');
+    const isAudio = row.mime_type.startsWith('audio/');
+    if (!row.mime_type.startsWith('video/') && !isAudio) {
+      throw new Error('Only video and audio thumbnails can be changed.');
     }
 
     if (input.thumbnailDataUrl === null) {
@@ -401,6 +494,11 @@ export class VaultService {
            WHERE vault_object_id = ?`,
         )
         .run(input.id);
+      if (isAudio) {
+        this.db
+          .prepare(`UPDATE audio_metadata SET artwork_source = 'none' WHERE vault_object_id = ?`)
+          .run(input.id);
+      }
     } else {
       const match = input.thumbnailDataUrl.match(/^data:([^;]+);base64,(.+)$/);
       if (!match?.[1] || !match[2]) throw new Error('Invalid thumbnail data URL.');
@@ -418,6 +516,11 @@ export class VaultService {
            WHERE vault_object_id = ?`,
         )
         .run(match[1], encryptedThumbnail.encrypted, encryptedThumbnail.iv, encryptedThumbnail.authTag, input.id);
+      if (isAudio) {
+        this.db
+          .prepare(`UPDATE audio_metadata SET artwork_source = 'custom' WHERE vault_object_id = ?`)
+          .run(input.id);
+      }
     }
     this.db
       .prepare(`UPDATE vault_objects SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
@@ -603,6 +706,119 @@ export class VaultService {
       .run(input.id);
   }
 
+  private getAudioIdentity(itemId: string): AudioIdentityRow {
+    this.ensureUnlocked();
+    const row = this.db
+      .prepare(
+        `SELECT vi.vault_object_id, vi.mime_type, vi.media_duration_seconds
+         FROM vault_items vi
+         INNER JOIN vault_objects vo ON vo.id = vi.vault_object_id
+         WHERE vi.vault_object_id = ? AND vo.type = 'file'`,
+      )
+      .get(itemId) as AudioIdentityRow | undefined;
+    if (!row) throw new Error('Item not found.');
+    if (!row.mime_type.startsWith('audio/')) throw new Error('This item is not audio.');
+    return row;
+  }
+
+  getAudioPlaybackPosition(itemId: string): AudioPlaybackPosition | null {
+    this.getAudioIdentity(itemId);
+    const row = this.db
+      .prepare(
+        `SELECT vault_object_id, position_seconds, duration_seconds, updated_at
+         FROM audio_playback_positions WHERE vault_object_id = ?`,
+      )
+      .get(itemId) as {
+        vault_object_id: string;
+        position_seconds: number;
+        duration_seconds: number | null;
+        updated_at: string;
+      } | undefined;
+    return row ? {
+      itemId: row.vault_object_id,
+      positionSeconds: row.position_seconds,
+      durationSeconds: row.duration_seconds ?? undefined,
+      updatedAt: row.updated_at,
+    } : null;
+  }
+
+  saveAudioPlaybackPosition(input: SaveAudioPlaybackPositionInput): AudioPlaybackPosition | null {
+    const item = this.getAudioIdentity(input.itemId);
+    const durationSeconds = Number.isFinite(input.durationSeconds ?? NaN)
+      ? input.durationSeconds
+      : item.media_duration_seconds ?? undefined;
+    const positionSeconds = Math.max(0, Number.isFinite(input.positionSeconds) ? input.positionSeconds : 0);
+    if (!isMeaningfulAudioProgress(positionSeconds, durationSeconds)) {
+      this.db.prepare('DELETE FROM audio_playback_positions WHERE vault_object_id = ?').run(input.itemId);
+      return null;
+    }
+    this.db.prepare(
+      `INSERT INTO audio_playback_positions (vault_object_id, position_seconds, duration_seconds, updated_at)
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(vault_object_id) DO UPDATE SET
+         position_seconds = excluded.position_seconds,
+         duration_seconds = excluded.duration_seconds,
+         updated_at = CURRENT_TIMESTAMP`,
+    ).run(input.itemId, positionSeconds, durationSeconds ?? null);
+    return this.getAudioPlaybackPosition(input.itemId);
+  }
+
+  listAudioBookmarks(itemId: string): AudioBookmark[] {
+    this.getAudioIdentity(itemId);
+    const rows = this.db.prepare(
+      `SELECT id, vault_object_id, label_enc, position_seconds, created_at
+       FROM audio_bookmarks WHERE vault_object_id = ?
+       ORDER BY position_seconds ASC, datetime(created_at) ASC`,
+    ).all(itemId) as Array<{
+      id: string;
+      vault_object_id: string;
+      label_enc: Buffer;
+      position_seconds: number;
+      created_at: string;
+    }>;
+    return rows.map((row) => ({
+      id: row.id,
+      itemId: row.vault_object_id,
+      label: this.decryptText(row.label_enc) ?? formatVideoTimestampLabel(row.position_seconds),
+      positionSeconds: row.position_seconds,
+      createdAt: row.created_at,
+    }));
+  }
+
+  createAudioBookmark(input: CreateAudioBookmarkInput): AudioBookmark {
+    const item = this.getAudioIdentity(input.itemId);
+    const durationSeconds = item.media_duration_seconds ?? undefined;
+    const rawPosition = Math.max(0, Number.isFinite(input.positionSeconds) ? input.positionSeconds : 0);
+    const positionSeconds = durationSeconds && durationSeconds > 0
+      ? Math.min(rawPosition, durationSeconds)
+      : rawPosition;
+    const label = input.label?.trim() || formatVideoTimestampLabel(positionSeconds);
+    const id = randomUUID();
+    this.db.prepare(
+      `INSERT INTO audio_bookmarks (id, vault_object_id, label_enc, position_seconds, created_at)
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+    ).run(id, input.itemId, this.encryptText(label), positionSeconds);
+    return this.listAudioBookmarks(input.itemId).find((entry) => entry.id === id)!;
+  }
+
+  renameAudioBookmark(input: RenameAudioBookmarkInput): AudioBookmark {
+    this.ensureUnlocked();
+    const existing = this.db.prepare(
+      `SELECT id, vault_object_id, position_seconds FROM audio_bookmarks WHERE id = ?`,
+    ).get(input.id) as { id: string; vault_object_id: string; position_seconds: number } | undefined;
+    if (!existing) throw new Error('Audio bookmark not found.');
+    this.getAudioIdentity(existing.vault_object_id);
+    const label = input.label.trim() || formatVideoTimestampLabel(existing.position_seconds);
+    this.db.prepare('UPDATE audio_bookmarks SET label_enc = ? WHERE id = ?')
+      .run(this.encryptText(label), input.id);
+    return this.listAudioBookmarks(existing.vault_object_id).find((entry) => entry.id === input.id)!;
+  }
+
+  deleteAudioBookmark(input: DeleteAudioBookmarkInput): void {
+    this.ensureUnlocked();
+    this.db.prepare('DELETE FROM audio_bookmarks WHERE id = ?').run(input.id);
+  }
+
   setRating(itemId: string, rating: number | null): void {
     if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) {
       throw new Error('Rating must be between 1 and 5.');
@@ -648,8 +864,12 @@ export class VaultService {
       try {
         const row = this.db
           .prepare(
-            `SELECT vi.vault_object_id, vi.encrypted_filename, vi.original_filename_enc, vi.iv, vi.auth_tag
-             FROM vault_items vi WHERE vi.vault_object_id = ?`,
+            `SELECT vi.vault_object_id, vi.encrypted_filename, vi.original_filename_enc, vi.mime_type,
+                    vi.iv, vi.auth_tag, vi.thumbnail_enc, vi.thumbnail_iv, vi.thumbnail_auth_tag,
+                    am.artwork_source
+             FROM vault_items vi
+             LEFT JOIN audio_metadata am ON am.vault_object_id = vi.vault_object_id
+             WHERE vi.vault_object_id = ?`,
           )
           .get(itemId) as ExportItemRow | undefined;
 
@@ -666,6 +886,22 @@ export class VaultService {
         const safeOriginal = originalName && originalName !== 'unknown' ? path.basename(originalName) : `${row.vault_object_id}`;
         const outputPath = await this.resolveUniqueExportPath(targetDir, safeOriginal || `${row.vault_object_id}`);
         await fs.writeFile(outputPath, decrypted);
+        if (
+          row.mime_type.startsWith('audio/')
+          && row.artwork_source === 'custom'
+          && row.thumbnail_enc
+          && row.thumbnail_iv
+          && row.thumbnail_auth_tag
+        ) {
+          const cover = this.cryptoService.decryptBuffer({
+            iv: row.thumbnail_iv,
+            authTag: row.thumbnail_auth_tag,
+            encrypted: row.thumbnail_enc,
+          }, key);
+          const baseName = path.basename(outputPath, path.extname(outputPath));
+          const coverPath = await this.resolveUniqueExportPath(targetDir, `${baseName}.cover.webp`);
+          await fs.writeFile(coverPath, cover);
+        }
         onProgress?.({ total, processed: processed + 1, failed, currentItemId: itemId, currentFile: outputPath });
       } catch {
         failed += 1;
@@ -683,7 +919,7 @@ export class VaultService {
         `SELECT vi.vault_object_id, vi.encrypted_filename, vi.original_filename_enc, vi.iv, vi.auth_tag
          FROM vault_items vi WHERE vi.vault_object_id = ?`,
       )
-      .get(itemId) as ExportItemRow | undefined;
+      .get(itemId) as OpenItemRow | undefined;
 
     if (!row) throw new Error('Item not found.');
 
@@ -744,6 +980,9 @@ export class VaultService {
       this.db.transaction(() => {
         this.db.exec(`
           DROP TABLE IF EXISTS object_tags;
+          DROP TABLE IF EXISTS audio_bookmarks;
+          DROP TABLE IF EXISTS audio_playback_positions;
+          DROP TABLE IF EXISTS audio_metadata;
           DROP TABLE IF EXISTS video_timestamps;
           DROP TABLE IF EXISTS video_playback_positions;
           DROP TABLE IF EXISTS vault_items;
@@ -831,6 +1070,30 @@ export class VaultService {
             created_at       DATETIME DEFAULT CURRENT_TIMESTAMP
           );
 
+          CREATE TABLE audio_metadata (
+            vault_object_id  TEXT PRIMARY KEY REFERENCES vault_objects(id) ON DELETE CASCADE,
+            title_enc        BLOB,
+            artist_enc       BLOB,
+            album_enc        BLOB,
+            artwork_source   TEXT NOT NULL DEFAULT 'none'
+              CHECK (artwork_source IN ('embedded', 'custom', 'none'))
+          );
+
+          CREATE TABLE audio_playback_positions (
+            vault_object_id  TEXT PRIMARY KEY REFERENCES vault_objects(id) ON DELETE CASCADE,
+            position_seconds REAL NOT NULL DEFAULT 0,
+            duration_seconds REAL,
+            updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE audio_bookmarks (
+            id               TEXT PRIMARY KEY,
+            vault_object_id  TEXT NOT NULL REFERENCES vault_objects(id) ON DELETE CASCADE,
+            label_enc        BLOB NOT NULL,
+            position_seconds REAL NOT NULL,
+            created_at       DATETIME DEFAULT CURRENT_TIMESTAMP
+          );
+
           CREATE TABLE object_tags (
             object_id TEXT    NOT NULL REFERENCES vault_objects(id) ON DELETE CASCADE,
             tag_id    INTEGER NOT NULL REFERENCES tags(id)          ON DELETE CASCADE,
@@ -855,6 +1118,7 @@ export class VaultService {
           CREATE INDEX IF NOT EXISTS idx_object_tags_object_id     ON object_tags(object_id);
           CREATE INDEX IF NOT EXISTS idx_object_tags_tag_id        ON object_tags(tag_id);
           CREATE INDEX IF NOT EXISTS idx_video_timestamps_object   ON video_timestamps(vault_object_id, position_seconds);
+          CREATE INDEX IF NOT EXISTS idx_audio_bookmarks_object    ON audio_bookmarks(vault_object_id, position_seconds);
           CREATE INDEX IF NOT EXISTS idx_folders_parent_id         ON folders(parent_id);
           CREATE INDEX IF NOT EXISTS idx_passwords_updated         ON passwords(updated_at);
         `);

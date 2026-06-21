@@ -61,6 +61,18 @@ type NoteRow = {
   body_enc: Buffer;
 };
 
+type AudioMetadataRow = {
+  vault_object_id: string;
+  title_enc: Buffer | null;
+  artist_enc: Buffer | null;
+  album_enc: Buffer | null;
+};
+
+type AudioBookmarkRow = {
+  id: string;
+  label_enc: Buffer;
+};
+
 type EncryptedPayload = {
   iv: string;
   authTag: string;
@@ -445,6 +457,24 @@ export class AuthService {
       });
     }
 
+    const audioMetadataRows = this.db
+      .prepare('SELECT vault_object_id, title_enc, artist_enc, album_enc FROM audio_metadata')
+      .all() as AudioMetadataRow[];
+    const audioMetadataUpdates = audioMetadataRows.map((row) => ({
+      id: row.vault_object_id,
+      titleEnc: row.title_enc ? reEncField(row.title_enc) : null,
+      artistEnc: row.artist_enc ? reEncField(row.artist_enc) : null,
+      albumEnc: row.album_enc ? reEncField(row.album_enc) : null,
+    }));
+
+    const audioBookmarkRows = this.db
+      .prepare('SELECT id, label_enc FROM audio_bookmarks')
+      .all() as AudioBookmarkRow[];
+    const audioBookmarkUpdates = audioBookmarkRows.map((row) => ({
+      id: row.id,
+      labelEnc: reEncField(row.label_enc),
+    }));
+
     // Write new file content to disk first (still readable with old key until DB commits).
     // Use temp files so a crash mid-write doesn't corrupt existing data.
     const tempPaths: Array<{ tmpPath: string; finalPath: string }> = [];
@@ -514,6 +544,22 @@ export class AuthService {
         );
         for (const n of noteUpdates) {
           updateNote.run(n.titleEnc, n.bodyEnc, n.id);
+        }
+
+        const updateAudioMetadata = this.db.prepare(
+          `UPDATE audio_metadata
+           SET title_enc = ?, artist_enc = ?, album_enc = ?
+           WHERE vault_object_id = ?`,
+        );
+        for (const row of audioMetadataUpdates) {
+          updateAudioMetadata.run(row.titleEnc, row.artistEnc, row.albumEnc, row.id);
+        }
+
+        const updateAudioBookmark = this.db.prepare(
+          'UPDATE audio_bookmarks SET label_enc = ? WHERE id = ?',
+        );
+        for (const row of audioBookmarkUpdates) {
+          updateAudioBookmark.run(row.labelEnc, row.id);
         }
       })();
 

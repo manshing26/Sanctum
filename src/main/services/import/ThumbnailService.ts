@@ -53,16 +53,18 @@ export class ThumbnailService {
   async generate(
     filePath: string,
     mimeType: string,
+    embeddedArtwork?: Buffer,
   ): Promise<{ thumbnail?: GeneratedThumbnail; warning?: string }> {
-    if (!canGenerateThumbnail(mimeType)) {
+    if (!canGenerateThumbnail(mimeType) && !embeddedArtwork) {
       return {};
     }
 
     try {
       const sharp = loadSharp();
-      const sourceBuffer = mimeType.startsWith('video/')
-        ? await this.extractVideoFrame(filePath)
-        : await sharp(filePath).toBuffer();
+      const sourceBuffer = embeddedArtwork
+        ?? (mimeType.startsWith('video/')
+          ? await this.extractVideoFrame(filePath)
+          : await sharp(filePath).toBuffer());
 
       const buffer = await sharp(sourceBuffer)
         .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {

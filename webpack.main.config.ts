@@ -20,5 +20,6 @@ export const mainConfig: Configuration = {
   plugins,
   resolve: {
     extensions: ['.js', '.ts', '.jsx', '.tsx', '.css', '.json'],
+    conditionNames: ['node', 'import', 'module', 'webpack', '...'],
   },
 };

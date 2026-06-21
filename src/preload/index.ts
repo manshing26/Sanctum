@@ -23,12 +23,17 @@ import {
   IPC_CHANNELS,
   type MoveFolderInput,
   type RenameItemInput,
+  type RenameAudioBookmarkInput,
   type RenameVideoTimestampInput,
   type RenameTagInput,
   type RenameFolderInput,
   type ResetAllAppDataInput,
   type ScanImportConflictsInput,
   type SaveVideoPlaybackPositionInput,
+  type SaveAudioPlaybackPositionInput,
+  type SetAudioPlaybackActiveInput,
+  type SetAudioSleepTimerInput,
+  type ExtendAudioSleepTimerInput,
   type SetVideoPlaybackActiveInput,
   type ToggleFavoriteInput,
   type UnassignItemTagInput,
@@ -37,6 +42,8 @@ import {
   type CloseMediaSessionInput,
   type ClearAllVaultItemsInput,
   type CreateVideoTimestampInput,
+  type CreateAudioBookmarkInput,
+  type DeleteAudioBookmarkInput,
   type DeleteVideoTimestampInput,
   type UpdateItemThumbnailInput,
   type ExportProgress,
@@ -113,6 +120,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.updateItemThumbnail, input),
   setVideoPlaybackActive: (input: SetVideoPlaybackActiveInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.setVideoPlaybackActive, input),
+  setAudioPlaybackActive: (input: SetAudioPlaybackActiveInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.setAudioPlaybackActive, input),
   getVideoPlaybackPosition: (itemId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.getVideoPlaybackPosition, itemId),
   saveVideoPlaybackPosition: (input: SaveVideoPlaybackPositionInput) =>
@@ -125,6 +134,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke(IPC_CHANNELS.renameVideoTimestamp, input),
   deleteVideoTimestamp: (input: DeleteVideoTimestampInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.deleteVideoTimestamp, input),
+  getAudioPlaybackPosition: (itemId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.getAudioPlaybackPosition, itemId),
+  saveAudioPlaybackPosition: (input: SaveAudioPlaybackPositionInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.saveAudioPlaybackPosition, input),
+  listAudioBookmarks: (itemId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.listAudioBookmarks, itemId),
+  createAudioBookmark: (input: CreateAudioBookmarkInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.createAudioBookmark, input),
+  renameAudioBookmark: (input: RenameAudioBookmarkInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.renameAudioBookmark, input),
+  deleteAudioBookmark: (input: DeleteAudioBookmarkInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.deleteAudioBookmark, input),
+  setAudioSleepTimer: (input: SetAudioSleepTimerInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.setAudioSleepTimer, input),
+  extendAudioSleepTimer: (input: ExtendAudioSleepTimerInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.extendAudioSleepTimer, input),
+  cancelAudioSleepTimer: () => ipcRenderer.invoke(IPC_CHANNELS.cancelAudioSleepTimer),
+  getAudioSleepTimer: () => ipcRenderer.invoke(IPC_CHANNELS.getAudioSleepTimer),
+  completeAudioSleepTimerTrack: () => ipcRenderer.invoke(IPC_CHANNELS.completeAudioSleepTimerTrack),
   openMediaSession: (input: OpenMediaSessionInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.openMediaSession, input),
   closeMediaSession: (input: CloseMediaSessionInput) =>

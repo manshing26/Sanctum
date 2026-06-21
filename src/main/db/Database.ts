@@ -120,6 +120,30 @@ export class DatabaseService {
         created_at       DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS audio_metadata (
+        vault_object_id  TEXT PRIMARY KEY REFERENCES vault_objects(id) ON DELETE CASCADE,
+        title_enc        BLOB,
+        artist_enc       BLOB,
+        album_enc        BLOB,
+        artwork_source   TEXT NOT NULL DEFAULT 'none'
+          CHECK (artwork_source IN ('embedded', 'custom', 'none'))
+      );
+
+      CREATE TABLE IF NOT EXISTS audio_playback_positions (
+        vault_object_id  TEXT PRIMARY KEY REFERENCES vault_objects(id) ON DELETE CASCADE,
+        position_seconds REAL NOT NULL DEFAULT 0,
+        duration_seconds REAL,
+        updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS audio_bookmarks (
+        id               TEXT PRIMARY KEY,
+        vault_object_id  TEXT NOT NULL REFERENCES vault_objects(id) ON DELETE CASCADE,
+        label_enc        BLOB NOT NULL,
+        position_seconds REAL NOT NULL,
+        created_at       DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS object_tags (
         object_id TEXT    NOT NULL REFERENCES vault_objects(id) ON DELETE CASCADE,
         tag_id    INTEGER NOT NULL REFERENCES tags(id)          ON DELETE CASCADE,
@@ -155,6 +179,7 @@ export class DatabaseService {
       CREATE INDEX IF NOT EXISTS idx_object_tags_object_id     ON object_tags(object_id);
       CREATE INDEX IF NOT EXISTS idx_object_tags_tag_id        ON object_tags(tag_id);
       CREATE INDEX IF NOT EXISTS idx_video_timestamps_object   ON video_timestamps(vault_object_id, position_seconds);
+      CREATE INDEX IF NOT EXISTS idx_audio_bookmarks_object    ON audio_bookmarks(vault_object_id, position_seconds);
       CREATE INDEX IF NOT EXISTS idx_folders_parent_id         ON folders(parent_id);
       CREATE INDEX IF NOT EXISTS idx_passwords_updated         ON passwords(updated_at);
       CREATE INDEX IF NOT EXISTS idx_auth_audit_log_created_at ON auth_audit_log(created_at);

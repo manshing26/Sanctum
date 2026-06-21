@@ -188,12 +188,13 @@ const ListSelectionMark: React.FC<{ selected: boolean; visible: boolean }> = ({ 
   </div>
 );
 
-type ObjectTypeLabel = 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'FILE' | 'BOOKMARK' | 'NOTE';
+type ObjectTypeLabel = 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT' | 'FILE' | 'BOOKMARK' | 'NOTE';
 
 const fileTypeLabel = (item: VaultItemSummary): ObjectTypeLabel => {
   const kind = getVaultFileKind(item.mimeType);
   if (kind === 'image') return 'IMAGE';
   if (kind === 'video') return 'VIDEO';
+  if (kind === 'audio') return 'AUDIO';
   if (kind === 'document') return 'DOCUMENT';
   return 'FILE';
 };
@@ -248,6 +249,9 @@ const ListRating: React.FC<{ rating?: number }> = ({ rating }) => (
 const fileInfoLabel = (item: VaultItemSummary): string => {
   const kind = getVaultFileKind(item.mimeType);
   if (kind === 'video') {
+    return item.durationSeconds && item.durationSeconds > 0 ? formatDuration(item.durationSeconds) : '-';
+  }
+  if (kind === 'audio') {
     return item.durationSeconds && item.durationSeconds > 0 ? formatDuration(item.durationSeconds) : '-';
   }
   if (kind === 'image') {
@@ -2100,7 +2104,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     });
   }, []);
 
-  type VaultScope = 'all' | 'video' | 'image' | 'document' | 'root' | 'folder' | 'bookmark' | 'note';
+  type VaultScope = 'all' | 'video' | 'audio' | 'image' | 'document' | 'root' | 'folder' | 'bookmark' | 'note';
   const vaultScope = selectedViewScope as VaultScope;
   const isBookmarkScope = vaultScope === 'bookmark';
   const isNoteScope = vaultScope === 'note';
@@ -2527,6 +2531,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   const clearObjectScopeState = (): void => { setSelectedBookmarkIds([]); setSelectedNoteIds([]); setIsMultiSelect(false); };
   const handleSelectAllItemsScope = (): void => { setSelectedViewScope('all' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); setNoteFolderId(null); clearObjectScopeState(); };
   const handleSelectVideoScope = (): void => { setSelectedViewScope('video' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); setNoteFolderId(null); clearObjectScopeState(); };
+  const handleSelectAudioScope = (): void => { setSelectedViewScope('audio' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); setNoteFolderId(null); clearObjectScopeState(); };
   const handleSelectImageScope = (): void => { setSelectedViewScope('image' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); setNoteFolderId(null); clearObjectScopeState(); };
   const handleSelectDocumentScope = (): void => { setSelectedViewScope('document' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); setNoteFolderId(null); clearObjectScopeState(); };
   const handleSelectRootScope = (): void => { setSelectedViewScope('root' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); setNoteFolderId(null); clearObjectScopeState(); };
@@ -3452,7 +3457,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     isLoadingMore,
     sentinelRef,
     isMultiSelect,
-    listLayoutVariant: selectedViewScope === 'video' || selectedViewScope === 'image' || selectedViewScope === 'document'
+    listLayoutVariant: selectedViewScope === 'video' || selectedViewScope === 'audio' || selectedViewScope === 'image' || selectedViewScope === 'document'
       ? 'object-type' as const
       : 'default' as const,
     tags,
@@ -3849,6 +3854,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
             selectedFolderId={selectedFolderId}
             onSelectAllItems={handleSelectAllItemsScope}
             onSelectVideo={handleSelectVideoScope}
+            onSelectAudio={handleSelectAudioScope}
             onSelectImage={handleSelectImageScope}
             onSelectDocuments={handleSelectDocumentScope}
             onSelectRoot={handleSelectRootScope}

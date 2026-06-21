@@ -58,10 +58,11 @@ const formatFileSize = (bytes: number): string => {
 
 const isVideo = (mimeType: string): boolean => mimeType.startsWith('video/');
 const isGif = (mimeType: string): boolean => mimeType === 'image/gif';
-const typeBadgeLabel = (item: VaultItemSummary): 'IMAGE' | 'VIDEO' | 'DOCUMENT' | 'FILE' => {
+const typeBadgeLabel = (item: VaultItemSummary): 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT' | 'FILE' => {
   const kind = getVaultFileKind(item.mimeType);
   if (kind === 'video') return 'VIDEO';
   if (kind === 'image') return 'IMAGE';
+  if (kind === 'audio') return 'AUDIO';
   if (kind === 'document') return 'DOCUMENT';
   return 'FILE';
 };
@@ -260,6 +261,12 @@ export const GalleryCard = ({
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={T.mute2} strokeWidth="1.2">
                 <rect x="2" y="3" width="13" height="18" /><polyline points="15,7 22,4 22,20 15,17" />
               </svg>
+            ) : badgeLabel === 'AUDIO' ? (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={T.mute2} strokeWidth="1.2">
+                <path d="M9 18V7l10-2v10" />
+                <circle cx="6" cy="18" r="3" />
+                <circle cx="16" cy="15" r="3" />
+              </svg>
             ) : badgeLabel === 'DOCUMENT' ? (
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={T.mute2} strokeWidth="1.2">
                 <path d="M7 3h7l4 4v14H7z" />
@@ -300,9 +307,19 @@ export const GalleryCard = ({
         }} title={item.originalName}>
           {item.originalName}
         </p>
+        {getVaultFileKind(item.mimeType) === 'audio' && (item.audioTitle || item.audioArtist || item.audioAlbum) && (
+          <p
+            title={[item.audioTitle, item.audioArtist, item.audioAlbum].filter(Boolean).join(' · ')}
+            style={{ margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: MONO, fontSize: fontSize(9), color: T.mute }}
+          >
+            {[item.audioTitle, item.audioArtist, item.audioAlbum].filter(Boolean).join(' · ')}
+          </p>
+        )}
         <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.mute, letterSpacing: '0.04em' }}>
-            {formatFileSize(item.size)}
+            {getVaultFileKind(item.mimeType) === 'audio' && item.durationSeconds
+              ? formatDuration(item.durationSeconds)
+              : formatFileSize(item.size)}
             {item.width && item.height ? ` · ${item.width}×${item.height}` : ''}
           </span>
           {item.rating !== undefined && item.rating > 0 && (

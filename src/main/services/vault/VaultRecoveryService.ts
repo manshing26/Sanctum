@@ -19,6 +19,7 @@ type ObjectRow = {
 type FileRow = {
   vault_object_id: string;
   encrypted_filename: string;
+  mime_type: string | null;
   original_filename_enc: Buffer;
   thumbnail_enc: Buffer | null;
   thumbnail_iv: Buffer | null;
@@ -51,6 +52,23 @@ type PasswordRow = {
   password_enc: Buffer;
   label_enc: Buffer | null;
   notes_enc: Buffer | null;
+};
+
+type AudioMetadataRow = {
+  vault_object_id: string;
+  title_enc: Buffer | null;
+  artist_enc: Buffer | null;
+  album_enc: Buffer | null;
+};
+
+type AudioBookmarkRow = {
+  id: string;
+  vault_object_id: string;
+  label_enc: Buffer;
+};
+
+type AudioPlaybackRow = {
+  vault_object_id: string;
 };
 
 const makeCounts = (): VaultHealthReport['counts'] => ({
@@ -173,6 +191,9 @@ export class VaultRecoveryService {
           this.db
             .prepare('UPDATE vault_items SET thumbnail_enc = NULL, thumbnail_iv = NULL, thumbnail_auth_tag = NULL, thumbnail_mime_type = NULL WHERE vault_object_id = ?')
             .run(entry.id);
+          this.db
+            .prepare(`UPDATE audio_metadata SET artwork_source = 'none' WHERE vault_object_id = ?`)
+            .run(entry.id);
         }
       }
 
@@ -182,6 +203,9 @@ export class VaultRecoveryService {
         if (table === 'vault_items') this.db.prepare('DELETE FROM vault_items WHERE vault_object_id = ?').run(id);
         if (table === 'bookmarks') this.db.prepare('DELETE FROM bookmarks WHERE vault_object_id = ?').run(id);
         if (table === 'notes') this.db.prepare('DELETE FROM notes WHERE vault_object_id = ?').run(id);
+        if (table === 'audio_metadata') this.db.prepare('DELETE FROM audio_metadata WHERE vault_object_id = ?').run(id);
+        if (table === 'audio_playback_positions') this.db.prepare('DELETE FROM audio_playback_positions WHERE vault_object_id = ?').run(id);
+        if (table === 'audio_bookmarks') this.db.prepare('DELETE FROM audio_bookmarks WHERE id = ?').run(id);
         if (table === 'object_tags') {
           const [objectId, tagId] = id.split('|');
           this.db.prepare('DELETE FROM object_tags WHERE object_id = ? AND tag_id = ?').run(objectId, Number(tagId));
@@ -259,6 +283,8 @@ export class VaultRecoveryService {
     const bookmarkByObjectId = new Map(bookmarkRows.map((row) => [row.vault_object_id, row]));
     const noteRows = this.db.prepare('SELECT * FROM notes').all() as NoteRow[];
     const noteByObjectId = new Map(noteRows.map((row) => [row.vault_object_id, row]));
+    const audioMetadataRows = this.db.prepare('SELECT * FROM audio_metadata').all() as AudioMetadataRow[];
+    const audioMetadataByObjectId = new Map(audioMetadataRows.map((row) => [row.vault_object_id, row]));
 
     for (const object of objectRows) {
       if (object.folder_id !== null && !folderIds.has(object.folder_id)) {
@@ -277,6 +303,10 @@ export class VaultRecoveryService {
           continue;
         }
         this.validateFile(row, key, entries);
+        if (row.mime_type?.startsWith('audio/')) {
+          const audioMetadata = audioMetadataByObjectId.get(object.id);
+          if (audioMetadata) this.validateAudioMetadata(audioMetadata, key, entries);
+        }
       } else if (object.type === 'bookmark') {
         const row = bookmarkByObjectId.get(object.id);
         if (!row) {
@@ -323,6 +353,53 @@ export class VaultRecoveryService {
           id: `notes:${row.vault_object_id}`,
           kind: 'note',
           issue: 'Note row has no matching note object.',
+          action: 'delete_orphan_row',
+        });
+      }
+    }
+    for (const row of audioMetadataRows) {
+      const object = objectById.get(row.vault_object_id);
+      const file = fileByObjectId.get(row.vault_object_id);
+      if (!object || object.type !== 'file' || !file?.mime_type?.startsWith('audio/')) {
+        entries.push({
+          id: `audio_metadata:${row.vault_object_id}`,
+          kind: 'file',
+          issue: 'Audio metadata has no matching file object.',
+          action: 'delete_orphan_row',
+        });
+      }
+    }
+    const audioPlaybackRows = this.db
+      .prepare('SELECT vault_object_id FROM audio_playback_positions')
+      .all() as AudioPlaybackRow[];
+    for (const row of audioPlaybackRows) {
+      const object = objectById.get(row.vault_object_id);
+      const file = fileByObjectId.get(row.vault_object_id);
+      if (!object || object.type !== 'file' || !file?.mime_type?.startsWith('audio/')) {
+        entries.push({
+          id: `audio_playback_positions:${row.vault_object_id}`,
+          kind: 'file',
+          issue: 'Audio playback progress has no matching audio object.',
+          action: 'delete_orphan_row',
+        });
+      }
+    }
+    const audioBookmarks = this.db.prepare('SELECT * FROM audio_bookmarks').all() as AudioBookmarkRow[];
+    for (const row of audioBookmarks) {
+      const object = objectById.get(row.vault_object_id);
+      const file = fileByObjectId.get(row.vault_object_id);
+      if (!object || object.type !== 'file' || !file?.mime_type?.startsWith('audio/')) {
+        entries.push({
+          id: `audio_bookmarks:${row.id}`,
+          kind: 'file',
+          issue: 'Audio bookmark has no matching audio object.',
+          action: 'delete_orphan_row',
+        });
+      } else if (!this.canDecryptPayload(row.label_enc, key)) {
+        entries.push({
+          id: `audio_bookmarks:${row.id}`,
+          kind: 'file',
+          issue: 'Audio bookmark cannot be decrypted.',
           action: 'delete_orphan_row',
         });
       }
@@ -421,6 +498,18 @@ export class VaultRecoveryService {
     }
     if (!this.canDecryptPayload(row.title_enc, key) || !this.canDecryptPayload(row.body_enc, key)) {
       entries.push({ id: row.vault_object_id, kind: 'note', issue: 'Note fields cannot be decrypted.', action: 'delete_object' });
+    }
+  }
+
+  private validateAudioMetadata(row: AudioMetadataRow, key: Buffer, entries: CorruptVaultEntry[]): void {
+    const fields = [row.title_enc, row.artist_enc, row.album_enc];
+    if (fields.some((field) => field && !this.canDecryptPayload(field, key))) {
+      entries.push({
+        id: row.vault_object_id,
+        kind: 'file',
+        issue: 'Audio metadata cannot be decrypted.',
+        action: 'delete_object',
+      });
     }
   }
 

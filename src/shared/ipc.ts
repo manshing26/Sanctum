@@ -61,12 +61,24 @@ export const IPC_CHANNELS = {
   getItemThumbnail: 'vault:get-item-thumbnail',
   updateItemThumbnail: 'vault:update-item-thumbnail',
   setVideoPlaybackActive: 'viewer:set-video-playback-active',
+  setAudioPlaybackActive: 'viewer:set-audio-playback-active',
   getVideoPlaybackPosition: 'vault:video-playback:get',
   saveVideoPlaybackPosition: 'vault:video-playback:save',
   listVideoTimestamps: 'vault:video-timestamps:list',
   createVideoTimestamp: 'vault:video-timestamps:create',
   renameVideoTimestamp: 'vault:video-timestamps:rename',
   deleteVideoTimestamp: 'vault:video-timestamps:delete',
+  getAudioPlaybackPosition: 'vault:audio-playback:get',
+  saveAudioPlaybackPosition: 'vault:audio-playback:save',
+  listAudioBookmarks: 'vault:audio-bookmarks:list',
+  createAudioBookmark: 'vault:audio-bookmarks:create',
+  renameAudioBookmark: 'vault:audio-bookmarks:rename',
+  deleteAudioBookmark: 'vault:audio-bookmarks:delete',
+  setAudioSleepTimer: 'viewer:audio-sleep-timer:set',
+  extendAudioSleepTimer: 'viewer:audio-sleep-timer:extend',
+  cancelAudioSleepTimer: 'viewer:audio-sleep-timer:cancel',
+  getAudioSleepTimer: 'viewer:audio-sleep-timer:get',
+  completeAudioSleepTimerTrack: 'viewer:audio-sleep-timer:complete-track',
   openMediaSession: 'vault:open-media-session',
   closeMediaSession: 'vault:close-media-session',
   openTemporaryFile: 'vault:open-temporary-file',
@@ -162,7 +174,13 @@ export type BrowserOpenUrlInTabPayload = {
   url: string;
 };
 
-export type SessionChangeReason = 'manual' | 'idle_timeout' | 'window_minimize' | 'system_lock' | 'system_sleep';
+export type SessionChangeReason =
+  | 'manual'
+  | 'idle_timeout'
+  | 'window_minimize'
+  | 'system_lock'
+  | 'system_sleep'
+  | 'audio_sleep_timer';
 
 export type SessionChangedPayload = {
   state: SessionState;
@@ -293,6 +311,10 @@ export type VaultItemSummary = {
   height?: number;
   durationSeconds?: number;
   rating?: number;
+  audioTitle?: string;
+  audioArtist?: string;
+  audioAlbum?: string;
+  artworkSource?: 'embedded' | 'custom' | 'none';
 };
 
 export type VaultListSort =
@@ -323,6 +345,10 @@ export type ItemThumbnail = {
 };
 
 export type SetVideoPlaybackActiveInput = {
+  active: boolean;
+};
+
+export type SetAudioPlaybackActiveInput = {
   active: boolean;
 };
 
@@ -360,6 +386,56 @@ export type RenameVideoTimestampInput = {
 
 export type DeleteVideoTimestampInput = {
   id: string;
+};
+
+export type AudioPlaybackPosition = {
+  itemId: string;
+  positionSeconds: number;
+  durationSeconds?: number;
+  updatedAt: string;
+};
+
+export type SaveAudioPlaybackPositionInput = {
+  itemId: string;
+  positionSeconds: number;
+  durationSeconds?: number;
+};
+
+export type AudioBookmark = {
+  id: string;
+  itemId: string;
+  label: string;
+  positionSeconds: number;
+  createdAt: string;
+};
+
+export type CreateAudioBookmarkInput = {
+  itemId: string;
+  positionSeconds: number;
+  label?: string;
+};
+
+export type RenameAudioBookmarkInput = {
+  id: string;
+  label: string;
+};
+
+export type DeleteAudioBookmarkInput = {
+  id: string;
+};
+
+export type AudioSleepTimerState = {
+  mode: 'duration' | 'end_of_track';
+  expiresAt?: string;
+  remainingSeconds?: number;
+};
+
+export type SetAudioSleepTimerInput =
+  | { mode: 'duration'; minutes: number }
+  | { mode: 'end_of_track' };
+
+export type ExtendAudioSleepTimerInput = {
+  minutes: number;
 };
 
 export type OpenMediaSessionInput = {
@@ -817,12 +893,24 @@ export type ElectronAPI = {
   getItemThumbnail: (itemId: string) => Promise<OperationResult<ItemThumbnail>>;
   updateItemThumbnail: (input: UpdateItemThumbnailInput) => Promise<OperationResult<VaultItemSummary>>;
   setVideoPlaybackActive: (input: SetVideoPlaybackActiveInput) => Promise<OperationResult>;
+  setAudioPlaybackActive: (input: SetAudioPlaybackActiveInput) => Promise<OperationResult>;
   getVideoPlaybackPosition: (itemId: string) => Promise<OperationResult<VideoPlaybackPosition | null>>;
   saveVideoPlaybackPosition: (input: SaveVideoPlaybackPositionInput) => Promise<OperationResult<VideoPlaybackPosition | null>>;
   listVideoTimestamps: (itemId: string) => Promise<OperationResult<VideoTimestamp[]>>;
   createVideoTimestamp: (input: CreateVideoTimestampInput) => Promise<OperationResult<VideoTimestamp>>;
   renameVideoTimestamp: (input: RenameVideoTimestampInput) => Promise<OperationResult<VideoTimestamp>>;
   deleteVideoTimestamp: (input: DeleteVideoTimestampInput) => Promise<OperationResult>;
+  getAudioPlaybackPosition: (itemId: string) => Promise<OperationResult<AudioPlaybackPosition | null>>;
+  saveAudioPlaybackPosition: (input: SaveAudioPlaybackPositionInput) => Promise<OperationResult<AudioPlaybackPosition | null>>;
+  listAudioBookmarks: (itemId: string) => Promise<OperationResult<AudioBookmark[]>>;
+  createAudioBookmark: (input: CreateAudioBookmarkInput) => Promise<OperationResult<AudioBookmark>>;
+  renameAudioBookmark: (input: RenameAudioBookmarkInput) => Promise<OperationResult<AudioBookmark>>;
+  deleteAudioBookmark: (input: DeleteAudioBookmarkInput) => Promise<OperationResult>;
+  setAudioSleepTimer: (input: SetAudioSleepTimerInput) => Promise<OperationResult<AudioSleepTimerState>>;
+  extendAudioSleepTimer: (input: ExtendAudioSleepTimerInput) => Promise<OperationResult<AudioSleepTimerState>>;
+  cancelAudioSleepTimer: () => Promise<OperationResult>;
+  getAudioSleepTimer: () => Promise<OperationResult<AudioSleepTimerState | null>>;
+  completeAudioSleepTimerTrack: () => Promise<OperationResult>;
   openMediaSession: (
     input: OpenMediaSessionInput,
   ) => Promise<OperationResult<OpenMediaSessionResult>>;

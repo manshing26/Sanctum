@@ -60,7 +60,7 @@ export const useGalleryState = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sort, setSort] = useState<VaultListSort>('newest');
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
-  const [selectedViewScope, setSelectedViewScope] = useState<'all' | 'video' | 'image' | 'document' | 'root' | 'folder' | 'bookmark' | 'note'>('all');
+  const [selectedViewScope, setSelectedViewScope] = useState<'all' | 'video' | 'audio' | 'image' | 'document' | 'root' | 'folder' | 'bookmark' | 'note'>('all');
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [primarySelectedId, setPrimarySelectedId] = useState<string | null>(null);
@@ -192,6 +192,10 @@ export const useGalleryState = () => {
         if (!item.mimeType.startsWith('video/')) {
           return false;
         }
+      } else if (selectedViewScope === 'audio') {
+        if (!item.mimeType.startsWith('audio/')) {
+          return false;
+        }
       } else if (selectedViewScope === 'image') {
         if (!item.mimeType.startsWith('image/')) {
           return false;
@@ -214,6 +218,9 @@ export const useGalleryState = () => {
       if (search) {
         const haystack = [
           item.originalName,
+          item.audioTitle ?? '',
+          item.audioArtist ?? '',
+          item.audioAlbum ?? '',
           ...(item.tags ?? []),
           item.folderPath ?? '',
         ]

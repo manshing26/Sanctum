@@ -679,6 +679,8 @@ export const App: React.FC = () => {
         toast.warning('Vault locked because computer was locked.');
       } else if (reason === 'system_sleep') {
         toast.warning('Vault locked before sleep.');
+      } else if (reason === 'audio_sleep_timer') {
+        toast.warning('Vault locked by audio sleep timer.');
       }
     });
     return unsubscribe;
