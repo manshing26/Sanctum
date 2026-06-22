@@ -40,11 +40,20 @@ const getPasswordChecks = (password: string): PasswordCheck[] => [
 // ── Top Bar ──────────────────────────────────────────────────────────
 type AppTab = 'gallery' | 'browser' | 'settings' | 'passwords';
 
-// Inline SVG sigil — matches sanctum-gallery.html
+// Compact form of the packaged Sanctum app icon.
 const SanctumSigil: React.FC = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2 L3 6 L3 12 Q3 18 12 22 Q21 18 21 12 L21 6 Z"/>
-    <path d="M12 7 L12 17 M9 11 L15 11"/>
+  <svg width="22" height="22" viewBox="-24 -24 48 48" fill="none" role="img" aria-label="Sanctum">
+    <polygon
+      points="0,-20 14,-14 20,0 14,14 0,20 -14,14 -20,0 -14,-20"
+      stroke="#7c9a92"
+      strokeWidth="1.2"
+    />
+    <path
+      d="M -7,-5 Q -7,-10 0,-10 Q 7,-10 7,-5 Q 7,1 0,1 Q -7,1 -7,7 Q -7,10 0,10 Q 7,10 7,7"
+      stroke="#e8e6dc"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+    />
   </svg>
 );
 
