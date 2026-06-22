@@ -232,6 +232,17 @@ export const registerBrowserHandlers = ({
     }
   });
 
+  ipcMain.handle(IPC_CHANNELS.listDownloads, () => {
+    try {
+      return { ok: true as const, data: downloadService.listDownloads() };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to list downloads.',
+      };
+    }
+  });
+
   ipcMain.handle(IPC_CHANNELS.listExtensions, () => {
     try {
       const summaries = browserSession.extensions

@@ -186,6 +186,20 @@ export const registerVaultHandlers = ({
     }
   });
 
+  ipcMain.handle(IPC_CHANNELS.getVaultStorageSummary, async () => {
+    try {
+      return {
+        ok: true as const,
+        data: await vaultService.getStorageSummary(),
+      };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : 'Failed to calculate vault storage.',
+      };
+    }
+  });
+
   ipcMain.handle(IPC_CHANNELS.getItemThumbnail, (_event, itemId: string) => {
     try {
       return {

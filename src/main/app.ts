@@ -434,6 +434,7 @@ export const bootstrapApp = (): void => {
       vaultPaths,
       importService,
       browserWindowController,
+      mainWindowController,
       sessionStore,
     );
     const backupService = new BackupService(database.getDb(), vaultPaths, sessionStore);

@@ -21,6 +21,7 @@ import type {
   RenameVideoTimestampInput,
   SaveVideoPlaybackPositionInput,
   UpdateItemThumbnailInput,
+  VaultStorageSummary,
   VaultItemSummary,
   VideoPlaybackPosition,
   VideoTimestamp,
@@ -416,6 +417,50 @@ export class VaultService {
       .prepare(`${ITEM_SELECT} ORDER BY datetime(vo.created_at) DESC LIMIT ?`)
       .all(limit) as ItemRow[];
     return this.mapRowsToItems(rows);
+  }
+
+  async getStorageSummary(): Promise<VaultStorageSummary> {
+    this.ensureUnlocked();
+
+    const count = (sql: string): number => (
+      this.db.prepare(sql).get() as { total: number }
+    ).total;
+
+    const persistentPaths = [
+      this.vaultPaths.dbPath,
+      `${this.vaultPaths.dbPath}-wal`,
+      `${this.vaultPaths.dbPath}-shm`,
+      this.vaultPaths.versionPath,
+      this.vaultPaths.filesDir,
+    ];
+
+    const sizeOf = async (targetPath: string): Promise<number> => {
+      try {
+        const stat = await fs.lstat(targetPath);
+        if (stat.isSymbolicLink()) return 0;
+        if (stat.isFile()) return stat.size;
+        if (!stat.isDirectory()) return 0;
+
+        const entries = await fs.readdir(targetPath);
+        const sizes = await Promise.all(entries.map((entry) => (
+          sizeOf(path.join(targetPath, entry))
+        )));
+        return sizes.reduce((total, size) => total + size, 0);
+      } catch (error) {
+        const nodeError = error as NodeJS.ErrnoException;
+        if (nodeError.code === 'ENOENT') return 0;
+        throw error;
+      }
+    };
+
+    const sizes = await Promise.all(persistentPaths.map(sizeOf));
+    return {
+      totalBytes: sizes.reduce((total, size) => total + size, 0),
+      fileCount: count(`SELECT COUNT(1) AS total FROM vault_objects WHERE type = 'file'`),
+      bookmarkCount: count(`SELECT COUNT(1) AS total FROM vault_objects WHERE type = 'bookmark'`),
+      noteCount: count(`SELECT COUNT(1) AS total FROM vault_objects WHERE type = 'note'`),
+      passwordCount: count('SELECT COUNT(1) AS total FROM passwords'),
+    };
   }
 
   listItemsQuery(input: ListItemsQueryInput): ListItemsQueryResult {

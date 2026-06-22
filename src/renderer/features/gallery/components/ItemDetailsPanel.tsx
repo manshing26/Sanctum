@@ -238,7 +238,28 @@ const DetailsContent: React.FC<ItemDetailsPanelProps> = ({
 
       {/* Actions */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-        <button type="button" onClick={() => onOpenItem(item.id)} style={{ ...actionBtn(canPreview ? 'default' : 'warn'), flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        <button
+          type="button"
+          onClick={() => onOpenItem(item.id)}
+          style={{
+            ...actionBtn(canPreview ? 'default' : 'warn'),
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: canPreview ? 6 : 4,
+            ...(canPreview ? {} : {
+              height: 'auto',
+              minHeight: 28,
+              padding: '6px 7px',
+              letterSpacing: 0,
+              lineHeight: 1.1,
+              whiteSpace: 'nowrap',
+            }),
+          }}
+          title={canPreview ? 'Open' : 'Open Read-Only Copy'}
+        >
           <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.4">
             <circle cx="5.5" cy="5.5" r="4.5" /><circle cx="5.5" cy="5.5" r="1.8" />
           </svg>

@@ -115,6 +115,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listItems: () => ipcRenderer.invoke(IPC_CHANNELS.listItems),
   listItemsQuery: (input: ListItemsQueryInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.listItemsQuery, input),
+  getVaultStorageSummary: () => ipcRenderer.invoke(IPC_CHANNELS.getVaultStorageSummary),
   getItemThumbnail: (itemId: string) => ipcRenderer.invoke(IPC_CHANNELS.getItemThumbnail, itemId),
   updateItemThumbnail: (input: UpdateItemThumbnailInput) =>
     ipcRenderer.invoke(IPC_CHANNELS.updateItemThumbnail, input),
@@ -378,6 +379,7 @@ contextBridge.exposeInMainWorld('browserAPI', {
       ipcRenderer.removeListener(IPC_CHANNELS.downloadUpdate, listener);
     };
   },
+  listDownloads: () => ipcRenderer.invoke(IPC_CHANNELS.listDownloads),
   cancelDownload: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.cancelDownload, id),
   listExtensions: () => ipcRenderer.invoke(IPC_CHANNELS.listExtensions),
   loadExtension: () => ipcRenderer.invoke(IPC_CHANNELS.loadExtension),

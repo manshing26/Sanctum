@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { RestoreCountdownDialog } from '../../components/ui/RestoreCountdownDialog';
 import { PasswordInput } from '../../components/ui/PasswordInput';
 import { SanctumConfirmDialog, SanctumDialog } from '../../components/ui';
-import type { AuthAuditEntry, SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgress, RestoreProgress, VaultHealthReport } from '../../../shared/ipc';
+import type { AuthAuditEntry, SecuritySettings, AppearanceSettings, BrowserSettings, BackupProgress, RestoreProgress, VaultHealthReport, VaultStorageSummary } from '../../../shared/ipc';
 import { VAULT_PASSWORD_MIN_LENGTH, isVaultPasswordLongEnough } from '../../../shared/authPolicy';
 import type { SearchEngineId } from '../../../shared/browserSearch';
 import { validateCustomSearchTemplate } from '../../../shared/browserSearch';
@@ -330,6 +330,13 @@ const healthSummaryText = (report: VaultHealthReport): string => {
     report.counts.folderReferences ? `${report.counts.folderReferences} folder reference${report.counts.folderReferences === 1 ? '' : 's'}` : '',
   ].filter(Boolean);
   return parts.length > 0 ? `Found ${parts.join(', ')}.` : 'Corrupted vault data was detected.';
+};
+
+const formatStorageSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 };
 
 // ── Change Password ──────────────────────────────────────────────────
@@ -919,6 +926,9 @@ const ResetCompleteDialog: React.FC = () => {
 
 // ── Storage ──────────────────────────────────────────────────────────
 const StorageSection: React.FC = () => {
+  const [storageSummary, setStorageSummary] = useState<VaultStorageSummary | null>(null);
+  const [isLoadingStorageSummary, setIsLoadingStorageSummary] = useState(true);
+  const [storageSummaryUnavailable, setStorageSummaryUnavailable] = useState(false);
   const [showWipeDialog, setShowWipeDialog] = useState(false);
   const [isWiping, setIsWiping] = useState(false);
   const [wipePassword, setWipePassword] = useState('');
@@ -936,6 +946,29 @@ const StorageSection: React.FC = () => {
   const [confirmRepair, setConfirmRepair] = useState(false);
   const [confirmRebuild, setConfirmRebuild] = useState(false);
 
+  const refreshStorageSummary = useCallback(async (): Promise<void> => {
+    setIsLoadingStorageSummary(true);
+    setStorageSummaryUnavailable(false);
+    try {
+      const result = await window.electronAPI.getVaultStorageSummary();
+      if (!result.ok) {
+        setStorageSummary(null);
+        setStorageSummaryUnavailable(true);
+        return;
+      }
+      setStorageSummary(result.data);
+    } catch {
+      setStorageSummary(null);
+      setStorageSummaryUnavailable(true);
+    } finally {
+      setIsLoadingStorageSummary(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshStorageSummary();
+  }, [refreshStorageSummary]);
+
   const handleWipeVault = async (): Promise<void> => {
     if (!wipePassword) return;
     setWipeError(null);
@@ -950,6 +983,7 @@ const StorageSection: React.FC = () => {
       toast.success(`Vault reset. Deleted ${r.data.deleted} saved object(s).`);
       setWipePassword('');
       setShowWipeDialog(false);
+      await refreshStorageSummary();
     } finally { setIsWiping(false); }
   };
 
@@ -1025,6 +1059,7 @@ const StorageSection: React.FC = () => {
       setConfirmRepair(false);
       toast.success('Vault data repaired.');
       await handleScanHealth();
+      await refreshStorageSummary();
     } finally {
       setIsRepairingHealth(false);
     }
@@ -1043,6 +1078,7 @@ const StorageSection: React.FC = () => {
       setConfirmRebuild(false);
       toast.success('Vault database rebuilt. Restart Sanctum to finish recovery.');
       setHealthReport(null);
+      await refreshStorageSummary();
     } finally {
       setIsRepairingHealth(false);
     }
@@ -1055,6 +1091,41 @@ const StorageSection: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <SectionHeading title="Storage" sub="Manage vault storage and data." />
       {fullResetComplete && <ResetCompleteDialog />}
+
+      <SettingCard>
+        <CardSection title="Vault Storage" description="Persistent encrypted vault data stored on this device.">
+          {isLoadingStorageSummary ? (
+            <div style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute }}>
+              Calculating vault size...
+            </div>
+          ) : storageSummaryUnavailable || !storageSummary ? (
+            <div style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>
+              Vault storage information is unavailable.
+            </div>
+          ) : (
+            <div>
+              <div style={{
+                fontFamily: SERIF,
+                fontSize: fontSize(30),
+                fontWeight: 300,
+                color: T.text,
+                lineHeight: 1.1,
+              }}>
+                {formatStorageSize(storageSummary.totalBytes)}
+              </div>
+              <div style={{
+                marginTop: 8,
+                fontFamily: MONO,
+                fontSize: fontSize(10),
+                color: T.mute,
+                lineHeight: 1.6,
+              }}>
+                {storageSummary.fileCount} files · {storageSummary.bookmarkCount} bookmarks · {storageSummary.noteCount} notes · {storageSummary.passwordCount} passwords
+              </div>
+            </div>
+          )}
+        </CardSection>
+      </SettingCard>
 
       <BackupCard />
       <RestoreCard />

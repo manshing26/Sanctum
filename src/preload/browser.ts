@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('browserAPI', {
       ipcRenderer.removeListener(IPC_CHANNELS.downloadUpdate, listener);
     };
   },
+  listDownloads: () => ipcRenderer.invoke(IPC_CHANNELS.listDownloads),
   cancelDownload: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.cancelDownload, id),
   listExtensions: () => ipcRenderer.invoke(IPC_CHANNELS.listExtensions),
   loadExtension: () => ipcRenderer.invoke(IPC_CHANNELS.loadExtension),

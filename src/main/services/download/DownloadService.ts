@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { DownloadItem, Session } from 'electron';
 import { IPC_CHANNELS, type DownloadProgress } from '../../../shared/ipc';
 import { BrowserWindowController } from '../../windows/BrowserWindowController';
+import { MainWindowController } from '../../windows/MainWindowController';
 import { ImportService } from '../import/ImportService';
 import { VaultPaths } from '../vault/VaultPaths';
 import { SessionStore } from '../../state/SessionStore';
@@ -20,12 +21,14 @@ type TrackedDownload = {
 
 export class DownloadService {
   private readonly downloads = new Map<string, TrackedDownload>();
+  private readonly history = new Map<string, DownloadProgress>();
 
   constructor(
     private readonly session: Session,
     private readonly vaultPaths: VaultPaths,
     private readonly importService: ImportService,
     private readonly browserWindowController: BrowserWindowController,
+    private readonly mainWindowController: MainWindowController,
     private readonly sessionStore: SessionStore,
   ) {}
 
@@ -59,6 +62,14 @@ export class DownloadService {
         filename,
       };
       this.downloads.set(id, tracked);
+      this.emitUpdate({
+        id,
+        url: tracked.url,
+        filename,
+        totalBytes: item.getTotalBytes(),
+        receivedBytes: item.getReceivedBytes(),
+        state: 'downloading',
+      });
 
       item.on('updated', () => {
         this.emitUpdate({
@@ -83,11 +94,19 @@ export class DownloadService {
 
         if (state === 'completed') {
           try {
-            await this.importService.importFiles({
+            this.emitUpdate({
+              ...updateBase,
+              state: 'saving_to_vault',
+            });
+            const importResult = await this.importService.importFiles({
               filePaths: [tempPath],
               deleteOriginals: false,
               folderId: null,
             });
+            if (importResult.imported < 1 || importResult.failed > 0) {
+              updateBase.state = 'failed';
+              updateBase.error = importResult.errors[0] ?? 'Failed to import downloaded file.';
+            }
           } catch (error) {
             updateBase.state = 'failed';
             updateBase.error =
@@ -113,12 +132,22 @@ export class DownloadService {
     return true;
   }
 
+  listDownloads(): DownloadProgress[] {
+    return Array.from(this.history.values()).reverse();
+  }
+
   private emitUpdate(payload: DownloadProgress): void {
-    const window = this.browserWindowController.getWindow();
-    if (!window) {
-      return;
+    this.history.set(payload.id, payload);
+    const windows = [
+      this.mainWindowController.getWindow(),
+      this.browserWindowController.getWindow(),
+    ];
+    const sent = new Set<number>();
+    for (const window of windows) {
+      if (!window || window.isDestroyed() || sent.has(window.id)) continue;
+      sent.add(window.id);
+      window.webContents.send(IPC_CHANNELS.downloadUpdate, payload);
     }
-    window.webContents.send(IPC_CHANNELS.downloadUpdate, payload);
   }
 
   private async cleanupTempFile(filePath: string): Promise<void> {

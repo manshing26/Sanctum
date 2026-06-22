@@ -40,6 +40,7 @@ export const IPC_CHANNELS = {
   unassignNotesTag:      'vault:notes:unassign-tags-bulk',
   exportNote:            'vault:notes:export',
   downloadUpdate: 'browser:downloads:update',
+  listDownloads: 'browser:downloads:list',
   cancelDownload: 'browser:downloads:cancel',
   listExtensions: 'browser:extensions:list',
   loadExtension: 'browser:extensions:load',
@@ -58,6 +59,7 @@ export const IPC_CHANNELS = {
   importFiles: 'vault:import-files',
   listItems: 'vault:list-items',
   listItemsQuery: 'vault:list-items-query',
+  getVaultStorageSummary: 'vault:get-storage-summary',
   getItemThumbnail: 'vault:get-item-thumbnail',
   updateItemThumbnail: 'vault:update-item-thumbnail',
   setVideoPlaybackActive: 'viewer:set-video-playback-active',
@@ -337,6 +339,14 @@ export type ListItemsQueryResult = {
   items: VaultItemSummary[];
   total: number;
   hasMore: boolean;
+};
+
+export type VaultStorageSummary = {
+  totalBytes: number;
+  fileCount: number;
+  bookmarkCount: number;
+  noteCount: number;
+  passwordCount: number;
 };
 
 export type ItemThumbnail = {
@@ -840,7 +850,7 @@ export type RestoreProgress = {
   currentFile?: string;
 };
 
-export type DownloadState = 'downloading' | 'completed' | 'cancelled' | 'failed';
+export type DownloadState = 'downloading' | 'saving_to_vault' | 'completed' | 'cancelled' | 'failed';
 
 export type DownloadProgress = {
   id: string;
@@ -890,6 +900,7 @@ export type ElectronAPI = {
   scanImportConflicts: (input: ScanImportConflictsInput) => Promise<OperationResult<ScanImportConflictsResult>>;
   listItems: () => Promise<VaultItemSummary[]>;
   listItemsQuery: (input: ListItemsQueryInput) => Promise<OperationResult<ListItemsQueryResult>>;
+  getVaultStorageSummary: () => Promise<OperationResult<VaultStorageSummary>>;
   getItemThumbnail: (itemId: string) => Promise<OperationResult<ItemThumbnail>>;
   updateItemThumbnail: (input: UpdateItemThumbnailInput) => Promise<OperationResult<VaultItemSummary>>;
   setVideoPlaybackActive: (input: SetVideoPlaybackActiveInput) => Promise<OperationResult>;
@@ -1010,6 +1021,7 @@ export type BrowserAPI = {
   deleteBookmark: (input: DeleteBookmarkInput) => Promise<OperationResult>;
   updateBookmarkThumbnail: (input: UpdateBookmarkThumbnailInput) => Promise<OperationResult<BookmarkSummary>>;
   onDownloadUpdate: (handler: (payload: DownloadProgress) => void) => () => void;
+  listDownloads: () => Promise<OperationResult<DownloadProgress[]>>;
   cancelDownload: (id: string) => Promise<OperationResult>;
   listExtensions: () => Promise<OperationResult<ExtensionSummary[]>>;
   loadExtension: () => Promise<OperationResult<LoadExtensionResult>>;

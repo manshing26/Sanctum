@@ -135,6 +135,14 @@ const getDomainLabel = (rawUrl: string): string => {
   try { return new URL(rawUrl).hostname || 'Unknown'; } catch { return 'Unknown'; }
 };
 
+const formatDownloadBytes = (bytes: number): string => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+  return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
+};
+
 const getDomainAccent = (domain: string): string => {
   let hash = 0;
   for (let i = 0; i < domain.length; i += 1) hash = domain.charCodeAt(i) + ((hash << 5) - hash);
@@ -613,6 +621,7 @@ export const BrowserWorkspace = ({
   const [folders, setFolders] = useState<FolderNode[]>([]);
   const [collapsedDomains, setCollapsedDomains] = useState<Record<string, boolean>>({});
   const [downloads, setDownloads] = useState<Record<string, DownloadEntry>>({});
+  const [downloadsOpen, setDownloadsOpen] = useState(false);
   const [browserSettings, setBrowserSettings] = useState<BrowserSettings | null>(null);
   const [isCleaningWeb, setIsCleaningWeb] = useState(false);
   const [cleanWebConfirmOpen, setCleanWebConfirmOpen] = useState(false);
@@ -636,9 +645,9 @@ export const BrowserWorkspace = ({
   const captureMenuRef = useRef<HTMLDivElement | null>(null);
   const popupMenuRef = useRef<HTMLDivElement | null>(null);
   const passwordMenuRef = useRef<HTMLDivElement | null>(null);
+  const downloadsMenuRef = useRef<HTMLDivElement | null>(null);
   const gestureCooldownRef = useRef(0);
-
-  const downloadCleanupTimers = useRef<Record<string, number>>({});
+  const seenDownloadIdsRef = useRef<Set<string>>(new Set());
   const navigationHistoryRef = useRef<Record<string, NavigationSample[]>>({});
   const challengeWarningCooldownRef = useRef<Record<string, number>>({});
 
@@ -838,22 +847,50 @@ export const BrowserWorkspace = ({
   }, [refreshBrowserSettings]);
 
   useEffect(() => {
+    let cancelled = false;
     const unsub = window.browserAPI.onDownloadUpdate((payload) => {
+      const isNewDownload = !seenDownloadIdsRef.current.has(payload.id);
+      seenDownloadIdsRef.current.add(payload.id);
       setDownloads((prev) => ({ ...prev, [payload.id]: { ...payload, updatedAt: Date.now() } }));
-      if (payload.state !== 'downloading') {
-        if (downloadCleanupTimers.current[payload.id]) window.clearTimeout(downloadCleanupTimers.current[payload.id]);
-        downloadCleanupTimers.current[payload.id] = window.setTimeout(() => {
-          setDownloads((prev) => { const next = { ...prev }; delete next[payload.id]; return next; });
-          delete downloadCleanupTimers.current[payload.id];
-        }, 8000);
+      if (isNewDownload && payload.state === 'downloading' && isWorkspaceActive) {
+        setDownloadsOpen(true);
       }
     });
+
+    void window.browserAPI.listDownloads().then((result) => {
+      if (cancelled || !result.ok) return;
+      const hydrated = result.data.reduce<Record<string, DownloadEntry>>((entries, item, index) => {
+        seenDownloadIdsRef.current.add(item.id);
+        entries[item.id] = { ...item, updatedAt: Date.now() - index };
+        return entries;
+      }, {});
+      setDownloads((prev) => ({ ...hydrated, ...prev }));
+    });
+
     return () => {
+      cancelled = true;
       unsub();
-      Object.values(downloadCleanupTimers.current).forEach((t) => window.clearTimeout(t));
-      downloadCleanupTimers.current = {};
     };
-  }, []);
+  }, [isWorkspaceActive]);
+
+  useEffect(() => {
+    if (!downloadsOpen) return undefined;
+    const onPointerDown = (event: PointerEvent): void => {
+      if (downloadsMenuRef.current?.contains(event.target as Node)) return;
+      setDownloadsOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setDownloadsOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [downloadsOpen]);
 
   const applyTabPatch = useCallback((tabId: string, patch: Partial<BrowserTab>): void => {
     setTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, ...patch } : t)));
@@ -1299,6 +1336,8 @@ export const BrowserWorkspace = ({
   }, [activeTab?.id, activeDomain]);
 
   const openPwPanel = async (): Promise<void> => {
+    setDownloadsOpen(false);
+    setCaptureMenuOpen(false);
     setPwPanelOpen((prev) => {
       if (prev) return false;
       return true;
@@ -1376,7 +1415,14 @@ export const BrowserWorkspace = ({
     if (savedWebOverlayMode) setLeftPanelOpen(false);
   };
 
-  const downloadList = useMemo(() => Object.values(downloads), [downloads]);
+  const downloadList = useMemo(
+    () => Object.values(downloads).sort((a, b) => b.updatedAt - a.updatedAt),
+    [downloads],
+  );
+  const activeDownloadCount = useMemo(
+    () => downloadList.filter((item) => item.state === 'downloading' || item.state === 'saving_to_vault').length,
+    [downloadList],
+  );
   const filteredBookmarks = useMemo(() => {
     const query = bookmarkSearch.trim().toLowerCase();
     if (!query) return bookmarks;
@@ -1672,6 +1718,7 @@ export const BrowserWorkspace = ({
             type="button"
             onClick={() => {
               setCaptureMenuOpen(false);
+              setDownloadsOpen(false);
               setPwPanelOpen(false);
               setPwSaveForm(null);
               setLeftPanelOpen((open) => !open);
@@ -1689,10 +1736,177 @@ export const BrowserWorkspace = ({
             <IcoBookmark />
           </button>
 
+          <div ref={downloadsMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => {
+                setCaptureMenuOpen(false);
+                setPwPanelOpen(false);
+                setPwSaveForm(null);
+                setLeftPanelOpen(false);
+                setDownloadsOpen((open) => !open);
+              }}
+              title="Downloads"
+              aria-label="Downloads"
+              style={{
+                position: 'relative',
+                width: 28,
+                height: 28,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: downloadsOpen || activeDownloadCount > 0 ? T.accentGlow : 'none',
+                border: `1px solid ${downloadsOpen || activeDownloadCount > 0 ? T.accent : 'transparent'}`,
+                color: downloadsOpen || activeDownloadCount > 0 ? T.accent : T.mute,
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              <IcoDownload />
+              {downloadList.length > 0 && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    right: -4,
+                    top: -4,
+                    minWidth: 14,
+                    height: 14,
+                    padding: '0 3px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: activeDownloadCount > 0 ? T.accent : T.mute2,
+                    color: T.bg,
+                    border: `1px solid ${T.bg2}`,
+                    fontFamily: MONO,
+                    fontSize: fontSize(8),
+                    lineHeight: 1,
+                  }}
+                >
+                  {activeDownloadCount > 0 ? activeDownloadCount : Math.min(downloadList.length, 99)}
+                </span>
+              )}
+            </button>
+
+            {downloadsOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 32,
+                  right: 0,
+                  zIndex: 40,
+                  width: 360,
+                  maxWidth: 'calc(100vw - 24px)',
+                  maxHeight: 'min(480px, calc(100vh - 96px))',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  border: `1px solid ${T.line2}`,
+                  background: T.bg2,
+                  boxShadow: '0 12px 30px rgba(0,0,0,0.4)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: `1px solid ${T.line}` }}>
+                  <span style={{ flex: 1, fontFamily: MONO, fontSize: fontSize(10), letterSpacing: '0.1em', textTransform: 'uppercase', color: T.text }}>
+                    Downloads
+                  </span>
+                  {activeDownloadCount > 0 && (
+                    <span style={{ fontFamily: MONO, fontSize: fontSize(9), color: T.accent }}>
+                      {activeDownloadCount} active
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setDownloadsOpen(false)}
+                    title="Close"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.mute, padding: 0, display: 'flex' }}
+                  >
+                    <IcoStop />
+                  </button>
+                </div>
+
+                <div style={{ minHeight: 0, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {downloadList.length === 0 ? (
+                    <div style={{ padding: '28px 14px', textAlign: 'center', border: `1px dashed ${T.line2}`, fontFamily: MONO, fontSize: fontSize(10), color: T.mute2 }}>
+                      No downloads this session.
+                    </div>
+                  ) : downloadList.map((item) => {
+                    const pct = item.totalBytes > 0
+                      ? Math.min(100, Math.round((item.receivedBytes / item.totalBytes) * 100))
+                      : null;
+                    const isDownloading = item.state === 'downloading';
+                    const isSaving = item.state === 'saving_to_vault';
+                    const barColor = item.state === 'completed'
+                      ? T.success
+                      : item.state === 'failed'
+                        ? T.danger
+                        : item.state === 'cancelled'
+                          ? T.mute2
+                          : T.accent;
+                    const stateLabel = item.state === 'completed'
+                      ? 'Saved to Vault'
+                      : isSaving
+                        ? 'Saving to Vault...'
+                        : item.state === 'downloading'
+                          ? 'Downloading'
+                          : item.state === 'cancelled'
+                            ? 'Cancelled'
+                            : 'Failed';
+                    return (
+                      <div key={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 9, border: `1px solid ${T.line}`, background: T.bg, padding: '9px 10px' }}>
+                        <span style={{ color: barColor, display: 'flex', paddingTop: 1 }}><IcoDownload /></span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div title={item.filename} style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.filename}
+                          </div>
+                          <div style={{ marginTop: 6, height: 2, background: T.line2 }}>
+                            <div
+                              style={{
+                                height: '100%',
+                                width: `${isSaving || item.state === 'completed' ? 100 : pct ?? 30}%`,
+                                background: barColor,
+                                transition: 'width 0.2s',
+                              }}
+                            />
+                          </div>
+                          <div style={{ marginTop: 4, display: 'flex', gap: 6, justifyContent: 'space-between', fontFamily: MONO, fontSize: fontSize(9), color: item.state === 'failed' ? T.danger : T.mute2 }}>
+                            <span>{item.error || stateLabel}</span>
+                            <span style={{ flexShrink: 0 }}>
+                              {isSaving
+                                ? formatDownloadBytes(item.totalBytes || item.receivedBytes)
+                                : item.totalBytes > 0
+                                  ? `${formatDownloadBytes(item.receivedBytes)} / ${formatDownloadBytes(item.totalBytes)}${pct !== null ? ` · ${pct}%` : ''}`
+                                  : formatDownloadBytes(item.receivedBytes)}
+                            </span>
+                          </div>
+                        </div>
+                        {isDownloading && (
+                          <button
+                            type="button"
+                            onClick={() => void window.browserAPI.cancelDownload(item.id)}
+                            aria-label="Cancel download"
+                            title="Cancel download"
+                            style={{ background: 'none', border: 'none', color: T.mute, cursor: 'pointer', display: 'flex', padding: 2 }}
+                          >
+                            <IcoStop />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           <div ref={captureMenuRef} style={{ position: 'relative', flexShrink: 0 }}>
             <button
               type="button"
-              onClick={() => setCaptureMenuOpen((open) => !open)}
+              onClick={() => {
+                setDownloadsOpen(false);
+                setPwPanelOpen(false);
+                setPwSaveForm(null);
+                setCaptureMenuOpen((open) => !open);
+              }}
               disabled={isCapturingPage || Boolean(activeTab?.hasCrashed)}
               title="Capture page"
               style={{
@@ -2145,38 +2359,6 @@ export const BrowserWorkspace = ({
           </aside>
         )}
       </main>
-
-      {/* Downloads tray */}
-      {downloadList.length > 0 && (
-        <div style={{ borderTop: `1px solid ${T.line}`, background: T.bg2, padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {downloadList.map((item) => {
-            const pct = item.totalBytes > 0 ? Math.round((item.receivedBytes / item.totalBytes) * 100) : null;
-            const isActive = item.state === 'downloading';
-            const barColor = item.state === 'completed' ? T.success : item.state === 'failed' ? T.danger : T.accent;
-            return (
-              <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, border: `1px solid ${T.line}`, background: T.bg, padding: '6px 10px' }}>
-                <IcoDownload />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.filename}</div>
-                  <div style={{ marginTop: 3, height: 2, background: T.line2 }}>
-                    <div style={{ height: '100%', width: `${pct ?? 30}%`, background: barColor, transition: 'width 0.2s' }} />
-                  </div>
-                  <div style={{ marginTop: 2, fontFamily: MONO, fontSize: fontSize(9), color: T.mute2 }}>
-                    {item.state === 'completed' ? 'Saved to Vault' : item.state}
-                    {pct !== null ? ` · ${pct}%` : ''}
-                    {item.error ? ` · ${item.error}` : ''}
-                  </div>
-                </div>
-                {isActive && (
-                  <button type="button" onClick={() => void window.browserAPI.cancelDownload(item.id)} aria-label="Cancel download" style={{ background: 'none', border: 'none', color: T.mute, cursor: 'pointer', display: 'flex', padding: 2 }}>
-                    <IcoStop />
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
 
       <SanctumConfirmDialog
         open={cleanWebConfirmOpen}
