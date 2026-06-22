@@ -12,13 +12,14 @@ A local-first encrypted vault for files, bookmarks, secure notes, passwords, and
 - **Encrypted files** — imported files are stored as encrypted blobs; original filenames are encrypted separately.
 - **Encrypted bookmarks** — bookmark title, URL, and thumbnail data are stored encrypted.
 - **Secure notes** — encrypted note title/body stored in SQLite; supports plain text and Markdown mode.
-- **Folders** — shared nested folder tree for files, bookmarks, and notes.
+- **Visual folders** — Root and folder views show immediate child folders before directly assigned objects. Folders with direct media display an encrypted thumbnail collage; nested-only or empty folders use a folder icon.
 - **Tags** — shared colour-coded tags across vault objects.
 - **Favourites** — favourite files, bookmarks, and notes.
 - **Ratings** — 1-5 star rating for files, bookmarks, and notes.
-- **Search and filters** — search across mixed vault objects, including tags; filter by scope, tags, and favourites.
+- **Search and filters** — search across mixed vault objects, including tags; inside a folder, active search/tag/favourite filters include its complete descendant tree.
 - **Grid and list views** — mixed file/bookmark/note layouts with object type badges.
-- **Keyboard navigation** — arrow keys move through Vault list/grid items; `Enter` opens the focused file, bookmark, or note; `Space` remains selection/toggle.
+- **Keyboard navigation** — arrow keys move through Vault list/grid objects and visual folders; `Enter` opens the focused entry; `Space` remains selection/toggle.
+- **Sorting** — newest/oldest, name, type, and rating ordering. Child folders stay first alphabetically in folder views.
 - **Bulk workflows** — select by checkbox, select all, or drag box; bulk move, favourite, export, and delete.
 
 ### File Import, Preview, and Export

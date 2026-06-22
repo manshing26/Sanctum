@@ -2659,6 +2659,15 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     setShowFavoritesOnly(false);
   };
 
+  const openCreateFolderForCurrentScope = (): void => {
+    setNewFolderParentId(
+      selectedViewScope === 'folder' && selectedFolderId !== null
+        ? selectedFolderId
+        : null,
+    );
+    setShowNewFolderDialog(true);
+  };
+
   const handleGoToItemFolder = (itemId: string): void => {
     const item = allItems.find((entry) => entry.id === itemId) ?? filteredItems.find((entry) => entry.id === itemId);
     if (!item || item.folderId == null) return;
@@ -4154,7 +4163,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
                 canCreateFolder={!filtersActive}
                 onClearFilters={handleClearFilters}
                 onImport={() => setImportSettingsOpen(true)}
-                onCreateFolder={() => setShowNewFolderDialog(true)}
+                onCreateFolder={openCreateFolderForCurrentScope}
               />
             ) : viewMode === 'grid' ? (
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCardWidth}px, 1fr))`, gap: 20 }}>
