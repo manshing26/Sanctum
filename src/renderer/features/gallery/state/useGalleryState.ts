@@ -178,14 +178,18 @@ export const useGalleryState = () => {
 
   const filteredItems = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
+    const filtersActive = search.length > 0 || selectedTagIds.length > 0 || showFavoritesOnly;
 
     return allItems.filter((item) => {
       if (selectedViewScope === 'folder') {
-        if (descendantSet && !descendantSet.has(item.folderId ?? -1)) {
+        const inScope = filtersActive
+          ? Boolean(descendantSet?.has(item.folderId ?? -1))
+          : item.folderId === selectedFolderId;
+        if (!inScope) {
           return false;
         }
       } else if (selectedViewScope === 'root') {
-        if (item.folderId !== undefined && item.folderId !== null) {
+        if (!filtersActive && item.folderId !== undefined && item.folderId !== null) {
           return false;
         }
       } else if (selectedViewScope === 'video') {
@@ -237,7 +241,7 @@ export const useGalleryState = () => {
 
       return true;
     });
-  }, [allItems, descendantSet, selectedTagIds, searchTerm, showFavoritesOnly, selectedViewScope]);
+  }, [allItems, descendantSet, selectedFolderId, selectedTagIds, searchTerm, showFavoritesOnly, selectedViewScope]);
 
   const selectedItem = useMemo(() => {
     if (primarySelectedId) {

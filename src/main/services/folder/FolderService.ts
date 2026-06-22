@@ -58,21 +58,76 @@ export class FolderService {
 
   private toTree(rows: FolderRow[]): FolderNode[] {
     const childrenMap = new Map<number | null, FolderRow[]>();
+    const directObjectCounts = new Map<number, number>();
+    const previewIds = new Map<number, string[]>();
     for (const row of rows) {
       const siblings = childrenMap.get(row.parent_id) ?? [];
       siblings.push(row);
       childrenMap.set(row.parent_id, siblings);
     }
 
-    const buildNode = (row: FolderRow): FolderNode => ({
-      id: row.id,
-      name: row.name,
-      parentId: row.parent_id,
-      createdAt: row.created_at,
-      children: (childrenMap.get(row.id) ?? [])
+    const objectRows = this.db
+      .prepare(
+        `SELECT folder_id, COUNT(1) AS total
+         FROM vault_objects
+         WHERE folder_id IS NOT NULL
+         GROUP BY folder_id`,
+      )
+      .all() as Array<{ folder_id: number; total: number }>;
+    for (const object of objectRows) {
+      directObjectCounts.set(object.folder_id, object.total);
+    }
+
+    const previewRows = this.db
+      .prepare(
+        `SELECT folder_id, vault_object_id
+         FROM (
+           SELECT vo.folder_id, vi.vault_object_id,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY vo.folder_id
+                    ORDER BY datetime(vo.created_at) DESC, vo.id DESC
+                  ) AS preview_rank
+           FROM vault_items vi
+           INNER JOIN vault_objects vo ON vo.id = vi.vault_object_id
+           WHERE vo.folder_id IS NOT NULL
+             AND vi.thumbnail_enc IS NOT NULL
+             AND (
+               vi.mime_type LIKE 'image/%'
+               OR vi.mime_type LIKE 'video/%'
+               OR vi.mime_type LIKE 'audio/%'
+             )
+         )
+         WHERE preview_rank <= 4
+         ORDER BY folder_id, preview_rank`,
+      )
+      .all() as Array<{ folder_id: number; vault_object_id: string }>;
+    for (const preview of previewRows) {
+      const ids = previewIds.get(preview.folder_id) ?? [];
+      if (ids.length < 4) {
+        ids.push(preview.vault_object_id);
+        previewIds.set(preview.folder_id, ids);
+      }
+    }
+
+    const buildNode = (row: FolderRow): FolderNode => {
+      const children = (childrenMap.get(row.id) ?? [])
         .sort((a, b) => a.name.localeCompare(b.name))
-        .map(buildNode),
-    });
+        .map(buildNode);
+      return {
+        id: row.id,
+        name: row.name,
+        parentId: row.parent_id,
+        createdAt: row.created_at,
+        recursiveObjectCount:
+          (directObjectCounts.get(row.id) ?? 0) +
+          children.reduce((total, child) => total + child.recursiveObjectCount, 0),
+        recursiveFolderCount:
+          children.length +
+          children.reduce((total, child) => total + child.recursiveFolderCount, 0),
+        previewItemIds: previewIds.get(row.id) ?? [],
+        children,
+      };
+    };
 
     return (childrenMap.get(null) ?? [])
       .sort((a, b) => a.name.localeCompare(b.name))

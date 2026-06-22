@@ -30,8 +30,8 @@ const SORT_OPTIONS: { value: VaultListSort; label: string }[] = [
   { value: 'oldest', label: 'Oldest first' },
   { value: 'name_asc', label: 'Name A–Z' },
   { value: 'name_desc', label: 'Name Z–A' },
-  { value: 'size_desc', label: 'Largest first' },
-  { value: 'size_asc', label: 'Smallest first' },
+  { value: 'type_asc', label: 'Type A-Z' },
+  { value: 'type_desc', label: 'Type Z-A' },
   { value: 'rating_desc', label: 'Highest rated' },
   { value: 'rating_asc', label: 'Lowest rated' },
 ];

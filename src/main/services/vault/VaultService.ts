@@ -111,10 +111,17 @@ const SORT_TO_ORDER_BY: Record<ListItemsQueryInput['sort'], string> = {
   oldest:      'datetime(vo.created_at) ASC,  vo.id ASC',
   name_asc:    'datetime(vo.created_at) DESC, vo.id DESC',
   name_desc:   'datetime(vo.created_at) DESC, vo.id DESC',
+  type_asc:    'datetime(vo.created_at) DESC, vo.id DESC',
+  type_desc:   'datetime(vo.created_at) DESC, vo.id DESC',
   rating_desc: "COALESCE(vo.rating, 0) DESC, datetime(vo.created_at) DESC, vo.id DESC",
   rating_asc:  "COALESCE(vo.rating, 0) ASC,  datetime(vo.created_at) ASC,  vo.id ASC",
-  size_desc:   'vi.file_size DESC, vo.id DESC',
-  size_asc:    'vi.file_size ASC,  vo.id ASC',
+};
+
+const fileTypeSortLabel = (item: VaultItemSummary): string => {
+  if (item.mimeType.startsWith('audio/')) return 'AUDIO';
+  if (item.mimeType.startsWith('video/')) return 'VIDEO';
+  if (item.mimeType.startsWith('image/')) return 'IMAGE';
+  return 'DOCUMENT';
 };
 
 const logger = getLogger('vault');
@@ -468,18 +475,31 @@ export class VaultService {
     const sort = input.sort in SORT_TO_ORDER_BY ? input.sort : 'newest';
     const limit = Math.max(1, Math.min(input.limit || 100, 5000));
     const offset = Math.max(0, input.offset || 0);
-    const needsNameSort = sort === 'name_asc' || sort === 'name_desc';
+    const needsRendererSort =
+      sort === 'name_asc' ||
+      sort === 'name_desc' ||
+      sort === 'type_asc' ||
+      sort === 'type_desc';
 
     const totalRow = this.db
       .prepare("SELECT COUNT(1) AS total FROM vault_objects WHERE type = 'file'")
       .get() as { total: number };
     const total = totalRow.total;
 
-    if (needsNameSort) {
+    if (needsRendererSort) {
       const allRows = this.db.prepare(`${ITEM_SELECT}`).all() as ItemRow[];
       const allItems = this.mapRowsToItems(allRows).sort((a, b) => {
-        const compared = a.originalName.localeCompare(b.originalName, undefined, { sensitivity: 'base' });
-        return sort === 'name_asc' ? compared : -compared;
+        const nameCompared = a.originalName.localeCompare(
+          b.originalName,
+          undefined,
+          { sensitivity: 'base' },
+        );
+        if (sort === 'name_asc') return nameCompared;
+        if (sort === 'name_desc') return -nameCompared;
+        const typeCompared = fileTypeSortLabel(a).localeCompare(fileTypeSortLabel(b));
+        return sort === 'type_asc'
+          ? typeCompared || nameCompared
+          : -typeCompared || nameCompared;
       });
       const items = allItems.slice(offset, offset + limit);
       return { items, total, hasMore: offset + items.length < total };

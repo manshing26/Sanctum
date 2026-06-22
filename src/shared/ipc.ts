@@ -325,8 +325,8 @@ export type VaultListSort =
   | 'oldest'
   | 'name_asc'
   | 'name_desc'
-  | 'size_desc'
-  | 'size_asc'
+  | 'type_asc'
+  | 'type_desc'
   | 'rating_desc'
   | 'rating_asc';
 
@@ -531,6 +531,9 @@ export type FolderNode = {
   name: string;
   parentId: number | null;
   createdAt: string;
+  recursiveObjectCount: number;
+  recursiveFolderCount: number;
+  previewItemIds: string[];
   children: FolderNode[];
 };
 

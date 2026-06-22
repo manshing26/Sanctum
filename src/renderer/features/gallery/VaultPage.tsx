@@ -41,6 +41,8 @@ import { ItemDetailsSidebar } from './components/ItemDetailsPanel';
 import { MoveToFolderDialog } from './components/MoveToFolderDialog';
 import { ImportSettingsDialog } from './components/ImportSettingsDialog';
 import { DeleteFolderDialog } from './components/DeleteFolderDialog';
+import { FolderEditDialog } from './components/FolderEditDialog';
+import { FolderCard, FolderInspector, FolderListRow } from './components/FolderVisuals';
 import { ImportConflictDialog } from './components/ImportConflictDialog';
 import { useGalleryState } from './state/useGalleryState';
 import { useMarqueeSelection } from './hooks/useMarqueeSelection';
@@ -1963,6 +1965,16 @@ const findFolderNameById = (nodes: FolderNode[], folderId: number): string | nul
   return null;
 };
 
+const findFolderById = (nodes: FolderNode[], folderId: number): FolderNode | null => {
+  const stack = [...nodes];
+  while (stack.length > 0) {
+    const node = stack.pop() as FolderNode;
+    if (node.id === folderId) return node;
+    stack.push(...node.children);
+  }
+  return null;
+};
+
 const findFolderPathById = (nodes: FolderNode[], folderId: number): string | null => {
   const visit = (items: FolderNode[], path: string[]): string[] | null => {
     for (const node of items) {
@@ -2039,11 +2051,9 @@ type MixedObject =
 
 type KeyboardObject = {
   id: string;
-  kind: 'file' | 'bookmark' | 'note';
+  kind: 'file' | 'bookmark' | 'note' | 'folder';
+  folder?: FolderNode;
 };
-
-const mixedObjectSize = (object: MixedObject): number =>
-  object.kind === 'file' ? object.item.size : object.kind === 'note' ? object.note.body.length : 0;
 
 const mixedObjectRating = (object: MixedObject): number =>
   object.kind === 'file' ? object.item.rating ?? 0 : object.kind === 'bookmark' ? object.bookmark.rating ?? 0 : object.note.rating ?? 0;
@@ -2135,6 +2145,10 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     if (vaultScope !== 'folder' || selectedFolderId === null) return null;
     return collectFolderDescendantIds(folders, selectedFolderId);
   }, [folders, selectedFolderId, vaultScope]);
+  const objectFiltersActive =
+    searchTerm.trim().length > 0 ||
+    selectedTagIds.length > 0 ||
+    showFavoritesOnly;
 
   // Derive sorted + filtered bookmark list.
   const visibleBookmarks = useMemo(() => {
@@ -2145,9 +2159,13 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     if (vaultScope === 'bookmark') {
       if (bookmarkFolderId !== null) list = list.filter((b) => b.folderId === bookmarkFolderId);
     } else if (vaultScope === 'root') {
-      list = list.filter((b) => b.folderId === null || b.folderId === undefined);
+      if (!objectFiltersActive) {
+        list = list.filter((b) => b.folderId === null || b.folderId === undefined);
+      }
     } else if (vaultScope === 'folder') {
-      list = list.filter((b) => b.folderId != null && Boolean(mixedFolderIds?.has(b.folderId)));
+      list = list.filter((b) => objectFiltersActive
+        ? b.folderId != null && Boolean(mixedFolderIds?.has(b.folderId))
+        : b.folderId === selectedFolderId);
     }
 
     // Tag filter
@@ -2181,14 +2199,14 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
         case 'name_desc': return b.title.localeCompare(a.title);
         case 'rating_desc': return (b.rating ?? 0) - (a.rating ?? 0) || compareCreatedNewest(a, b);
         case 'rating_asc': return (a.rating ?? 0) - (b.rating ?? 0) || compareCreatedOldest(a, b);
-        case 'size_desc':
-        case 'size_asc':
+        case 'type_asc': return a.title.localeCompare(b.title);
+        case 'type_desc': return b.title.localeCompare(a.title);
         default: return compareCreatedNewest(a, b);
       }
     });
 
     return list;
-  }, [bookmarkFolderId, bookmarks, mixedFolderIds, searchTerm, selectedTagIds, showFavoritesOnly, sort, vaultScope]);
+  }, [bookmarkFolderId, bookmarks, mixedFolderIds, objectFiltersActive, searchTerm, selectedFolderId, selectedTagIds, showFavoritesOnly, sort, vaultScope]);
 
   const showBookmarksInMixedView = !isBookmarkScope && (vaultScope === 'all' || vaultScope === 'root' || vaultScope === 'folder');
   const visibleNotes = useMemo(() => {
@@ -2197,9 +2215,13 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     if (vaultScope === 'note') {
       if (noteFolderId !== null) list = list.filter((note) => note.folderId === noteFolderId);
     } else if (vaultScope === 'root') {
-      list = list.filter((note) => note.folderId === null || note.folderId === undefined);
+      if (!objectFiltersActive) {
+        list = list.filter((note) => note.folderId === null || note.folderId === undefined);
+      }
     } else if (vaultScope === 'folder') {
-      list = list.filter((note) => note.folderId != null && Boolean(mixedFolderIds?.has(note.folderId)));
+      list = list.filter((note) => objectFiltersActive
+        ? note.folderId != null && Boolean(mixedFolderIds?.has(note.folderId))
+        : note.folderId === selectedFolderId);
     }
 
     if (selectedTagIds.length > 0) {
@@ -2223,8 +2245,8 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
         case 'oldest': return compareCreatedOldest(a, b);
         case 'name_asc': return a.title.localeCompare(b.title);
         case 'name_desc': return b.title.localeCompare(a.title);
-        case 'size_desc': return b.body.length - a.body.length || compareCreatedNewest(a, b);
-        case 'size_asc': return a.body.length - b.body.length || compareCreatedOldest(a, b);
+        case 'type_asc': return a.title.localeCompare(b.title);
+        case 'type_desc': return b.title.localeCompare(a.title);
         case 'rating_desc': return (b.rating ?? 0) - (a.rating ?? 0) || compareCreatedNewest(a, b);
         case 'rating_asc': return (a.rating ?? 0) - (b.rating ?? 0) || compareCreatedOldest(a, b);
         case 'newest':
@@ -2233,7 +2255,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     });
 
     return list;
-  }, [mixedFolderIds, noteFolderId, notes, searchTerm, selectedTagIds, showFavoritesOnly, sort, vaultScope]);
+  }, [mixedFolderIds, noteFolderId, notes, objectFiltersActive, searchTerm, selectedFolderId, selectedTagIds, showFavoritesOnly, sort, vaultScope]);
   const showNotesInMixedView = !isBookmarkScope && !isNoteScope && (vaultScope === 'all' || vaultScope === 'root' || vaultScope === 'folder');
 
   const mixedObjects = useMemo<MixedObject[]>(() => {
@@ -2291,10 +2313,14 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
           return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
         case 'name_desc':
           return b.name.localeCompare(a.name, undefined, { sensitivity: 'base' });
-        case 'size_desc':
-          return mixedObjectSize(b) - mixedObjectSize(a) || compareCreatedNewest(a, b);
-        case 'size_asc':
-          return mixedObjectSize(a) - mixedObjectSize(b) || compareCreatedOldest(a, b);
+        case 'type_asc': {
+          const compared = a.typeLabel.localeCompare(b.typeLabel);
+          return compared || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+        }
+        case 'type_desc': {
+          const compared = b.typeLabel.localeCompare(a.typeLabel);
+          return compared || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+        }
         case 'rating_desc':
           return mixedObjectRating(b) - mixedObjectRating(a) || compareCreatedNewest(a, b);
         case 'rating_asc':
@@ -2330,6 +2356,8 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   const [showSidebar, setShowSidebar] = useState(true);
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false);
   const [showInspector, setShowInspector] = useState(true);
+  const [selectedVisualFolderId, setSelectedVisualFolderId] = useState<number | null>(null);
+  const [editingVisualFolder, setEditingVisualFolder] = useState<FolderNode | null>(null);
   const [viewerItemId, setViewerItemId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [thumbnailSize, setThumbnailSize] = useState<AppearanceSettings['thumbnailSize']>('medium');
@@ -2366,6 +2394,49 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   }, []);
 
   const gridMinCardWidth = THUMBNAIL_GRID_MIN_WIDTH[thumbnailSize];
+  const visibleChildFolders = useMemo(() => {
+    if (objectFiltersActive) return [];
+    if (vaultScope === 'root') return [...folders].sort((a, b) => a.name.localeCompare(b.name));
+    if (vaultScope !== 'folder' || selectedFolderId === null) return [];
+    const selectedFolder = findFolderById(folders, selectedFolderId);
+    return [...(selectedFolder?.children ?? [])].sort((a, b) => a.name.localeCompare(b.name));
+  }, [folders, objectFiltersActive, selectedFolderId, vaultScope]);
+  const selectedVisualFolder = selectedVisualFolderId === null
+    ? null
+    : findFolderById(folders, selectedVisualFolderId);
+  const folderPreviewUrls = useCallback(
+    (folder: FolderNode): string[] => folder.previewItemIds
+      .map((id) => thumbnails[id])
+      .filter((url): url is string => Boolean(url)),
+    [thumbnails],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const missingIds = Array.from(new Set(
+      visibleChildFolders
+        .flatMap((folder) => folder.previewItemIds)
+        .filter((id) => !thumbnails[id]),
+    ));
+    if (missingIds.length === 0) return undefined;
+    void Promise.all(missingIds.map(async (id) => {
+      const result = await window.electronAPI.getItemThumbnail(id);
+      if (!cancelled && result.ok) {
+        setThumbnail(id, `data:${result.data.mimeType};base64,${result.data.base64Data}`);
+      }
+    }));
+    return () => { cancelled = true; };
+  }, [setThumbnail, thumbnails, visibleChildFolders]);
+
+  useEffect(() => {
+    if (
+      selectedVisualFolderId !== null &&
+      !visibleChildFolders.some((folder) => folder.id === selectedVisualFolderId)
+    ) {
+      setSelectedVisualFolderId(null);
+      setKeyboardFocusedObjectId((current) => current?.startsWith('folder:') ? null : current);
+    }
+  }, [selectedVisualFolderId, visibleChildFolders]);
 
   const RENDER_PAGE = 100;
   const [renderCount, setRenderCount] = useState(RENDER_PAGE);
@@ -2491,6 +2562,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   };
 
   const handleItemClick = (itemId: string, multiKey = false): void => {
+    setSelectedVisualFolderId(null);
     setKeyboardFocusedObjectId(itemId);
     setShowInspector(true);
     if (isMultiSelect || multiKey) {
@@ -2510,6 +2582,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   };
 
   const handleItemContextMenu = (itemId: string): void => {
+    setSelectedVisualFolderId(null);
     setKeyboardFocusedObjectId(itemId);
     clearBookmarkSelection();
     clearNoteSelection();
@@ -2520,15 +2593,21 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   };
 
   const handleEmptyBackgroundClick = (): void => {
-    if (selectedItemIds.length === 0 && selectedBookmarkIds.length === 0 && selectedNoteIds.length === 0) return;
+    if (selectedItemIds.length === 0 && selectedBookmarkIds.length === 0 && selectedNoteIds.length === 0 && selectedVisualFolderId === null) return;
     setKeyboardFocusedObjectId(null);
+    setSelectedVisualFolderId(null);
     clearSelection();
     clearBookmarkSelection();
     clearNoteSelection();
     setIsMultiSelect(false);
   };
 
-  const clearObjectScopeState = (): void => { setSelectedBookmarkIds([]); setSelectedNoteIds([]); setIsMultiSelect(false); };
+  const clearObjectScopeState = (): void => {
+    setSelectedVisualFolderId(null);
+    setSelectedBookmarkIds([]);
+    setSelectedNoteIds([]);
+    setIsMultiSelect(false);
+  };
   const handleSelectAllItemsScope = (): void => { setSelectedViewScope('all' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); setNoteFolderId(null); clearObjectScopeState(); };
   const handleSelectVideoScope = (): void => { setSelectedViewScope('video' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); setNoteFolderId(null); clearObjectScopeState(); };
   const handleSelectAudioScope = (): void => { setSelectedViewScope('audio' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); setNoteFolderId(null); clearObjectScopeState(); };
@@ -2536,6 +2615,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   const handleSelectDocumentScope = (): void => { setSelectedViewScope('document' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); setNoteFolderId(null); clearObjectScopeState(); };
   const handleSelectRootScope = (): void => { setSelectedViewScope('root' as typeof selectedViewScope); setSelectedFolderId(null); setBookmarkFolderId(null); setNoteFolderId(null); clearObjectScopeState(); };
   const handleSelectFolderScope = (folderId: number): void => {
+    setSelectedVisualFolderId(null);
     if ((selectedViewScope as string) === 'bookmark') {
       setBookmarkFolderId(folderId);
     } else if ((selectedViewScope as string) === 'note') {
@@ -2546,6 +2626,21 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
       setBookmarkFolderId(folderId);
       setNoteFolderId(folderId);
     }
+  };
+  const selectVisualFolder = (folder: FolderNode): void => {
+    clearSelection();
+    clearBookmarkSelection();
+    clearNoteSelection();
+    setSelectedBookmarkId(null);
+    setSelectedNoteId(null);
+    setSelectedVisualFolderId(folder.id);
+    setKeyboardFocusedObjectId(`folder:${folder.id}`);
+    setIsMultiSelect(false);
+    setShowInspector(true);
+  };
+  const openVisualFolder = (folder: FolderNode): void => {
+    handleSelectFolderScope(folder.id);
+    setKeyboardFocusedObjectId(null);
   };
   const handleSelectBookmarkScope = (): void => {
     setSelectedViewScope('bookmark' as typeof selectedViewScope);
@@ -2733,6 +2828,10 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     try {
       const result = await window.electronAPI.deleteFolder(folderId, deleteItems);
       if (!result.ok) { toast.error(result.error); return; }
+      if (selectedVisualFolderId === folderId) {
+        setSelectedVisualFolderId(null);
+        setKeyboardFocusedObjectId(null);
+      }
       setDeleteFolderDialog(null);
       const [refreshed] = await Promise.all([refresh(), loadBookmarks(), loadNotes()]);
       if (!refreshed.ok) toast.error(refreshed.error);
@@ -3134,6 +3233,8 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     if (!result.ok) { toast.error(result.error || 'Failed to update thumbnail.'); return; }
     updateItemSummary(result.data);
     setThumbnail(itemId, dataUrl);
+    const supportResult = await loadSupportingData();
+    if (!supportResult.ok) toast.error(supportResult.error);
     setThumbPickerVideo(null);
     toast.success('Thumbnail updated.');
   };
@@ -3143,6 +3244,8 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     if (!result.ok) { toast.error(result.error || 'Failed to remove thumbnail.'); return; }
     updateItemSummary(result.data);
     setThumbnail(itemId, null);
+    const supportResult = await loadSupportingData();
+    if (!supportResult.ok) toast.error(supportResult.error);
     setThumbPickerVideo(null);
     toast.success('Thumbnail removed.');
   };
@@ -3325,6 +3428,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   };
 
   const handleNoteCardClick = (id: string): void => {
+    setSelectedVisualFolderId(null);
     setKeyboardFocusedObjectId(id);
     setShowInspector(true);
     if (isMultiSelect) {
@@ -3347,7 +3451,9 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     visibleBookmarkCount > 0 ? `${visibleBookmarkCount} ${visibleBookmarkCount === 1 ? 'bookmark' : 'bookmarks'}` : null,
     visibleNoteCount > 0 ? `${visibleNoteCount} ${visibleNoteCount === 1 ? 'note' : 'notes'}` : null,
   ].filter((part): part is string => Boolean(part));
-  const countAwareSubtitle = isBookmarkScope
+  const countAwareSubtitle = (vaultScope === 'root' || vaultScope === 'folder') && !objectFiltersActive
+    ? `${visibleObjectCount} ${visibleObjectCount === 1 ? 'object' : 'objects'} · ${visibleChildFolders.length} ${visibleChildFolders.length === 1 ? 'folder' : 'folders'}`
+    : isBookmarkScope
     ? `${visibleBookmarkCount} ${visibleBookmarkCount === 1 ? 'bookmark' : 'bookmarks'} · encrypted`
     : isNoteScope
       ? `${visibleNoteCount} ${visibleNoteCount === 1 ? 'note' : 'notes'} · encrypted`
@@ -3361,7 +3467,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
       : noteFolderId !== null
         ? findFolderPathById(folders, noteFolderId) ?? null
       : null;
-  const filtersActive = searchTerm.trim().length > 0 || selectedTagIds.length > 0 || showFavoritesOnly;
+  const filtersActive = objectFiltersActive;
   const bulkSummaryTotal = selectedItemIds.length + selectedBookmarkIds.length + selectedNoteIds.length;
   const visibleFileIdsForSelection = showBookmarksInMixedView
     ? mixedObjects.filter((object): object is Extract<MixedObject, { kind: 'file' }> => object.kind === 'file').map((object) => object.id)
@@ -3515,6 +3621,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     onGoToFolder: showGoToFolderActions ? handleGoToBookmarkFolder : undefined,
   };
   const handleBookmarkCardClick = (id: string): void => {
+    setSelectedVisualFolderId(null);
     setKeyboardFocusedObjectId(id);
     setShowInspector(true);
     if (isMultiSelect) {
@@ -3540,6 +3647,11 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
   const vaultMarqueeContainerRef = useRef<HTMLDivElement>(null);
 
   const keyboardObjects = useMemo<KeyboardObject[]>(() => {
+    const folderObjects = visibleChildFolders.map((folder) => ({
+      id: `folder:${folder.id}`,
+      kind: 'folder' as const,
+      folder,
+    }));
     if (isNoteScope) {
       return visibleNotes.map((note) => ({ id: note.id, kind: 'note' as const }));
     }
@@ -3547,14 +3659,22 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
       return visibleBookmarks.map((bookmark) => ({ id: bookmark.id, kind: 'bookmark' as const }));
     }
     if (showBookmarksInMixedView || showNotesInMixedView) {
-      return renderedMixedObjects.map((object) => ({ id: object.id, kind: object.kind }));
+      return [
+        ...folderObjects,
+        ...renderedMixedObjects.map((object) => ({ id: object.id, kind: object.kind })),
+      ];
     }
-    return filteredItems.slice(0, renderCount).map((item) => ({ id: item.id, kind: 'file' as const }));
-  }, [filteredItems, isBookmarkScope, isNoteScope, renderCount, renderedMixedObjects, showBookmarksInMixedView, showNotesInMixedView, visibleBookmarks, visibleNotes]);
+    return [
+      ...folderObjects,
+      ...filteredItems.slice(0, renderCount).map((item) => ({ id: item.id, kind: 'file' as const })),
+    ];
+  }, [filteredItems, isBookmarkScope, isNoteScope, renderCount, renderedMixedObjects, showBookmarksInMixedView, showNotesInMixedView, visibleBookmarks, visibleChildFolders, visibleNotes]);
 
   const focusKeyboardObjectElement = useCallback((objectId: string): void => {
     window.requestAnimationFrame(() => {
-      const selector = `[data-gallery-item-id="${CSS.escape(objectId)}"]`;
+      const selector = objectId.startsWith('folder:')
+        ? `[data-folder-item-id="${CSS.escape(objectId.slice('folder:'.length))}"]`
+        : `[data-gallery-item-id="${CSS.escape(objectId)}"]`;
       const element = vaultMarqueeContainerRef.current?.querySelector<HTMLElement>(selector);
       element?.focus({ preventScroll: true });
       element?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -3563,6 +3683,12 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
 
   const selectKeyboardObject = useCallback((object: KeyboardObject): void => {
     setKeyboardFocusedObjectId(object.id);
+    if (object.kind === 'folder' && object.folder) {
+      selectVisualFolder(object.folder);
+      focusKeyboardObjectElement(object.id);
+      return;
+    }
+    setSelectedVisualFolderId(null);
     if (!isMultiSelect) {
       clearSelection();
       clearBookmarkSelection();
@@ -3581,10 +3707,14 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     }
     setShowInspector(true);
     focusKeyboardObjectElement(object.id);
-  }, [clearSelection, focusKeyboardObjectElement, isMultiSelect, setSelectedItems]);
+  }, [clearSelection, focusKeyboardObjectElement, isMultiSelect, selectVisualFolder, setSelectedItems]);
 
   const openKeyboardObject = useCallback((object: KeyboardObject): void => {
     selectKeyboardObject(object);
+    if (object.kind === 'folder' && object.folder) {
+      openVisualFolder(object.folder);
+      return;
+    }
     if (object.kind === 'file') {
       handleOpenViewer(object.id);
       return;
@@ -3596,7 +3726,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     }
     const note = visibleNotes.find((entry) => entry.id === object.id) ?? notes.find((entry) => entry.id === object.id);
     if (note) openNoteEditor(note);
-  }, [bookmarks, handleOpenViewer, notes, onOpenUrlInBrowser, openNoteEditor, selectKeyboardObject, visibleBookmarks, visibleNotes]);
+  }, [bookmarks, handleOpenViewer, notes, onOpenUrlInBrowser, openNoteEditor, openVisualFolder, selectKeyboardObject, visibleBookmarks, visibleNotes]);
 
   const getCurrentKeyboardObject = useCallback((): KeyboardObject | null => {
     const selectedId =
@@ -3627,8 +3757,12 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     const container = vaultMarqueeContainerRef.current;
     if (!container) return keyboardObjects[Math.max(0, Math.min(keyboardObjects.length - 1, currentIndex + (direction === 'up' || direction === 'left' ? -1 : 1)))] ?? null;
 
-    const getRect = (id: string): DOMRect | null =>
-      container.querySelector<HTMLElement>(`[data-gallery-item-id="${CSS.escape(id)}"]`)?.getBoundingClientRect() ?? null;
+    const getRect = (id: string): DOMRect | null => {
+      const selector = id.startsWith('folder:')
+        ? `[data-folder-item-id="${CSS.escape(id.slice('folder:'.length))}"]`
+        : `[data-gallery-item-id="${CSS.escape(id)}"]`;
+      return container.querySelector<HTMLElement>(selector)?.getBoundingClientRect() ?? null;
+    };
 
     const currentRect = getRect(current.id);
     if (!currentRect) return keyboardObjects[0];
@@ -3668,6 +3802,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     [selectedBookmarkIds, selectedItemIds, selectedNoteIds],
   );
   const handleSetVaultMarqueeSelection = useCallback((objectIds: string[]): void => {
+    if (objectIds.length > 0) setSelectedVisualFolderId(null);
     const fileIds = new Set(filteredItems.map((item) => item.id));
     const bookmarkIds = new Set(visibleBookmarks.map((bookmark) => bookmark.id));
     const noteIds = new Set(visibleNotes.map((note) => note.id));
@@ -3705,6 +3840,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
     conflictDialog !== null ||
     thumbPickerBookmark !== null ||
     showNewFolderDialog ||
+    editingVisualFolder !== null ||
     isVaultMarqueeSelecting;
 
   const handleVaultKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>): void => {
@@ -4010,7 +4146,7 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
             onMouseDown={handleVaultMarqueeMouseDown}
             style={{ flex: 1, overflowY: 'auto', padding: viewMode === 'grid' ? '16px 20px' : 0, position: 'relative', userSelect: 'none' }}
           >
-            {mixedObjects.length === 0 ? (
+            {mixedObjects.length === 0 && visibleChildFolders.length === 0 ? (
               <EmptyVaultState
                 message={filtersActive ? 'No objects match current filters' : 'No objects in this scope'}
                 canClearFilters={filtersActive}
@@ -4022,6 +4158,18 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
               />
             ) : viewMode === 'grid' ? (
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${gridMinCardWidth}px, 1fr))`, gap: 20 }}>
+                {visibleChildFolders.map((folder) => (
+                  <FolderCard
+                    key={`folder-${folder.id}`}
+                    folder={folder}
+                    previewUrls={folderPreviewUrls(folder)}
+                    selected={selectedVisualFolderId === folder.id}
+                    onSelect={selectVisualFolder}
+                    onOpen={openVisualFolder}
+                    onEdit={setEditingVisualFolder}
+                    onDelete={handleDeleteFolder}
+                  />
+                ))}
                 {renderedMixedObjects.map((object) => (
                   object.kind === 'file' ? (
                     <GalleryCard
@@ -4074,11 +4222,25 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
               </div>
             ) : (
               <div className="pv-mixed-list">
-                <MixedListHeader
-                  isMultiSelect={isMultiSelect}
-                  allVisibleSelected={allVisibleSelected}
-                  onToggleSelectAllVisible={handleToggleSelectAllVisible}
-                />
+                {visibleChildFolders.map((folder) => (
+                  <FolderListRow
+                    key={`folder-${folder.id}`}
+                    folder={folder}
+                    previewUrls={folderPreviewUrls(folder)}
+                    selected={selectedVisualFolderId === folder.id}
+                    onSelect={selectVisualFolder}
+                    onOpen={openVisualFolder}
+                    onEdit={setEditingVisualFolder}
+                    onDelete={handleDeleteFolder}
+                  />
+                ))}
+                {mixedObjects.length > 0 && (
+                  <MixedListHeader
+                    isMultiSelect={isMultiSelect}
+                    allVisibleSelected={allVisibleSelected}
+                    onToggleSelectAllVisible={handleToggleSelectAllVisible}
+                  />
+                )}
                 {renderedMixedObjects.map((object) => (
                   object.kind === 'file' ? (
                     <FileListRow
@@ -4184,6 +4346,15 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {isMultiSelect && bulkSummaryTotal > 1 ? (
                 <BulkInspectorSummary total={bulkSummaryTotal} files={selectedItemIds.length} bookmarks={selectedBookmarkIds.length} notes={selectedNoteIds.length} />
+              ) : selectedVisualFolder ? (
+                <FolderInspector
+                  folder={selectedVisualFolder}
+                  previewUrls={folderPreviewUrls(selectedVisualFolder)}
+                  path={findFolderPathById(folders, selectedVisualFolder.id) ?? selectedVisualFolder.name}
+                  onOpen={openVisualFolder}
+                  onEdit={setEditingVisualFolder}
+                  onDelete={handleDeleteFolder}
+                />
               ) : selectedBookmark ? (
                   <BookmarkInspector
                     bookmark={selectedBookmark}
@@ -4264,6 +4435,14 @@ export const VaultPage = ({ onOpenUrlInBrowser }: VaultPageProps): React.JSX.Ele
         onKeepFiles={() => void confirmDeleteFolder(false)}
         onDeleteFiles={() => void confirmDeleteFolder(true)}
         isBusy={isDeletingFolder}
+      />
+
+      <FolderEditDialog
+        folder={editingVisualFolder}
+        folders={folders}
+        onOpenChange={(open) => { if (!open) setEditingVisualFolder(null); }}
+        onRename={handleRenameFolder}
+        onMove={handleMoveFolder}
       />
 
       <ImportSettingsDialog

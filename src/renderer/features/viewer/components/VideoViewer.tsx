@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ChevronDown,
   Edit3,
@@ -29,6 +29,7 @@ const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const VIDEO_ACCENT = 'rgb(124,154,146)';
 const VIDEO_ACCENT_SOFT = 'rgba(124,154,146,0.16)';
 const VIDEO_ACCENT_BORDER = 'rgba(124,154,146,0.44)';
+const COMPACT_VIDEO_HEIGHT = 240;
 
 type VideoViewerProps = {
   src: string;
@@ -90,6 +91,7 @@ export const VideoViewer = ({
   const [renameBusy, setRenameBusy] = useState(false);
   const [scenesOpen, setScenesOpen] = useState(false);
   const [isPlayerFullscreen, setIsPlayerFullscreen] = useState(false);
+  const [isCompactVideo, setIsCompactVideo] = useState(false);
 
   const showControlsTemporarily = useCallback((): void => {
     setControlsVisible(true);
@@ -109,6 +111,20 @@ export const VideoViewer = ({
     if (!video) return;
     video.playbackRate = playbackRate;
   }, [playbackRate, videoRef]);
+
+  useLayoutEffect(() => {
+    const video = videoRef.current;
+    if (!video) return undefined;
+
+    const updateCompactMode = (): void => {
+      const height = video.getBoundingClientRect().height;
+      setIsCompactVideo(!isPlayerFullscreen && height > 0 && height < COMPACT_VIDEO_HEIGHT);
+    };
+    updateCompactMode();
+    const observer = new ResizeObserver(updateCompactMode);
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [isPlayerFullscreen, src, videoRef]);
 
   useEffect(() => {
     setScenesOpen(false);
@@ -228,6 +244,138 @@ export const VideoViewer = ({
 
   const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
   const showResume = showResumePrompt && resumePosition !== null && resumePosition !== undefined;
+  const controls = (
+    <>
+      <div
+        ref={timelineRef}
+        role="slider"
+        aria-label="Video timeline"
+        aria-valuemin={0}
+        aria-valuemax={Math.round(duration)}
+        aria-valuenow={Math.round(currentTime)}
+        tabIndex={0}
+        onPointerDown={handleTimelinePointerDown}
+        className="mb-3 h-4 cursor-pointer py-[6px]"
+      >
+        <div className="relative h-px bg-white/20">
+          <div className="absolute inset-y-0 left-0" style={{ width: `${progressPercent}%`, backgroundColor: VIDEO_ACCENT }} />
+          <div
+            className="absolute top-1/2 h-3 w-3 -translate-y-1/2 border shadow"
+            style={{ left: `calc(${progressPercent}% - 6px)`, borderColor: 'rgba(255,255,255,0.82)', backgroundColor: VIDEO_ACCENT }}
+          />
+        </div>
+      </div>
+
+      <div className="flex max-w-full flex-wrap items-center gap-2 border border-white/10 bg-black/55 px-2 py-2 backdrop-blur">
+        <button
+          type="button"
+          onClick={togglePlayPause}
+          className="flex h-8 w-8 items-center justify-center border border-white/10 text-white/85 hover:bg-white/10 hover:text-white"
+          aria-label={isPlaying ? 'Pause' : 'Play'}
+        >
+          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        </button>
+
+        <span className="min-w-[8.5rem] font-mono text-[11px] text-white/75">
+          {formatDuration(currentTime)} / {duration > 0 ? formatDuration(duration) : '--:--'}
+        </span>
+
+        <button
+          type="button"
+          onClick={toggleMute}
+          className="flex h-8 w-8 items-center justify-center border border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+          aria-label={muted ? 'Unmute' : 'Mute'}
+        >
+          {muted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+        </button>
+
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={muted ? 0 : volume}
+          onChange={(event) => changeVolume(Number(event.currentTarget.value))}
+          className="h-1 w-20 accent-[rgb(124,154,146)]"
+          aria-label="Volume"
+        />
+
+        <div className="h-5 w-px bg-white/15" />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex h-8 items-center gap-2 border px-2 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors hover:bg-white/10"
+              style={{ borderColor: VIDEO_ACCENT_BORDER, color: VIDEO_ACCENT, backgroundColor: VIDEO_ACCENT_SOFT }}
+              aria-label="Playback speed"
+            >
+              Speed · {playbackRate}x
+              <ChevronDown className="h-3 w-3" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            side="top"
+            align="start"
+            sideOffset={8}
+            className="z-[2147483647] min-w-[116px] rounded-none border-white/10 bg-black/90 p-1 shadow-2xl backdrop-blur"
+          >
+            {SPEED_OPTIONS.map((speed) => {
+              const selected = playbackRate === speed;
+              return (
+                <DropdownMenuItem
+                  key={speed}
+                  onClick={() => onPlaybackRateChange(speed)}
+                  className="rounded-none px-2 py-1.5 font-mono text-[11px] text-white/70 focus:bg-white/10 focus:text-white"
+                  style={selected ? { color: VIDEO_ACCENT, backgroundColor: VIDEO_ACCENT_SOFT } : undefined}
+                >
+                  {speed}x
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="h-5 w-px bg-white/15" />
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => void onSaveTimestamp()}
+              className="flex h-8 items-center gap-1 border border-white/10 px-2 font-mono text-[11px] text-white/80 hover:bg-white/10 hover:text-white"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Timestamp
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Save current scene</TooltipContent>
+        </Tooltip>
+
+        <button
+          type="button"
+          onClick={() => setScenesOpen((open) => !open)}
+          className="flex h-8 items-center gap-1 border border-white/10 px-2 font-mono text-[11px] text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+          style={scenesOpen ? { borderColor: VIDEO_ACCENT_BORDER, color: VIDEO_ACCENT, backgroundColor: VIDEO_ACCENT_SOFT } : undefined}
+          aria-label="Saved scenes"
+          title="Saved scenes"
+        >
+          <ListVideo className="h-3.5 w-3.5" />
+          Scenes · {timestamps.length}
+        </button>
+
+        <button
+          type="button"
+          onClick={togglePlayerFullscreen}
+          className="ml-auto flex h-8 w-8 items-center justify-center border border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
+          aria-label="Fullscreen"
+          title="Fullscreen"
+        >
+          <Expand className="h-4 w-4" />
+        </button>
+      </div>
+    </>
+  );
 
   return (
     <div
@@ -238,15 +386,16 @@ export const VideoViewer = ({
       onMouseMove={showControlsTemporarily}
       onFocus={showControlsTemporarily}
     >
-      <div
-        ref={playerFrameRef}
-        className={cn(
-          'relative flex overflow-hidden bg-black shadow-2xl',
-          isPlayerFullscreen
-            ? 'h-screen w-screen border-0'
-            : 'max-h-full max-w-full border border-white/10',
-        )}
-      >
+      <div className={cn('flex max-h-full max-w-full flex-col', isPlayerFullscreen && 'h-screen w-screen')}>
+        <div
+          ref={playerFrameRef}
+          className={cn(
+            'relative flex overflow-hidden bg-black shadow-2xl',
+            isPlayerFullscreen
+              ? 'h-screen w-screen border-0'
+              : 'max-h-full max-w-full border border-white/10',
+          )}
+        >
         <video
           ref={videoRef}
           src={src}
@@ -288,7 +437,7 @@ export const VideoViewer = ({
           }}
         />
 
-        {!isPlaying && (
+        {!isPlaying && !isCompactVideo && (
           <button
             type="button"
             onClick={togglePlayPause}
@@ -325,141 +474,16 @@ export const VideoViewer = ({
           </div>
         )}
 
+        {!isCompactVideo && (
         <div
           className={cn(
             'absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/90 via-black/55 to-transparent px-4 pb-4 pt-14 transition-opacity duration-300',
             controlsVisible ? 'opacity-100' : 'pointer-events-none opacity-0',
           )}
         >
-          <div
-            ref={timelineRef}
-            role="slider"
-            aria-label="Video timeline"
-            aria-valuemin={0}
-            aria-valuemax={Math.round(duration)}
-            aria-valuenow={Math.round(currentTime)}
-            tabIndex={0}
-            onPointerDown={handleTimelinePointerDown}
-            className="mb-3 h-4 cursor-pointer py-[6px]"
-          >
-            <div className="relative h-px bg-white/20">
-              <div className="absolute inset-y-0 left-0" style={{ width: `${progressPercent}%`, backgroundColor: VIDEO_ACCENT }} />
-              <div
-                className="absolute top-1/2 h-3 w-3 -translate-y-1/2 border shadow"
-                style={{ left: `calc(${progressPercent}% - 6px)`, borderColor: 'rgba(255,255,255,0.82)', backgroundColor: VIDEO_ACCENT }}
-              />
-            </div>
-          </div>
-
-          <div className="flex max-w-full flex-wrap items-center gap-2 border border-white/10 bg-black/55 px-2 py-2 backdrop-blur">
-            <button
-              type="button"
-              onClick={togglePlayPause}
-              className="flex h-8 w-8 items-center justify-center border border-white/10 text-white/85 hover:bg-white/10 hover:text-white"
-              aria-label={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </button>
-
-            <span className="min-w-[8.5rem] font-mono text-[11px] text-white/75">
-              {formatDuration(currentTime)} / {duration > 0 ? formatDuration(duration) : '--:--'}
-            </span>
-
-            <button
-              type="button"
-              onClick={toggleMute}
-              className="flex h-8 w-8 items-center justify-center border border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
-              aria-label={muted ? 'Unmute' : 'Mute'}
-            >
-              {muted || volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-            </button>
-
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={muted ? 0 : volume}
-              onChange={(event) => changeVolume(Number(event.currentTarget.value))}
-              className="h-1 w-20 accent-[rgb(124,154,146)]"
-              aria-label="Volume"
-            />
-
-            <div className="h-5 w-px bg-white/15" />
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="flex h-8 items-center gap-2 border px-2 font-mono text-[10px] uppercase tracking-[0.12em] transition-colors hover:bg-white/10"
-                  style={{ borderColor: VIDEO_ACCENT_BORDER, color: VIDEO_ACCENT, backgroundColor: VIDEO_ACCENT_SOFT }}
-                  aria-label="Playback speed"
-                >
-                  Speed · {playbackRate}x
-                  <ChevronDown className="h-3 w-3" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                side="top"
-                align="start"
-                sideOffset={8}
-                className="z-[2147483647] min-w-[116px] rounded-none border-white/10 bg-black/90 p-1 shadow-2xl backdrop-blur"
-              >
-                {SPEED_OPTIONS.map((speed) => {
-                  const selected = playbackRate === speed;
-                  return (
-                    <DropdownMenuItem
-                      key={speed}
-                      onClick={() => onPlaybackRateChange(speed)}
-                      className="rounded-none px-2 py-1.5 font-mono text-[11px] text-white/70 focus:bg-white/10 focus:text-white"
-                      style={selected ? { color: VIDEO_ACCENT, backgroundColor: VIDEO_ACCENT_SOFT } : undefined}
-                    >
-                      {speed}x
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <div className="h-5 w-px bg-white/15" />
-
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => void onSaveTimestamp()}
-                  className="flex h-8 items-center gap-1 border border-white/10 px-2 font-mono text-[11px] text-white/80 hover:bg-white/10 hover:text-white"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Timestamp
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Save current scene</TooltipContent>
-            </Tooltip>
-
-            <button
-              type="button"
-              onClick={() => setScenesOpen((open) => !open)}
-              className="flex h-8 items-center gap-1 border border-white/10 px-2 font-mono text-[11px] text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-              style={scenesOpen ? { borderColor: VIDEO_ACCENT_BORDER, color: VIDEO_ACCENT, backgroundColor: VIDEO_ACCENT_SOFT } : undefined}
-              aria-label="Saved scenes"
-              title="Saved scenes"
-            >
-              <ListVideo className="h-3.5 w-3.5" />
-              Scenes · {timestamps.length}
-            </button>
-
-            <button
-              type="button"
-              onClick={togglePlayerFullscreen}
-              className="ml-auto flex h-8 w-8 items-center justify-center border border-white/10 text-white/70 hover:bg-white/10 hover:text-white"
-              aria-label="Fullscreen"
-              title="Fullscreen"
-            >
-              <Expand className="h-4 w-4" />
-            </button>
-          </div>
+          {controls}
         </div>
+        )}
 
         {scenesOpen && (
           <aside className="absolute bottom-20 right-4 top-4 z-40 flex w-[min(320px,calc(100%-2rem))] flex-col border border-white/10 bg-black/85 shadow-2xl backdrop-blur">
@@ -528,6 +552,12 @@ export const VideoViewer = ({
               )}
             </div>
           </aside>
+        )}
+        </div>
+        {isCompactVideo && !isPlayerFullscreen && (
+          <div className="border border-t-0 border-white/10 bg-black/90 px-3 py-3 shadow-2xl">
+            {controls}
+          </div>
         )}
       </div>
 

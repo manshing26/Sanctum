@@ -7,6 +7,7 @@ import {
   ContextMenuItem,
 } from '../../../components/ui/ContextMenu';
 import { fontSize } from '../../../theme/typography';
+import { FolderEditDialog } from './FolderEditDialog';
 
 const T = {
   bg: '#0a0c0b',
@@ -215,9 +216,6 @@ export const FolderSidebar = ({
   const showNewFolderDialog = createDialogOpen ?? internalShowNewFolderDialog;
   const setShowNewFolderDialog = onCreateDialogOpenChange ?? setInternalShowNewFolderDialog;
   const [editingFolder, setEditingFolder] = useState<FolderNode | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editParentId, setEditParentId] = useState<number | null>(null);
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const parentOptions = flattenFolders(folders);
 
   const handleCreate = (): void => {
@@ -226,46 +224,8 @@ export const FolderSidebar = ({
     setShowNewFolderDialog(false);
   };
 
-  const collectDescendantIds = (folder: FolderNode): Set<number> => {
-    const ids = new Set<number>();
-    const stack = [folder];
-    while (stack.length > 0) {
-      const current = stack.pop() as FolderNode;
-      ids.add(current.id);
-      stack.push(...current.children);
-    }
-    return ids;
-  };
-
   const openEditDialog = (folder: FolderNode): void => {
     setEditingFolder(folder);
-    setEditName(folder.name);
-    setEditParentId(folder.parentId);
-  };
-
-  const closeEditDialog = (): void => {
-    if (isSavingEdit) return;
-    setEditingFolder(null);
-  };
-
-  const handleSaveFolderEdit = async (): Promise<void> => {
-    if (!editingFolder) return;
-    const nextName = editName.trim();
-    if (!nextName) return;
-
-    setIsSavingEdit(true);
-    try {
-      let ok = true;
-      if (nextName !== editingFolder.name) {
-        ok = await onRenameFolder(editingFolder.id, nextName);
-      }
-      if (ok && editParentId !== editingFolder.parentId) {
-        ok = await onMoveFolder(editingFolder.id, editParentId);
-      }
-      if (ok) setEditingFolder(null);
-    } finally {
-      setIsSavingEdit(false);
-    }
   };
 
   const iconAllItems = (
@@ -485,101 +445,13 @@ export const FolderSidebar = ({
         </div>
       )}
 
-      {editingFolder && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 200,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(0,0,0,0.6)',
-          }}
-          onClick={closeEditDialog}
-        >
-          <div
-            style={{
-              background: '#14160f',
-              border: `1px solid ${T.line2}`,
-              padding: 24,
-              width: 340,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontFamily: SERIF, fontSize: fontSize(18), color: T.text, marginBottom: 4 }}>Edit Folder</div>
-            <div style={{ fontFamily: MONO, fontSize: fontSize(10), color: T.mute, marginBottom: 20 }}>Rename this folder or move it under another folder.</div>
-            <form onSubmit={(e) => { e.preventDefault(); void handleSaveFolderEdit(); }}>
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: 'block', fontFamily: MONO, fontSize: fontSize(10), color: T.mute, letterSpacing: '0.08em', marginBottom: 5 }}>FOLDER NAME</label>
-                <input
-                  autoFocus
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  style={{
-                    width: '100%', height: 30,
-                    background: 'transparent',
-                    border: `1px solid ${T.line2}`,
-                    color: T.text, fontFamily: MONO, fontSize: fontSize(12),
-                    padding: '0 8px', outline: 'none', boxSizing: 'border-box',
-                    borderRadius: 0,
-                  }}
-                />
-              </div>
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', fontFamily: MONO, fontSize: fontSize(10), color: T.mute, letterSpacing: '0.08em', marginBottom: 5 }}>PARENT FOLDER</label>
-                <select
-                  value={editParentId ?? 'root'}
-                  onChange={(e) => setEditParentId(e.target.value === 'root' ? null : Number(e.target.value))}
-                  style={{
-                    width: '100%', height: 30,
-                    background: '#0a0c0b',
-                    border: `1px solid ${T.line2}`,
-                    color: T.text, fontFamily: MONO, fontSize: fontSize(11),
-                    padding: '0 8px', outline: 'none', boxSizing: 'border-box',
-                    borderRadius: 0,
-                  }}
-                >
-                  <option value="root">Root (no parent)</option>
-                  {parentOptions
-                    .filter((opt) => !collectDescendantIds(editingFolder).has(opt.id))
-                    .map((opt) => (
-                      <option key={opt.id} value={opt.id}>{opt.label}</option>
-                    ))}
-                </select>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={closeEditDialog}
-                  disabled={isSavingEdit}
-                  style={{
-                    height: 28, padding: '0 14px',
-                    background: 'none', border: `1px solid ${T.line2}`,
-                    cursor: isSavingEdit ? 'default' : 'pointer', color: T.mute,
-                    fontFamily: MONO, fontSize: fontSize(10), borderRadius: 0,
-                    opacity: isSavingEdit ? 0.5 : 1,
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!editName.trim() || isSavingEdit}
-                  style={{
-                    height: 28, padding: '0 14px',
-                    background: T.accent, border: 'none',
-                    cursor: !editName.trim() || isSavingEdit ? 'default' : 'pointer',
-                    color: '#0a0c0b',
-                    fontFamily: MONO, fontSize: fontSize(10),
-                    fontWeight: 500, letterSpacing: '0.06em',
-                    opacity: !editName.trim() || isSavingEdit ? 0.5 : 1,
-                    borderRadius: 0,
-                  }}
-                >
-                  Save
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <FolderEditDialog
+        folder={editingFolder}
+        folders={folders}
+        onOpenChange={(open) => { if (!open) setEditingFolder(null); }}
+        onRename={onRenameFolder}
+        onMove={onMoveFolder}
+      />
     </aside>
   );
 };
