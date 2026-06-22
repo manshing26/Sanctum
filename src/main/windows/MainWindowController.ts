@@ -5,6 +5,7 @@ declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
 export class MainWindowController {
   private window: BrowserWindow | null = null;
+  private onCreated: ((window: BrowserWindow) => void) | undefined;
 
   create(): BrowserWindow {
     if (this.window && !this.window.isDestroyed()) {
@@ -27,6 +28,7 @@ export class MainWindowController {
       },
     });
 
+    this.onCreated?.(this.window);
     this.window.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
 
     this.window.once('ready-to-show', () => {
@@ -58,5 +60,9 @@ export class MainWindowController {
     }
 
     return this.window;
+  }
+
+  setOnCreated(handler: ((window: BrowserWindow) => void) | undefined): void {
+    this.onCreated = handler;
   }
 }

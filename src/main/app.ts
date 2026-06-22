@@ -419,6 +419,7 @@ export const bootstrapApp = (): void => {
       vaultService,
     );
     let isResettingAllData = false;
+    let isQuitting = false;
     let databaseClosed = false;
     void vaultService.clearTemporaryOpenFiles();
     const importService = new ImportService(
@@ -506,7 +507,12 @@ export const bootstrapApp = (): void => {
             state: authService.getSessionState(),
             reason,
           });
-          if (securitySettings.minimizeOnLock && reason !== 'window_minimize' && !win.isMinimized()) {
+          if (
+            securitySettings.minimizeOnLock
+            && reason !== 'window_minimize'
+            && reason !== 'window_close'
+            && !win.isMinimized()
+          ) {
             win.minimize();
           }
         }
@@ -674,30 +680,64 @@ export const bootstrapApp = (): void => {
       return mediaSessionService.createProtocolResponse(request.url, rangeHeader);
     });
 
-    const mainWindow = mainWindowController.create();
-    wireMediaPlaybackTracking(mainWindow.webContents);
+    const approvedWindowCloses = new WeakSet<BrowserWindow>();
+    const pendingWindowCloses = new WeakSet<BrowserWindow>();
+    const wireMainWindow = (window: BrowserWindow): void => {
+      wireMediaPlaybackTracking(window.webContents);
+      window.on('close', (event) => {
+        if (
+          approvedWindowCloses.has(window)
+          || isQuitting
+          || isResettingAllData
+          || sessionStore.getState().status !== 'unlocked'
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+        window.hide();
+        if (pendingWindowCloses.has(window)) {
+          return;
+        }
+        pendingWindowCloses.add(window);
+
+        void (async () => {
+          try {
+            await performGlobalLock('window_close');
+          } finally {
+            pendingWindowCloses.delete(window);
+            approvedWindowCloses.add(window);
+            if (!window.isDestroyed()) {
+              window.close();
+            }
+          }
+        })();
+      });
+      window.on('minimize', () => {
+        if (!securitySettings.lockOnMinimize) {
+          return;
+        }
+        if (sessionStore.getState().status !== 'unlocked') {
+          return;
+        }
+        // Blank the renderer before the asynchronous lock finishes so macOS
+        // cannot expose unlocked content in the Dock/un-minimize animation.
+        window.webContents.send(IPC_CHANNELS.sessionChanged, {
+          state: { status: 'locked', hasVault: true },
+          reason: 'window_minimize',
+        } satisfies import('../shared/ipc').SessionChangedPayload);
+        void performGlobalLock('window_minimize');
+      });
+    };
+    mainWindowController.setOnCreated(wireMainWindow);
+    mainWindowController.create();
     app.on('before-quit', () => {
+      isQuitting = true;
       clearAudioSleepTimer();
       clearPlaybackState();
       if (!isResettingAllData) {
         void vaultService.clearTemporaryOpenFiles();
       }
-    });
-    mainWindow.on('minimize', () => {
-      if (!securitySettings.lockOnMinimize) {
-        return;
-      }
-      if (sessionStore.getState().status !== 'unlocked') {
-        return;
-      }
-      // Send the lock signal synchronously before the async lock completes so the
-      // renderer blanks immediately. On macOS this ensures the Dock thumbnail and
-      // the un-minimize animation show the lock screen rather than the gallery.
-      mainWindow.webContents.send(IPC_CHANNELS.sessionChanged, {
-        state: { status: 'locked', hasVault: true },
-        reason: 'window_minimize',
-      } satisfies import('../shared/ipc').SessionChangedPayload);
-      void performGlobalLock('window_minimize');
     });
     powerMonitor.on('lock-screen', () => {
       if (!securitySettings.lockOnSystemSleepOrLock) {
@@ -937,7 +977,7 @@ export const bootstrapApp = (): void => {
   });
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    if (!mainWindowController.getWindow()) {
       mainWindowController.create();
     }
   });

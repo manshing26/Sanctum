@@ -180,6 +180,7 @@ export type SessionChangeReason =
   | 'manual'
   | 'idle_timeout'
   | 'window_minimize'
+  | 'window_close'
   | 'system_lock'
   | 'system_sleep'
   | 'audio_sleep_timer';

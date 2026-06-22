@@ -655,9 +655,7 @@ export const App: React.FC = () => {
   const refreshSession = async (): Promise<SessionState> => {
     const state = await window.electronAPI.getSession();
     setSession(state);
-    if (state.status !== 'unlocked') {
-      setMode(state.hasVault ? 'login' : 'create-account');
-    }
+    setMode(state.status === 'unlocked' ? 'login' : state.hasVault ? 'login' : 'create-account');
     return state;
   };
 
@@ -668,9 +666,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     const unsubscribe = window.electronAPI.onSessionChanged(({ state, reason }) => {
       setSession(state);
-      if (state.status !== 'unlocked') {
-        setMode(state.hasVault ? 'login' : 'create-account');
-      }
+      setMode(state.status === 'unlocked' ? 'login' : state.hasVault ? 'login' : 'create-account');
       if (reason === 'idle_timeout') {
         toast.warning('Vault locked due to inactivity.');
       } else if (reason === 'window_minimize') {
@@ -798,7 +794,7 @@ export const App: React.FC = () => {
       />
 
       <div className="relative flex min-h-0 flex-1">
-        {mode === 'loading' && <LoadingScreen />}
+        {mode === 'loading' && !isUnlocked && <LoadingScreen />}
 
         {isUnlocked && activeTab === 'gallery' && (
           <div className="flex min-h-0 flex-1">
