@@ -1,6 +1,6 @@
 {
   "name": "sanctum",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Privacy-first media vault with built-in browser",
   "main": ".webpack/main",
   "scripts": {
