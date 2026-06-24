@@ -9,6 +9,7 @@ import { VaultService } from './VaultService';
 import type { CorruptVaultEntry, VaultHealthReport, VaultRepairResult } from '../../../shared/ipc';
 
 type EncryptedPayload = { iv: string; authTag: string; data: string };
+type VaultHealthScanMode = 'quick' | 'deep';
 
 type ObjectRow = {
   id: string;
@@ -93,7 +94,7 @@ export class VaultRecoveryService {
     private readonly vaultService: VaultService,
   ) {}
 
-  scanHealth(): VaultHealthReport {
+  scanHealth(mode: VaultHealthScanMode = 'deep'): VaultHealthReport {
     const checkedAt = timestamp();
     const databaseMessage = this.checkDatabase();
     if (databaseMessage) {
@@ -114,7 +115,7 @@ export class VaultRecoveryService {
 
     this.ensureUnlocked();
     try {
-      const entries = this.collectCorruptEntries();
+      const entries = this.collectCorruptEntries(mode);
       const counts = this.countEntries(entries);
       return {
         status: entries.length > 0 ? 'corrupt_data' : 'ok',
@@ -146,7 +147,7 @@ export class VaultRecoveryService {
 
   async repairCorruptData(): Promise<VaultRepairResult> {
     this.ensureUnlocked();
-    const report = this.scanHealth();
+    const report = this.scanHealth('deep');
     if (report.status === 'malformed_database') {
       throw new Error('Vault database needs rebuild recovery before row repair can run.');
     }
@@ -270,9 +271,9 @@ export class VaultRecoveryService {
     }
   }
 
-  private collectCorruptEntries(): CorruptVaultEntry[] {
+  private collectCorruptEntries(mode: VaultHealthScanMode): CorruptVaultEntry[] {
     const entries: CorruptVaultEntry[] = [];
-    const key = this.sessionStore.getMasterKey();
+    const key = mode === 'deep' ? this.sessionStore.getMasterKey() : null;
     const objectRows = this.db.prepare('SELECT id, type, folder_id FROM vault_objects').all() as ObjectRow[];
     const objectById = new Map(objectRows.map((row) => [row.id, row]));
     const folderIds = new Set((this.db.prepare('SELECT id FROM folders').all() as Array<{ id: number }>).map((row) => row.id));
@@ -303,7 +304,7 @@ export class VaultRecoveryService {
           continue;
         }
         this.validateFile(row, key, entries);
-        if (row.mime_type?.startsWith('audio/')) {
+        if (mode === 'deep' && key && row.mime_type?.startsWith('audio/')) {
           const audioMetadata = audioMetadataByObjectId.get(object.id);
           if (audioMetadata) this.validateAudioMetadata(audioMetadata, key, entries);
         }
@@ -313,7 +314,7 @@ export class VaultRecoveryService {
           entries.push({ id: object.id, kind: 'bookmark', issue: 'Bookmark object has no bookmark record.', action: 'delete_object' });
           continue;
         }
-        this.validateBookmark(row, key, entries);
+        if (mode === 'deep' && key) this.validateBookmark(row, key, entries);
       } else if (object.type === 'note') {
         const row = noteByObjectId.get(object.id);
         if (!row) {
@@ -395,7 +396,7 @@ export class VaultRecoveryService {
           issue: 'Audio bookmark has no matching audio object.',
           action: 'delete_orphan_row',
         });
-      } else if (!this.canDecryptPayload(row.label_enc, key)) {
+      } else if (mode === 'deep' && key && !this.canDecryptPayload(row.label_enc, key)) {
         entries.push({
           id: `audio_bookmarks:${row.id}`,
           kind: 'file',
@@ -418,9 +419,11 @@ export class VaultRecoveryService {
       }
     }
 
-    const passwords = this.db.prepare('SELECT * FROM passwords').all() as PasswordRow[];
-    for (const row of passwords) {
-      this.validatePassword(row, key, entries);
+    if (mode === 'deep' && key) {
+      const passwords = this.db.prepare('SELECT * FROM passwords').all() as PasswordRow[];
+      for (const row of passwords) {
+        this.validatePassword(row, key, entries);
+      }
     }
 
     const referencedFiles = new Set(fileRows.map((row) => row.encrypted_filename));
@@ -438,14 +441,19 @@ export class VaultRecoveryService {
     return this.dedupeEntries(entries);
   }
 
-  private validateFile(row: FileRow, key: Buffer, entries: CorruptVaultEntry[]): void {
+  private validateFile(row: FileRow, key: Buffer | null, entries: CorruptVaultEntry[]): void {
+    const encryptedPath = path.join(this.vaultPaths.filesDir, path.basename(row.encrypted_filename));
+    if (!require('node:fs').existsSync(encryptedPath)) {
+      entries.push({ id: row.vault_object_id, kind: 'file', issue: 'Encrypted file blob is missing.', action: 'delete_object' });
+      return;
+    }
+    if (!key) return;
     if (!this.canDecryptPayload(row.original_filename_enc, key)) {
       entries.push({ id: row.vault_object_id, kind: 'file', issue: 'File name cannot be decrypted.', action: 'delete_object' });
       return;
     }
 
     try {
-      const encryptedPath = path.join(this.vaultPaths.filesDir, path.basename(row.encrypted_filename));
       const encryptedData = require('node:fs').readFileSync(encryptedPath) as Buffer;
       const decrypted = this.cryptoService.decryptBuffer({ iv: row.iv, authTag: row.auth_tag, encrypted: encryptedData }, key);
       if (row.content_hash) {
@@ -491,11 +499,12 @@ export class VaultRecoveryService {
     }
   }
 
-  private validateNote(row: NoteRow, key: Buffer, entries: CorruptVaultEntry[]): void {
+  private validateNote(row: NoteRow, key: Buffer | null, entries: CorruptVaultEntry[]): void {
     if (row.format !== 'plain' && row.format !== 'markdown') {
       entries.push({ id: row.vault_object_id, kind: 'note', issue: 'Note format is invalid.', action: 'delete_object' });
       return;
     }
+    if (!key) return;
     if (!this.canDecryptPayload(row.title_enc, key) || !this.canDecryptPayload(row.body_enc, key)) {
       entries.push({ id: row.vault_object_id, kind: 'note', issue: 'Note fields cannot be decrypted.', action: 'delete_object' });
     }

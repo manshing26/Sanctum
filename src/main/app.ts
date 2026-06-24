@@ -8,6 +8,7 @@ import type {
   ResetAllAppDataInput,
   SecuritySettings,
   SessionChangeReason,
+  SessionState,
 } from '../shared/ipc';
 import { IPC_CHANNELS } from '../shared/ipc';
 import { DatabaseService } from './db/Database';
@@ -470,7 +471,7 @@ export const bootstrapApp = (): void => {
       }
     });
 
-    let isLocking = false;
+    let lockPromise: Promise<SessionState> | null = null;
     let audioSleepTimer: { mode: 'duration' | 'end_of_track'; expiresAt?: number } | null = null;
     let audioSleepTimeout: NodeJS.Timeout | null = null;
     const clearAudioSleepTimer = (): void => {
@@ -478,35 +479,51 @@ export const bootstrapApp = (): void => {
       audioSleepTimeout = null;
       audioSleepTimer = null;
     };
-    const performGlobalLock = async (reason: SessionChangeReason): Promise<void> => {
-      if (isLocking || sessionStore.getState().status !== 'unlocked') {
-        return;
+    const performGlobalLock = async (reason: SessionChangeReason): Promise<SessionState> => {
+      if (lockPromise) {
+        return lockPromise;
+      }
+      if (sessionStore.getState().status !== 'unlocked') {
+        return authService.getSessionState();
       }
 
-      isLocking = true;
-      try {
-        clearAudioSleepTimer();
-        allowPlaybackPowerBlocker = false;
-        await exitBrowserFullscreen();
-        // Mute all webContents immediately so audio stops synchronously before
-        // any async teardown. This covers webviews in the main window (same-window
-        // browser) which are guest processes that keep playing until explicitly stopped.
-        for (const wc of webContents.getAllWebContents()) {
-          wc.setAudioMuted(true);
-        }
-        clearPlaybackState();
-
+      lockPromise = (async () => {
         authService.lockVault();
-        browserWindowController.close();
-        await mediaSessionService.clearAllSessions();
-        await vaultService.clearTemporaryOpenFiles();
-
+        const lockedState = authService.getSessionState();
         const win = mainWindowController.getWindow();
         if (win && !win.isDestroyed()) {
           win.webContents.send(IPC_CHANNELS.sessionChanged, {
-            state: authService.getSessionState(),
+            state: lockedState,
             reason,
           });
+        }
+
+        clearAudioSleepTimer();
+        allowPlaybackPowerBlocker = false;
+        const cleanupSteps: Array<() => Promise<void> | void> = [
+          () => exitBrowserFullscreen(),
+          () => {
+            // Mute all webContents immediately so audio stops synchronously before
+            // any async teardown. This covers webviews in the main window (same-window
+            // browser) which are guest processes that keep playing until explicitly stopped.
+            for (const wc of webContents.getAllWebContents()) {
+              wc.setAudioMuted(true);
+            }
+          },
+          () => clearPlaybackState(),
+          () => browserWindowController.close(),
+          () => mediaSessionService.clearAllSessions(),
+          () => vaultService.clearTemporaryOpenFiles(),
+        ];
+        for (const step of cleanupSteps) {
+          try {
+            await step();
+          } catch (error) {
+            console.warn('Vault locked, but a lock cleanup step did not complete cleanly.', error);
+          }
+        }
+
+        if (win && !win.isDestroyed()) {
           if (
             securitySettings.minimizeOnLock
             && reason !== 'window_minimize'
@@ -516,8 +533,13 @@ export const bootstrapApp = (): void => {
             win.minimize();
           }
         }
+        return lockedState;
+      })();
+
+      try {
+        return await lockPromise;
       } finally {
-        isLocking = false;
+        lockPromise = null;
       }
     };
     requestManualLock = () => {

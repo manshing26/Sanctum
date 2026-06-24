@@ -22,6 +22,7 @@ import {
   type SaveVideoPlaybackPositionInput,
   type SaveAudioPlaybackPositionInput,
   type ScanImportConflictsInput,
+  type ScanVaultHealthInput,
   type ToggleFavoriteInput,
   type SetRatingInput,
   type UpdateItemThumbnailInput,
@@ -88,9 +89,9 @@ export const registerVaultHandlers = ({
   restoreService,
   mainWindowController,
 }: RegisterVaultHandlersParams): void => {
-  ipcMain.handle(IPC_CHANNELS.scanVaultHealth, () => {
+  ipcMain.handle(IPC_CHANNELS.scanVaultHealth, (_event, input?: ScanVaultHealthInput) => {
     try {
-      return { ok: true as const, data: vaultRecoveryService.scanHealth() };
+      return { ok: true as const, data: vaultRecoveryService.scanHealth(input?.mode ?? 'deep') };
     } catch (error) {
       return {
         ok: false as const,

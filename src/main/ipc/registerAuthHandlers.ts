@@ -4,6 +4,7 @@ import {
   type ChangePasswordInput,
   type CreateVaultPasswordInput,
   type SessionChangeReason,
+  type SessionState,
   type UnlockVaultInput,
 } from '../../shared/ipc';
 import { AuthService } from '../services/auth/AuthService';
@@ -13,7 +14,7 @@ type RegisterAuthHandlersParams = {
   authService: AuthService;
   mainWindowController: MainWindowController;
   onUnlock?: () => void;
-  onLock?: (reason: SessionChangeReason) => Promise<void> | void;
+  onLock?: (reason: SessionChangeReason) => Promise<SessionState> | SessionState;
 };
 
 export const registerAuthHandlers = ({ authService, mainWindowController, onUnlock, onLock }: RegisterAuthHandlersParams): void => {
@@ -51,7 +52,7 @@ export const registerAuthHandlers = ({ authService, mainWindowController, onUnlo
       } else {
         authService.lockVault();
       }
-      return { ok: true as const };
+      return { ok: true as const, data: authService.getSessionState() };
     } catch (error) {
       return {
         ok: false as const,

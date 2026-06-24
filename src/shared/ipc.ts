@@ -287,6 +287,10 @@ export type VaultHealthReport = {
   message?: string;
 };
 
+export type ScanVaultHealthInput = {
+  mode?: 'quick' | 'deep';
+};
+
 export type VaultRepairResult = {
   deletedObjects: number;
   deletedPasswords: number;
@@ -834,6 +838,10 @@ export type ExportProgress = {
 export type BackupProgress = {
   total: number;
   processed: number;
+  totalBytes?: number;
+  processedBytes?: number;
+  entryCount?: number;
+  processedEntries?: number;
   currentFile?: string;
   phase?: 'preparing' | 'adding' | 'finalizing' | 'complete';
 };
@@ -892,12 +900,12 @@ export type ElectronAPI = {
   exitApp: () => Promise<void>;
   createVaultPassword: (input: CreateVaultPasswordInput) => Promise<OperationResult>;
   unlockVault: (input: UnlockVaultInput) => Promise<OperationResult>;
-  lockVault: () => Promise<OperationResult>;
+  lockVault: () => Promise<OperationResult<SessionState>>;
   changePassword: (input: ChangePasswordInput) => Promise<OperationResult>;
   getSession: () => Promise<SessionState>;
   listAuthAuditLog: () => Promise<OperationResult<AuthAuditEntry[]>>;
   clearAuthAuditLog: () => Promise<OperationResult>;
-  scanVaultHealth: () => Promise<OperationResult<VaultHealthReport>>;
+  scanVaultHealth: (input?: ScanVaultHealthInput) => Promise<OperationResult<VaultHealthReport>>;
   repairCorruptVaultData: () => Promise<OperationResult<VaultRepairResult>>;
   recoverMalformedDatabase: () => Promise<OperationResult<VaultRepairResult>>;
   importFiles: (input: ImportRequest) => Promise<OperationResult<ImportResult>>;

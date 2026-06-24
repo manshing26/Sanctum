@@ -705,7 +705,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (!isUnlocked || healthScanRanRef.current) return;
     healthScanRanRef.current = true;
-    void window.electronAPI.scanVaultHealth().then((result) => {
+    void window.electronAPI.scanVaultHealth({ mode: 'quick' }).then((result) => {
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -789,7 +789,15 @@ export const App: React.FC = () => {
       toast.error(result.error);
       return;
     }
-    await refreshSession();
+    setSession(result.data);
+    setMode(result.data.status === 'unlocked' ? 'login' : result.data.hasVault ? 'login' : 'create-account');
+    const confirmed = result.data.status === 'locked'
+      ? result.data
+      : await refreshSession();
+    if (confirmed.status !== 'locked') {
+      toast.error('Lock did not complete. Try again.');
+      return;
+    }
     toast.info('Vault locked.');
   };
 

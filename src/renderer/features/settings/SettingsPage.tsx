@@ -753,18 +753,22 @@ const BackupCard: React.FC = () => {
   };
 
   const pct = progress
-    ? progress.phase === 'finalizing' || progress.phase === 'complete'
+    ? progress.phase === 'complete'
       ? 100
-      : progress.total > 0
-        ? Math.round((progress.processed / progress.total) * 100)
-        : 0
+      : progress.totalBytes && progress.totalBytes > 0
+        ? Math.min(99, Math.floor(((progress.processedBytes ?? 0) / progress.totalBytes) * 100))
+        : progress.total > 0
+          ? Math.min(99, Math.floor((progress.processed / progress.total) * 100))
+          : 0
     : 0;
   const progressLabel = progress?.phase === 'preparing'
     ? 'Preparing backup...'
     : progress?.phase === 'finalizing'
       ? 'Finalizing backup...'
       : progress
-        ? `Backing up ${progress.processed} / ${progress.total} entries...`
+        ? progress.totalBytes && progress.totalBytes > 0
+          ? `Backing up ${formatStorageSize(progress.processedBytes ?? 0)} / ${formatStorageSize(progress.totalBytes)}...`
+          : `Backing up ${progress.processed} / ${progress.total} entries...`
         : '';
 
   return (
@@ -1031,7 +1035,7 @@ const StorageSection: React.FC = () => {
     setIsScanningHealth(true);
     setHealthError(null);
     try {
-      const result = await window.electronAPI.scanVaultHealth();
+      const result = await window.electronAPI.scanVaultHealth({ mode: 'deep' });
       if (!result.ok) {
         setHealthError(result.error);
         toast.error(result.error);
@@ -1136,6 +1140,9 @@ const StorageSection: React.FC = () => {
           description="Scan encrypted vault records for unreadable objects, broken references, orphaned blobs, and database damage."
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ margin: 0, fontFamily: MONO, fontSize: fontSize(11), color: T.mute2 }}>
+              Deep scan checks encrypted file contents and may take time for large vaults.
+            </p>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <SecondaryBtn onClick={() => void handleScanHealth()} disabled={isScanningHealth || isRepairingHealth}>
                 {isScanningHealth ? 'Scanning...' : 'Scan Vault Health'}
