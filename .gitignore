@@ -93,3 +93,44 @@ out/
 
 # Electron Builder
 dist/
+
+# --- Sanctum-specific ---
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+
+# Env variants not already covered
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# Vault runtime data — should never live inside the repo,
+# but block it by name in case a local/dev path writes here
+privatevault.db
+privatevault.db-wal
+privatevault.db-shm
+*.pvbackup
+/vault/files/
+/vault/temp/
+
+# Code signing material (certs, signing identities, signing secrets)
+*.p12
+*.pfx
+*.cer
+*.keychain
+*.provisionprofile
+codesign.env
+
+# Recovery tool — decrypted/generated output from local test runs
+recovery-tool/Sanctum-Recovery*/
+recovery-tool/*.zip
+recovery-tool/tmp/
+
+# Local build/release artifacts not already caught
+*.exe
+*.dmg
+*.AppImage
+release/
