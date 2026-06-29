@@ -68,6 +68,7 @@
     "@electron-forge/plugin-fuses": "^7.11.1",
     "@electron-forge/plugin-webpack": "^7.11.1",
     "@electron/fuses": "^1.8.0",
+    "@electron/notarize": "^3.1.1",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/better-sqlite3": "^7.6.13",
     "@types/jest": "^30.0.0",
@@ -122,8 +123,11 @@
       "icon": "assets/icon.icns",
       "target": [
         "dmg"
-      ]
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
     },
+    "afterSign": "scripts/notarize.js",
     "nsis": {
       "oneClick": false,
       "perMachine": false,

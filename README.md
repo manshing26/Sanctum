@@ -1,271 +1,146 @@
+<div align="center">
+
+<img src="./assets/icon.png" alt="Sanctum icon" width="120" height="120">
+
 # Sanctum
 
-A local-first encrypted vault for files, bookmarks, secure notes, passwords, and private browsing. Vault content is encrypted at rest with AES-256-GCM and stays on the local machine.
+**A local-first encrypted vault for files, bookmarks, notes, and passwords.**
+
+No cloud. No accounts. No telemetry. Open source so you don't have to take our word for it.
+
+[Download](https://sanctumvault.app/download) · [How to Use](https://sanctumvault.app/how-to-use) · [FAQ](https://sanctumvault.app/faq) · [sanctumvault.app](https://sanctumvault.app)
+
+</div>
 
 ---
 
-## Features
+## What is Sanctum?
 
-### Vault Objects
+Sanctum is a desktop app for Windows and macOS that keeps your private files, notes, bookmarks, and passwords encrypted and out of sight — even from other accounts or people who share your machine.
 
-- **Mixed object gallery** — files, bookmarks, and secure notes appear together in All Objects and folder views.
-- **Encrypted files** — imported files are stored as encrypted blobs; original filenames are encrypted separately.
-- **Encrypted bookmarks** — bookmark title, URL, and thumbnail data are stored encrypted.
-- **Secure notes** — encrypted note title/body stored in SQLite; supports plain text and Markdown mode.
-- **Visual folders** — Root and folder views show immediate child folders before directly assigned objects. Folders with direct media display an encrypted thumbnail collage; nested-only or empty folders use a folder icon.
-- **Tags** — shared colour-coded tags across vault objects.
-- **Favourites** — favourite files, bookmarks, and notes.
-- **Ratings** — 1-5 star rating for files, bookmarks, and notes.
-- **Search and filters** — search across mixed vault objects, including tags; inside a folder, active search/tag/favourite filters include its complete descendant tree.
-- **Grid and list views** — mixed file/bookmark/note layouts with object type badges.
-- **Keyboard navigation** — arrow keys move through Vault list/grid objects and visual folders; `Enter` opens the focused entry; `Space` remains selection/toggle.
-- **Sorting** — newest/oldest, name, type, and rating ordering. Child folders stay first alphabetically in folder views.
-- **Bulk workflows** — select by checkbox, select all, or drag box; bulk move, favourite, export, and delete.
+Everything happens locally. There's no server, no sync, no account system, and no analytics. Your vault password never leaves your device, and Sanctum can't see inside your vault even if it wanted to.
 
-### File Import, Preview, and Export
+This repository contains the full source code. It's published so the encryption and privacy claims below can be checked rather than just trusted.
 
-- **Import** — drag-and-drop or file picker; SHA-256 duplicate detection; conflict handling for replace / keep both / skip.
-- **Secure delete on import** — optional overwrite/delete of source files after successful import.
-- **Read-only external copies** — unsupported files open as read-only temporary decrypted copies; external edits are not saved back.
-- **Export** — decrypt selected files to a chosen directory.
-- **Document preview** — in-app read-only preview for:
-  - PDF via PDF.js canvas rendering
-  - DOCX via Mammoth readable HTML conversion
-  - TXT, Markdown, CSV, TSV, JSON, XML, HTML
-  - LOG, YAML/YML, TOML, INI, CONF, CFG, ENV, SQL
-  - SVG as source text, not executable rendered SVG
-- **Media viewer** — full-screen image, video, PDF, and document viewer with keyboard shortcut help.
-- **Video media vault controls** — videos resume from the last meaningful stop point and support saved scene timestamps.
-- **Image viewer controls** — zoom, wheel zoom, rotate, reset, fullscreen, and drag-to-pan for zoomed images.
-- **Thumbnail generation** — automatic thumbnails via `sharp` for images and `ffmpeg` for video first frames.
-- **Fast media metadata** — image dimensions are read with `sharp`; video dimensions/duration are extracted with `ffmpeg`.
+- 🔒 **AES-256-GCM** encryption for every file, with a unique IV per item
+- 🔑 **Argon2id** key derivation — your password is never stored, anywhere
+- 💻 **Local only** — no cloud, no sync, no relay
+- 📡 **Zero telemetry** — no analytics, no crash reporting, no network calls except the ones you make yourself in the built-in browser
+- 🗂️ Files, bookmarks, notes, and passwords live together in one encrypted vault
+- 🌐 Built-in private browser with save-to-vault, isolated from your system browser
+- ⚡ Lock hotkey + minimise-on-lock for instantly getting it out of sight
 
-### Secure Notes
+---
 
-- Notes are first-class vault objects.
-- Stored encrypted in the database, not as loose text files.
-- Create/edit notes in a large in-app editor modal.
-- Inspector shows a compact read-only summary and note actions.
-- Supports copy body and single-note export as `.txt` or `.md`.
+## Screenshots
 
-### Bookmark Workflow
+<p align="center">
+  <img src="./assets/shots/unlock.png" alt="Sanctum unlock screen" width="700"><br>
+  <sub>Unlock screen — passphrase-derived key, never stored</sub>
+</p>
 
-- Save browser pages as encrypted bookmarks.
-- Fetch thumbnails from Open Graph metadata when available.
-- Replace bookmark thumbnails manually by choosing an existing Vault image.
-- Browser area screenshots can be captured into Vault and then reused as bookmark thumbnails.
-- Bookmark thumbnail picker supports filename search/filter.
-- The Browser `Saved Web` drawer is read/open-only, searchable, grouped by domain, and opens/closes with `Cmd/Ctrl+B`.
-- Open bookmarks in the built-in browser.
-- Open bookmarks in an installed external private browser: Chrome, Brave, Edge, or Firefox.
-- Import/export Netscape HTML bookmark files; selected bookmark export is supported.
-- Bookmarks share folders, tags, favourites, ratings, and mixed vault views with files and notes.
+<p align="center">
+  <img src="./assets/shots/vault-list.png" alt="Sanctum vault list view" width="700"><br>
+  <sub>Mixed vault — files, bookmarks, and notes in one list</sub>
+</p>
 
-### Password Manager
+<p align="center">
+  <img src="./assets/shots/vault-grid.png" alt="Sanctum vault grid view" width="700"><br>
+  <sub>Grid view with inspector panel</sub>
+</p>
 
-- Dedicated password UI separate from the vault gallery.
-- Password records are encrypted in SQLite.
-- Browser integration can surface saved credentials for the active domain.
+<p align="center">
+  <img src="./assets/shots/browser.png" alt="Sanctum built-in private browser" width="700"><br>
+  <sub>Built-in private browser — isolated session, save-to-vault</sub>
+</p>
 
-### Built-in Private Browser
+---
 
-- Chromium `webview` in a separate Electron session partition.
-- Multi-tab browsing with address bar, stacked tab counts, Saved Web drawer, back/forward/reload, tab close/new-tab shortcuts, and trackpad/mouse back-forward navigation.
-- Configurable default search engine.
-- Sanctum-owned new tab page.
-- Save images/videos from the browser directly into the vault.
-- Capture the visible browser page or drag-select an area and import it directly into Vault as an encrypted PNG.
-- Blocks camera, microphone, notifications, and other permission requests.
-- Pop-ups are blocked by default; user-approved pop-ups open as Sanctum tabs, not native windows.
-- Browser audio is muted on vault lock and can be resumed per tab after unlock.
-- Optional third-party cookie blocking.
-- Clear-on-exit for cookies, cache, localStorage, IndexedDB, service workers, and related web storage.
-- Browser extension/plugin UI is hidden in V1.
+## Download
 
-### Backup, Restore, and Wipe
+Prebuilt installers for Windows and macOS are available on the [Releases](../../releases) page and at [sanctumvault.app/download](https://sanctumvault.app/download), with SHA-256 checksums for verification.
 
-- **Backup** — creates a `.pvbackup` ZIP containing the encrypted DB, encrypted files, and manifest.
-- **Replace restore** — verifies backup password, restores backups created by the current Sanctum backup format, replaces current vault content, and restarts cleanly.
-- **Delete all vault items** — password-confirmed content reset that deletes files, bookmarks, notes, passwords, folders, tags, and metadata while preserving the vault password and app settings.
-- **Reset Sanctum** — password-confirmed full local reset that deletes the vault password, vault data, settings, audit log, browser data, saved tabs, and local preferences, then exits to first-launch state.
-- **Vault health repair** — scans for corrupt vault rows/blobs and can remove unrecoverable data after confirmation.
+Sanctum is free to use, no time limit, no feature restrictions. If you'd like to support development, there's a voluntary one-time contribution option — never required.
 
-### Settings
+---
 
-- **Security** — auto-lock timeout, lock on minimize, lock when computer locks/sleeps, change password, Caps Lock warnings in password fields, and recent security audit log.
-- **Appearance** — text size, thumbnail size, default Vault view.
-- **Browser** — default search engine, third-party cookies, clear-on-exit.
-- **Storage** — backup, replace restore, vault health scan/repair, full vault-content wipe, and full app reset.
-- **About** — app version and crypto/KDF information.
+## Why source-available?
+
+Privacy and encryption tools live or die on trust. Rather than ask you to take a security model on faith, the full implementation is here:
+
+- `src/main/services/auth` — vault creation, unlock, lock, password change
+- `src/main/services/vault` — file encryption, storage, backup/restore
+- `src/preload` — the exact `contextBridge` surface exposed to the renderer
+
+If you know TypeScript, you can verify exactly what happens to your data.
+
+**This repo is open for reading and auditing, not for contributions.** Issues are welcome for bugs, security reports, and feature discussion. Pull requests are not accepted at this time — see [Contributing](#contributing) below.
 
 ---
 
 ## Security Model
 
-- Master key is derived on unlock with Argon2id and kept only in memory.
-- File content uses AES-256-GCM with per-file IV/auth tag.
-- Original filenames are encrypted separately.
-- Thumbnails are encrypted and stored as database BLOBs.
-- Bookmarks, notes, and passwords are encrypted in SQLite.
-- Failed unlock attempts trigger lockout.
-- Security audit log records recent unlock, password-change, vault-wipe, restore, and repair events, including success/failure status without storing sensitive details. Audit records can be cleared independently in Security settings.
-- Temporary opened files are cleared on lock/quit and opened as read-only copies when possible.
-- In-app document preview fetches decrypted bytes through a temporary session URL; supported previews render in memory.
-- HTML/DOCX preview output is sanitized before rendering; SVG is displayed as source text.
-- The built-in browser runs in an isolated Electron partition separate from vault state.
-- External private-browser opening sends the URL to the OS and the selected browser; privacy then depends on that browser's private/incognito mode.
-- Auto-lock can trigger on idle timeout, window minimize, OS lock, and system sleep.
+| | |
+|---|---|
+| **File encryption** | AES-256-GCM, random IV + auth tag per file |
+| **Key derivation** | Argon2id, password never stored — only a verifier hash |
+| **Filenames** | Encrypted separately from file content |
+| **Thumbnails** | Encrypted, stored as database BLOBs — never plain image files on disk |
+| **Bookmarks / Notes / Passwords** | Encrypted at rest in SQLite |
+| **Master key** | Held only in memory while unlocked, zeroed on lock |
+| **Browser session** | Isolated Electron partition, separate from vault state |
+| **Lockout** | Failed unlock attempts trigger a timed lockout |
 
-Sanctum protects data at rest and reduces accidental plaintext exposure. It does not protect decrypted content from software with full access to the unlocked user session or operating system.
+Sanctum protects data **at rest**. It does not protect decrypted content from malware or another process with full access to your unlocked session, and the built-in browser does not include a VPN — your network traffic is still visible to your ISP or network. See the [FAQ](https://sanctumvault.app/faq) for the full picture.
+
+Full technical detail lives in [`ARCHITECTURE.md`](./ARCHITECTURE.md) — database schema, IPC design, process architecture, and backup format.
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Shell | Electron 40 with context isolation and no renderer `nodeIntegration` |
-| Main process | Node.js + TypeScript |
-| Renderer | React 19 + TypeScript + Tailwind CSS v4 |
-| UI components | Radix UI primitives + CVA |
-| Database | SQLite via `better-sqlite3` with WAL mode |
-| Encryption | Node.js `crypto` AES-256-GCM |
-| KDF | `argon2` Argon2id |
-| Thumbnails and media metadata | `sharp`, `ffmpeg-static` |
-| Document preview | `pdfjs-dist`, `mammoth`, `dompurify` |
-| Backup/zip | `archiver`, `adm-zip` |
-| Bundler | Webpack via Electron Forge |
+Electron · TypeScript · React · SQLite (`better-sqlite3`) · Node `crypto` (AES-256-GCM) · `argon2` (Argon2id)
+
+Full stack table and project structure: [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 
 ---
 
-## Project Structure
+## Contributing
 
-```text
-src/
-├── main/
-│   ├── app.ts                         # App bootstrap, services, windows, IPC registration
-│   ├── db/Database.ts                 # SQLite schema and migrations
-│   ├── ipc/                           # IPC handlers by domain
-│   ├── services/
-│   │   ├── auth/                      # Vault create/unlock/lock/change password
-│   │   ├── bookmark/                  # Encrypted bookmark CRUD
-│   │   ├── folder/                    # Shared folder tree
-│   │   ├── note/                      # Encrypted secure notes
-│   │   ├── password/                  # Encrypted password records
-│   │   ├── tag/                       # Shared tag CRUD
-│   │   ├── import/                    # Import, metadata, thumbnails
-│   │   ├── security/                  # Secure delete
-│   │   ├── settings/                  # App settings
-│   │   └── vault/                     # File storage, backup/restore, media sessions
-│   ├── state/SessionStore.ts          # In-memory master key/session state
-│   └── windows/                       # Main and browser window controllers
-├── preload/                           # contextBridge APIs
-├── renderer/
-│   ├── App.tsx                        # Auth screens, top nav, session state
-│   ├── features/
-│   │   ├── gallery/                   # Vault tab, mixed object UI, inspector
-│   │   ├── viewer/                    # Media/document preview overlay
-│   │   ├── browser/                   # Private browser workspace
-│   │   ├── passwords/                 # Password manager
-│   │   └── settings/                  # Settings page
-│   └── components/ui/                 # Shared UI primitives
-└── shared/
-    ├── browserSearch.ts               # Browser search engine templates
-    ├── fileTypes.ts                   # MIME detection and previewability
-    ├── ipc.ts                         # IPC channel names and shared types
-    └── global.d.ts                    # Window API types
-```
+Sanctum does not accept pull requests at this time. The codebase is small, opinionated, and maintained by one person — keeping changes centralised is what makes the security claims in this README possible to stand behind.
+
+You're welcome to:
+- Open an **issue** for bugs or unexpected behaviour
+- Open an issue to **report a security concern** (see below)
+- Open an issue to **suggest a feature** — no promises, but all read
+- **Fork and modify** for your own personal use, subject to the license
+
+You're not able to:
+- Open a pull request — these will be closed unreviewed
+- Redistribute a modified version as "Sanctum" — see [`LICENSE`](./LICENSE)
+
+### Reporting a security issue
+
+If you find a genuine security vulnerability, please open an issue marked `security` with as much detail as you can. *(A private disclosure address may be added here.)*
 
 ---
 
-## Data Layout
-
-All app data is stored under Electron `userData`:
-
-```text
-{userData}/
-└── privateVault/
-    ├── privatevault.db
-    ├── privatevault.db-wal
-    ├── privatevault.db-shm
-    └── vault/
-        ├── version.json
-        ├── files/                     # encrypted file blobs
-        └── temp/                      # temporary sessions, opened copies, restore work
-```
-
-### Database Schema v4
-
-Files, bookmarks, and notes share `vault_objects` so they can be mixed in gallery views and share folders/tags/favourites.
-
-| Table | Purpose |
-|---|---|
-| `auth_state` | Argon2id verifier, failed attempts, lockout timestamp |
-| `auth_audit_log` | Recent security event audit records |
-| `vault_config` | KDF salt and Argon2id parameters |
-| `vault_objects` | Parent row for `file`, `bookmark`, and `note` objects |
-| `vault_items` | File metadata, encrypted filename, encrypted blob metadata, thumbnails, hashes |
-| `bookmarks` | Encrypted title, URL, and thumbnail data |
-| `notes` | Encrypted note title/body and note format |
-| `video_playback_positions` | Last watched position for imported videos |
-| `video_timestamps` | Saved scene timestamps for imported videos |
-| `folders` | Shared nested folder tree |
-| `tags` | Shared tag names and colours |
-| `object_tags` | Many-to-many object/tag assignments |
-| `passwords` | Encrypted password records |
-| `settings` | App settings |
-| `schema_meta` | Internal schema version |
-
-Migrations from older schemas run at startup. v3 introduced mixed vault objects; v4 adds notes.
+## License
+ 
+Licensed under [GPL-3.0](./LICENSE).
+ 
+The "Sanctum" and "Sanctum Vault" names and logo are not covered by this license for use in derivative or competing distributions — see the notice at the top of [`LICENSE`](./LICENSE) for details.
 
 ---
 
-## Backup Format
+## Disclaimer
 
-`.pvbackup` files are ZIP archives:
-
-```text
-privatevault.db
-vault/version.json
-vault/files/*.enc
-backup_manifest.json
-```
-
-- Replace restore supports backups created by the current Sanctum backup format and requires the password that was active when the backup was created.
-- Restoring replaces the current vault content and then restarts the app.
-- Backups include encrypted files and encrypted database content, not plaintext exports.
-- Backups include recent security audit records, but not plaintext secrets.
+Sanctum is provided as-is. There is no password recovery — if you forget your vault password, your data cannot be recovered, by design. Use is intended for lawful personal use only. See the full [Terms](https://sanctumvault.app/terms) for details.
 
 ---
 
-## Development
+<div align="center">
 
-```bash
-npm install
-npm start           # Start in development mode
-npx tsc --noEmit    # Type check
-npm test            # Run tests
-npm run make        # Package for the current platform
-npm run build:mac   # Build macOS installer artifacts
-npm run build:win   # Build Windows NSIS installer
-```
+silentium · sigillum
 
-Notes:
-- `npm run package` / `npm run make` may need network access for Electron packaging metadata or platform assets.
-- The Windows NSIS installer is current-user only (`perMachine: false`, `allowElevation: false`) to avoid the all-users/elevation handoff during install.
-- Linux packaging is not a V1 release target. Debian/RPM maker support exists in the toolchain, but Linux has not been treated as a QA platform.
-- Build artifacts such as `.webpack/`, `out/`, and `dist/` can be large and should not be treated as source size.
-
----
-
-## Current Preview Support
-
-| Category | Formats |
-|---|---|
-| Media | common image/video MIME types |
-| PDF | `.pdf` |
-| Word | `.docx` |
-| Text/data | `.txt`, `.md`, `.csv`, `.tsv`, `.json`, `.xml`, `.html` |
-| Source/config | `.log`, `.yaml`, `.yml`, `.toml`, `.ini`, `.conf`, `.cfg`, `.env`, `.sql` |
-| SVG | `.svg` as source text |
-| External read-only fallback | `.doc`, `.rtf`, `.xls/.xlsx`, `.ppt/.pptx`, ODF, unknown binary files |
+</div>
