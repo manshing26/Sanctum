@@ -27,7 +27,7 @@ jobs:
         run: npm ci
 
       - name: Build Windows installer
-        run: npm run build:win
+        run: npm run build:win -- --publish never
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -63,7 +63,7 @@ jobs:
           APPLE_API_KEY_PATH: ${{ github.workspace }}/apple_api_key.p8
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-        run: npm run build:mac
+        run: npm run build:mac -- --publish never
 
       - name: Clean up API key file
         if: always()
